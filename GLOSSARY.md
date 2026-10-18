@@ -1,4 +1,4 @@
-# Project Manager
+# Lodestar
 
 Week-to-week tracking of a project's open Actions, Risks and Blockers, used to drive regular status meetings held outside the tool.
 
