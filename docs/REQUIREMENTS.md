@@ -14,19 +14,20 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | FR-02 | M | When the UI is opened, the user must select an existing **Person** or create one. That Person becomes the **Acting Person** for the session. |
 | FR-03 | M | The UI shows the current **Acting Person** and lets the user switch to a different one. |
 | FR-04 | S | The **Acting Person** is remembered per browser between visits. |
-| FR-05 | M | A **Person**'s display name can be edited. |
+| FR-05 | M | A **Person**'s display name (required, up to 100 characters) can be edited. People are never deleted. |
 
 ### 1.2 Projects
 
 | ID | Pri | Requirement |
 |----|-----|-------------|
 | FR-10 | M | A **Project** can be created with a name and an optional description. |
+| FR-18 | M | Every description is required, trimmed, must not be empty, and can be up to 4,000 characters. A Project name is required, up to 100 characters. |
 | FR-11 | M | When a Project is created, a **Project Code** is suggested from its name (FR-16). The user can edit the suggestion before saving. Once the Project is created, the code never changes, even if the Project is renamed. |
 | FR-16 | M | The suggested code is an acronym of the name. Filler words (a, an, the, of, and, for, …) and non-letters are ignored. With four or more remaining words, it is the first letter of each of the first four. With fewer words, each word gives its letters in order and earlier words give the extra letters, until there are four (`Cake Eater` → `CAEA`, `Big Red Dog` → `BIRD`, `Website` → `WEBS`). If a word runs out of letters, the next word gives more. If the result is already taken, a number is added to the end (`WEBR1`, `WEBR2`, …). |
 | FR-17 | M | A **Project Code** must be unique, and must start with an uppercase letter followed by 1–9 uppercase letters or digits. Suggested and edited codes are validated the same way. |
 | FR-12 | M | The **Person** who creates a **Project** automatically becomes a **Member** and its **Project Leader**. |
-| FR-13 | M | The **Project Leader** can be changed to any other **Member**. It is shown for display only and grants no permissions in the MVP. |
-| FR-14 | M | A **Project** can be archived and unarchived. Archived Projects are read-only and hidden from the default Project list. |
+| FR-13 | M | The **Project Leader** can be changed to any other **Member**. It is shown for display only and grants no permissions in the MVP. If the Project Leader is removed as a Member, the Project has no Project Leader until one is set, and the UI flags this. |
+| FR-14 | M | A **Project** can be archived and unarchived. While a Project is archived, nothing in it can be changed (its items, Members or Health Rating), and it is hidden from the default Project list. |
 | FR-15 | M | **Projects** are never deleted through the UI or the API. |
 
 ### 1.3 Members
@@ -35,14 +36,14 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 |----|-----|-------------|
 | FR-20 | M | Any **Person** can be added to a **Project** as a **Member**. |
 | FR-21 | M | A **Member** can be removed from a **Project**. Every open **Action** assigned to them, and every open **Blocker** they're accountable for, becomes unassigned. |
-| FR-22 | M | Closed items keep their reference to a removed **Member**. |
+| FR-22 | M | Closed items keep their reference to a removed **Member**. A removed Person can be added back as a Member, but their old items aren't reassigned to them. |
 | FR-23 | M | The UI makes open items with no assignee stand out, and lets them be filtered. |
 
 ### 1.4 Actions
 
 | ID | Pri | Requirement |
 |----|-----|-------------|
-| FR-30 | M | An **Action** has a description, an optional assignee (one **Member**), an optional due date, and a state of open or closed. |
+| FR-30 | M | An **Action** has a description, an optional assignee (one **Member**), an optional due date (dates in the past are allowed), and a state of open or closed. |
 | FR-31 | M | An **Action** can be created, edited, closed and reopened. |
 | FR-32 | M | When an **Action** is created, it is given the next **Reference** in its Project (`A-0001`, `A-0002`, …). |
 | FR-33 | S | An open **Action** past its due date is highlighted. |
@@ -64,6 +65,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | FR-50 | M | A **Blocker** has a description, an optional accountable **Member**, a state of open or cleared, and links to zero or more **Actions** in the same Project that it blocks. |
 | FR-51 | M | A **Blocker** can be created, edited, cleared and reopened, and its links to **Actions** can be added or removed. |
 | FR-52 | M | When a **Blocker** is created, it is given the next **Reference** in its Project (`B-0001`, …). |
+| FR-54 | M | Links between Blockers and Actions can be added or removed whatever state either item is in. A Blocker only counts as blocking while it is open. |
 | FR-53 | S | An **Action** shows any open **Blockers** that block it. |
 
 ### 1.7 References

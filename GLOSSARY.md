@@ -24,11 +24,11 @@ A Person who has been added to a Project. Only Members can be assigned Actions o
 _Avoid_: Participant, team member
 
 **Project Leader**:
-The Member shown as leading a Project. By default this is the Person who created the Project.
+The Member shown as leading a Project. By default this is the Person who created the Project. A Project can have no Project Leader in the MVP. Once permissions exist, a Project Leader will be required, because they manage permissions within the Project.
 _Avoid_: Project manager, team lead, owner
 
 **Person**:
-A real individual, as the tool knows them: someone who can be a Member, be assigned Actions, or be accountable for Blockers. One Person can be in many Projects. A Person may be linked to a User Account, but doesn't have to be.
+A real individual, as the tool knows them: someone who can be a Member, be assigned Actions, or be accountable for Blockers. One Person can be in many Projects. A Person may be linked to a User Account, but doesn't have to be. People are never deleted.
 _Avoid_: User, team member, resource
 
 **Action**:
