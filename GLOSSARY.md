@@ -56,5 +56,5 @@ The short, human-readable label shown for an Action, Risk or Blocker, made of a 
 _Avoid_: ID, key, number
 
 **Change History**:
-The recorded sequence of every change made to an Action, Risk, Blocker or Health Rating. Each entry records the Acting Person who made the change. It is kept but not normally shown.
+The recorded sequence of every change made to an Action, Risk, Blocker or Health Rating. Each entry records the Acting Person who made the change. It is used for reporting only, never to rebuild current state.
 _Avoid_: Audit log, updates
