@@ -8,7 +8,7 @@ Week-to-week tracking of a project's open Actions, Risks and Blockers, used to d
 A body of work whose Actions, Risks and Blockers are tracked together and reported on. A finished Project is archived, not deleted.
 
 **Project Code**:
-A short, unique, unchangeable label for a Project (e.g. ALPHA), used to tell References apart across Projects.
+A short, unique, unchangeable label for a Project, derived from its name (e.g. WEBR), used to tell References apart across Projects.
 _Avoid_: Key, slug, prefix
 
 **User Account** (future):

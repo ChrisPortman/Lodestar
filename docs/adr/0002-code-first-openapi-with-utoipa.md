@@ -1,0 +1,3 @@
+# Code-first OpenAPI with utoipa
+
+The REST API (`/api/v1`) is defined in Rust: the axum handlers and types are the source of truth, and the OpenAPI document is generated from them with utoipa. The frontend's TypeScript types are generated from that document with openapi-typescript. We chose this over a spec-first approach (openapi-generator `rust-axum`) to avoid a Java toolchain in the build and non-idiomatic generated server code. The cost is that utoipa annotations can drift from handler behaviour, so CI should check the published spec for changes, and reviewers should treat spec changes as contract changes.
