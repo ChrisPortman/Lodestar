@@ -21,7 +21,9 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | ID | Pri | Requirement |
 |----|-----|-------------|
 | FR-10 | M | A **Project** can be created with a name and an optional description. |
-| FR-11 | M | The **Project Code** is generated automatically when the Project is created: four uppercase letters derived from the Project name (e.g. "Website Redesign" → `WEBR`). If that code is already taken, a number is added to the end (`WEBR1`, `WEBR2`, …). It is unique across the system and never changes, even if the Project is renamed. |
+| FR-11 | M | When a Project is created, a **Project Code** is suggested from its name (FR-16). The user can edit the suggestion before saving. Once the Project is created, the code never changes, even if the Project is renamed. |
+| FR-16 | M | The suggested code is an acronym of the name. Filler words (a, an, the, of, and, for, …) and non-letters are ignored. With four or more remaining words, it is the first letter of each of the first four. With fewer words, each word gives its letters in order and earlier words give the extra letters, until there are four (`Cake Eater` → `CAEA`, `Big Red Dog` → `BIRD`, `Website` → `WEBS`). If a word runs out of letters, the next word gives more. If the result is already taken, a number is added to the end (`WEBR1`, `WEBR2`, …). |
+| FR-17 | M | A **Project Code** must be unique, and must start with an uppercase letter followed by 1–9 uppercase letters or digits. Suggested and edited codes are validated the same way. |
 | FR-12 | M | The **Person** who creates a **Project** automatically becomes a **Member** and its **Project Leader**. |
 | FR-13 | M | The **Project Leader** can be changed to any other **Member**. It is shown for display only and grants no permissions in the MVP. |
 | FR-14 | M | A **Project** can be archived and unarchived. Archived Projects are read-only and hidden from the default Project list. |
