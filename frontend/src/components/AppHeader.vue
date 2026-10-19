@@ -16,7 +16,7 @@ function switchTo(event: Event) {
 </script>
 
 <template>
-  <header class="border-b border-gray-200 bg-white">
+  <header class="border-b border-gray-200 bg-white print:hidden">
     <div class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
       <RouterLink to="/projects" class="text-lg font-semibold">Lodestar</RouterLink>
       <nav v-if="acting" class="flex gap-4 text-sm">
