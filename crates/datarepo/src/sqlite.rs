@@ -2,6 +2,7 @@
 //! Queries use sqlx's compile-time checked macros against `.sqlx/`.
 
 mod actions;
+mod blockers;
 mod risks;
 
 use std::collections::{BTreeSet, HashSet};
@@ -14,9 +15,9 @@ use lodestar_core::history::{
 };
 use lodestar_core::person::{DisplayName, Person, PersonId, PersonView};
 use lodestar_core::ports::{
-    ActionRepository, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository,
-    ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError,
-    RiskRepository, Transaction, UnitOfWork,
+    ActionRepository, BlockerRepository, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort,
+    PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
+    ReferenceKind, RepoError, RiskRepository, Transaction, UnitOfWork,
 };
 use lodestar_core::project::{
     Description, HealthRating, PersonRef, Project, ProjectCode, ProjectId, ProjectName,
@@ -112,6 +113,10 @@ impl Transaction for SqliteTx {
 
     fn actions(&mut self) -> impl ActionRepository + Send + '_ {
         actions::SqliteActions(&mut self.0)
+    }
+
+    fn blockers(&mut self) -> impl BlockerRepository + Send + '_ {
+        blockers::SqliteBlockers(&mut self.0)
     }
 
     fn risks(&mut self) -> impl RiskRepository + Send + '_ {

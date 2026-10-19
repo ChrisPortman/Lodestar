@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ba.blocker_id, a.id AS action_id, a.reference\n         FROM blocker_actions ba JOIN actions a ON a.id = ba.action_id\n         WHERE ba.blocker_id IN (SELECT value FROM json_each(?))\n         ORDER BY a.reference, a.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "blocker_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocker_actions",
+            "name": "blocker_id"
+          }
+        }
+      },
+      {
+        "name": "action_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "reference",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "reference"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ef37f4dc144d7ccc1b276034cc454a6bdb372083992043c8b5814b8d9576ff5d"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO blocker_actions (blocker_id, action_id) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "76679bed3a402e4cfd60ab0ff2e17df5e3f4bdd800e837dc2fbbf66022b7685a"
+}

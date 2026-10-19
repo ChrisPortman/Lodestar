@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM blockers\n             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR cleared = 0)",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "19e338e40d00a36d34b3f4ab6a966185a15ea43853e033d74ccc04ce3a214371"
+}

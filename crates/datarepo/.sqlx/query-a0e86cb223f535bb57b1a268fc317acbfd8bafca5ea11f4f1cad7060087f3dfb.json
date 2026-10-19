@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE blockers SET description = ?, accountable_id = ?, cleared = ?,\n                        version = ?\n                     WHERE id = ? AND version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "a0e86cb223f535bb57b1a268fc317acbfd8bafca5ea11f4f1cad7060087f3dfb"
+}

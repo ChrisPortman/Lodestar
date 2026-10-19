@@ -7,8 +7,13 @@ use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
     ActionFilter, ActionRepository, ActionsQuery, Page, PageRequest, ReferenceKind, RepoError,
 };
-use lodestar_core::project::{PersonRef, ProjectId};
+use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
+use std::collections::HashMap;
+
 use sqlx::Sqlite;
+use uuid::Uuid;
+
+use super::blockers::open_blockers_of;
 
 use super::{
     NewEntry, SqliteStore, corrupt, count, description, map_constraint, record_history, unexpected,
@@ -189,16 +194,19 @@ struct ActionViewRow {
     version: i64,
 }
 
-impl TryFrom<ActionViewRow> for ActionView {
-    type Error = RepoError;
-
-    fn try_from(r: ActionViewRow) -> Result<Self, RepoError> {
+impl ActionViewRow {
+    fn into_view(
+        self,
+        blockers: &mut HashMap<Uuid, Vec<ItemRef>>,
+    ) -> Result<ActionView, RepoError> {
+        let r = self;
+        let id = uuid(&r.id)?;
         let assignee = person(r.assignee_id.as_deref())?.map(|id| PersonRef {
             id,
             display_name: r.assignee_name.unwrap_or_default(),
         });
         Ok(ActionView {
-            id: ActionId::from_uuid(uuid(&r.id)?),
+            id: ActionId::from_uuid(id),
             project_id: ProjectId::from_uuid(uuid(&r.project_id)?),
             project_code: r.project_code,
             reference: ReferenceKind::Action.reference(version(r.reference)?),
@@ -206,8 +214,22 @@ impl TryFrom<ActionViewRow> for ActionView {
             assignee,
             due_date: r.due_date.as_deref().map(date).transpose()?,
             closed: r.closed != 0,
+            blocked_by: blockers.remove(&id).unwrap_or_default(),
             version: version(r.version)?,
         })
+    }
+}
+
+impl SqliteStore {
+    async fn action_views(&self, rows: Vec<ActionViewRow>) -> Result<Vec<ActionView>, RepoError> {
+        let ids = rows
+            .iter()
+            .map(|r| uuid(&r.id))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut blockers = open_blockers_of(&self.pool, ids).await?;
+        rows.into_iter()
+            .map(|r| r.into_view(&mut blockers))
+            .collect()
     }
 }
 
@@ -248,10 +270,7 @@ impl ActionsQuery for SqliteStore {
         .fetch_one(&self.pool)
         .await
         .map_err(unexpected)?;
-        let items = rows
-            .into_iter()
-            .map(ActionView::try_from)
-            .collect::<Result<_, RepoError>>()?;
+        let items = self.action_views(rows).await?;
         Ok(Page {
             items,
             total: count(total)?,
@@ -260,7 +279,7 @@ impl ActionsQuery for SqliteStore {
 
     async fn get_action(&self, id: ActionId) -> Result<ActionView, RepoError> {
         let id_text = id.to_string();
-        sqlx::query_as!(
+        let row = sqlx::query_as!(
             ActionViewRow,
             r#"SELECT a.id, a.project_id, p.project_code, a.reference, a.description,
                       a.assignee_id, pe.display_name AS "assignee_name?", a.due_date,
@@ -274,7 +293,10 @@ impl ActionsQuery for SqliteStore {
         .fetch_optional(&self.pool)
         .await
         .map_err(unexpected)?
-        .ok_or(RepoError::NotFound)?
-        .try_into()
+        .ok_or(RepoError::NotFound)?;
+        self.action_views(vec![row])
+            .await?
+            .pop()
+            .ok_or_else(|| corrupt("actions.id", &id_text))
     }
 }
