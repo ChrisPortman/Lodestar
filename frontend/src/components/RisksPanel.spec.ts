@@ -184,6 +184,30 @@ describe('Risks panel', () => {
     )
   })
 
+  it('sorts by Reference by default or by score, and filters by state', async () => {
+    await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project()],
+      [
+        risk({ id: 'r1', reference: 'R-001', description: 'Low', likelihood: 1, impact: 2 }),
+        risk({ id: 'r2', reference: 'R-002', description: 'High', likelihood: 5, impact: 5 }),
+        risk({ id: 'r3', reference: 'R-003', description: 'Gone', closed: true }),
+      ],
+    )
+    const refs = async () =>
+      (await openRisks()).map((li) => li.querySelector('.font-mono')!.textContent)
+    await waitFor(async () => expect(await refs()).toEqual(['R-001', 'R-002']))
+    const region = await panel()
+    await userEvent.selectOptions(within(region).getByLabelText('Sort Risks'), 'score')
+    expect(await refs()).toEqual(['R-002', 'R-001'])
+    expect(within(region).queryByLabelText('Filter Risks by assignee')).toBeNull()
+    await userEvent.selectOptions(within(region).getByLabelText('Filter Risks by state'), 'closed')
+    expect(await openRisks()).toHaveLength(0)
+    expect(within(region).getByText('Closed (1)').closest('details')!.open).toBe(true)
+  })
+
   it('is read-only in an archived Project', async () => {
     await renderApp(
       '/projects/p1',

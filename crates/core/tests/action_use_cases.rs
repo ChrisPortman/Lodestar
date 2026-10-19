@@ -406,6 +406,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
         ActionFilter {
             project_id: Some(w.project.id()),
             include_closed: false,
+            ..ActionFilter::default()
         },
         PageRequest::first(10),
     )
@@ -417,6 +418,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
         ActionFilter {
             project_id: Some(w.project.id()),
             include_closed: true,
+            ..ActionFilter::default()
         },
         PageRequest::first(10),
     )
@@ -428,6 +430,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
         ActionFilter {
             project_id: None,
             include_closed: false,
+            ..ActionFilter::default()
         },
         PageRequest::first(10),
     )

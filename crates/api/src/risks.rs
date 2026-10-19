@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
+    filters::StateParam,
     people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
     projects::not_allowed,
@@ -160,9 +161,12 @@ pub struct ListParams {
     offset: Option<u32>,
     #[param(inline)]
     sort: Option<RiskSortParam>,
-    /// Include closed Risks.
+    /// Include closed Risks. Ignored when `state` is given.
     #[param(default = false)]
     include_closed: Option<bool>,
+    /// Open (the default), closed or all Risks.
+    #[param(inline)]
+    state: Option<StateParam>,
 }
 
 /// Lists Risks, ordered by ID unless `sort` is given. Closed Risks are left
@@ -194,9 +198,11 @@ async fn list(
         RiskSortParam::Reference => RiskSort::Reference,
         RiskSortParam::Score => RiskSort::Score,
     };
+    let (include_closed, closed_only) = StateParam::flags(params.state, params.include_closed);
     let filter = RiskFilter {
         project_id: params.project_id.map(ProjectId::from_uuid),
-        include_closed: params.include_closed.unwrap_or(false),
+        include_closed,
+        closed_only,
     };
     let page = state
         .risks

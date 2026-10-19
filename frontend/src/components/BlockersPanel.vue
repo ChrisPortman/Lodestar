@@ -17,6 +17,8 @@ import {
 import { useMembers } from '../members'
 import DescriptionEditor from './DescriptionEditor.vue'
 import ItemPanel from './ItemPanel.vue'
+import ListControls from './ListControls.vue'
+import { applyQuery, useListQuery } from '../listControls'
 
 const props = defineProps<{ project: Project }>()
 
@@ -30,8 +32,19 @@ const clear = useSetBlockerCleared()
 const link = useLinkAction()
 const unlink = useUnlinkAction()
 
-const open = computed(() => (blockers.data.value ?? []).filter((b) => !b.cleared))
-const cleared = computed(() => (blockers.data.value ?? []).filter((b) => b.cleared))
+const query = useListQuery()
+const SORTS = [
+  { value: 'reference', label: 'Reference' },
+  { value: 'assignee', label: 'Accountable' },
+]
+const shown = computed(() =>
+  applyQuery(blockers.data.value ?? [], query, {
+    reference: (b) => b.reference,
+    assignee: (b) => b.accountable ?? null,
+  }),
+)
+const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((b) => !b.cleared)))
+const cleared = computed(() => (query.state === 'open' ? [] : shown.value.filter((b) => b.cleared)))
 const writable = computed(() => !props.project.archived)
 const error = computed(
   () =>
@@ -92,6 +105,7 @@ function linkChosen(blocker: Blocker, event: Event) {
     :finalised="cleared"
     finalised-label="Cleared"
     :can-add="writable"
+    :expand-finalised="query.state === 'closed'"
   >
     <template #add="{ done }">
       <DescriptionEditor
@@ -103,6 +117,14 @@ function linkChosen(blocker: Blocker, event: Event) {
       />
     </template>
 
+    <ListControls
+      title="Blockers"
+      :query="query"
+      :sorts="SORTS"
+      :people="members.data.value ?? []"
+      person-label="accountable"
+      finalised-label="Cleared"
+    />
     <p v-if="error" role="alert" class="mt-2 text-sm text-red-700">
       Couldn't save: {{ error.message }}
     </p>

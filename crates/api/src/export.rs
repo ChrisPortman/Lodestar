@@ -170,6 +170,7 @@ async fn export(
             ActionFilter {
                 project_id: Some(project_id),
                 include_closed: true,
+                ..ActionFilter::default()
             },
             page,
         )
@@ -181,6 +182,7 @@ async fn export(
             RiskFilter {
                 project_id: Some(project_id),
                 include_closed: true,
+                ..RiskFilter::default()
             },
             RiskSort::Reference,
         )
@@ -191,6 +193,7 @@ async fn export(
             BlockerFilter {
                 project_id: Some(project_id),
                 include_cleared: true,
+                ..BlockerFilter::default()
             },
             page,
         )

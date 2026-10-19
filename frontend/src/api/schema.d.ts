@@ -719,8 +719,14 @@ export interface operations {
         /** @description Page size, 1–1000. */
         limit?: number
         offset?: number
-        /** @description Include closed Actions. */
+        /** @description Include closed Actions. Ignored when `state` is given. */
         include_closed?: boolean
+        /** @description Open (the default), closed or all Actions. */
+        state?: 'open' | 'closed' | 'all'
+        /** @description Only Actions assigned to this Person ID, or `unassigned`. */
+        assignee?: string
+        /** @description Only Actions due on or before this date, `YYYY-MM-DD`. */
+        due_by?: string
       }
       header?: never
       path?: never
@@ -1001,8 +1007,12 @@ export interface operations {
         /** @description Page size, 1–1000. */
         limit?: number
         offset?: number
-        /** @description Include cleared Blockers. */
+        /** @description Include cleared Blockers. Ignored when `state` is given. */
         include_cleared?: boolean
+        /** @description Open (the default), cleared or all Blockers. */
+        state?: 'open' | 'cleared' | 'all'
+        /** @description Only Blockers this Person ID is accountable for, or `unassigned`. */
+        accountable?: string
       }
       header?: never
       path?: never
@@ -2144,8 +2154,10 @@ export interface operations {
         limit?: number
         offset?: number
         sort?: 'id' | 'reference' | 'score'
-        /** @description Include closed Risks. */
+        /** @description Include closed Risks. Ignored when `state` is given. */
         include_closed?: boolean
+        /** @description Open (the default), closed or all Risks. */
+        state?: 'open' | 'closed' | 'all'
       }
       header?: never
       path?: never

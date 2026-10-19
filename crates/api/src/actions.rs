@@ -25,6 +25,7 @@ use uuid::Uuid;
 use crate::{
     AppState,
     blockers::ItemRefBody,
+    filters::{self, StateParam},
     people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
     projects::{PersonRefBody, not_allowed, present},
@@ -160,9 +161,17 @@ pub struct ListParams {
     limit: Option<u32>,
     #[param(minimum = 0, default = 0)]
     offset: Option<u32>,
-    /// Include closed Actions.
+    /// Include closed Actions. Ignored when `state` is given.
     #[param(default = false)]
     include_closed: Option<bool>,
+    /// Open (the default), closed or all Actions.
+    #[param(inline)]
+    state: Option<StateParam>,
+    /// Only Actions assigned to this Person ID, or `unassigned`.
+    assignee: Option<String>,
+    /// Only Actions due on or before this date, `YYYY-MM-DD`.
+    #[param(value_type = Option<String>, format = Date)]
+    due_by: Option<NaiveDate>,
 }
 
 /// Lists Actions by Project Code, then Reference. Closed Actions are left out
@@ -189,9 +198,13 @@ async fn list(
         )));
     }
     let offset = params.offset.unwrap_or(0);
+    let (include_closed, closed_only) = StateParam::flags(params.state, params.include_closed);
     let filter = ActionFilter {
         project_id: params.project_id.map(ProjectId::from_uuid),
-        include_closed: params.include_closed.unwrap_or(false),
+        include_closed,
+        closed_only,
+        assignee: filters::assignee(params.assignee.as_deref(), "assignee")?,
+        due_by: params.due_by,
     };
     let page = state
         .actions

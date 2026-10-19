@@ -40,6 +40,7 @@ fn filter(project: &Project, include_closed: bool) -> RiskFilter {
     RiskFilter {
         project_id: Some(project.id()),
         include_closed,
+        ..RiskFilter::default()
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT r.id, r.project_id, p.project_code, r.number, r.description,\n                    r.likelihood, r.impact, r.closed, r.version\n             FROM risks r JOIN projects p ON p.id = r.project_id\n             WHERE (?1 IS NULL OR r.project_id = ?1) AND (?2 OR r.closed = 0)\n             ORDER BY CASE WHEN ?3 THEN r.likelihood * r.impact END DESC,\n                      CASE WHEN ?4 THEN r.project_id END,\n                      CASE WHEN ?4 THEN r.number END,\n                      r.id\n             LIMIT ?5 OFFSET ?6",
+  "query": "SELECT a.id, a.project_id, p.project_code, a.reference, a.description,\n                      a.assignee_id, pe.display_name AS \"assignee_name?\", a.due_date,\n                      a.closed, a.version\n               FROM actions a\n               JOIN projects p ON p.id = a.project_id\n               LEFT JOIN people pe ON pe.id = a.assignee_id\n               WHERE (?1 IS NULL OR a.project_id = ?1) AND (?2 OR a.closed = 0)\n                 AND (NOT ?3 OR a.closed = 1) AND (NOT ?4 OR a.assignee_id IS NULL)\n                 AND (?5 IS NULL OR a.assignee_id = ?5) AND (?6 IS NULL OR a.due_date <= ?6)\n               ORDER BY p.project_code, a.reference, a.id LIMIT ?7 OFFSET ?8",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "risks",
+            "table": "actions",
             "name": "id"
           }
         }
@@ -20,7 +20,7 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "risks",
+            "table": "actions",
             "name": "project_id"
           }
         }
@@ -37,13 +37,13 @@
         }
       },
       {
-        "name": "number",
+        "name": "reference",
         "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "risks",
-            "name": "number"
+            "table": "actions",
+            "name": "reference"
           }
         }
       },
@@ -53,58 +53,69 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "risks",
+            "table": "actions",
             "name": "description"
           }
         }
       },
       {
-        "name": "likelihood",
+        "name": "assignee_id",
         "ordinal": 5,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "risks",
-            "name": "likelihood"
+            "table": "actions",
+            "name": "assignee_id"
           }
         }
       },
       {
-        "name": "impact",
+        "name": "assignee_name?",
         "ordinal": 6,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "risks",
-            "name": "impact"
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "due_date",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "due_date"
           }
         }
       },
       {
         "name": "closed",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "risks",
+            "table": "actions",
             "name": "closed"
           }
         }
       },
       {
         "name": "version",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "risks",
+            "table": "actions",
             "name": "version"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 6
+      "Right": 8
     },
     "nullable": [
       false,
@@ -112,11 +123,12 @@
       false,
       false,
       false,
-      false,
-      false,
+      true,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "e61f8771295fc5bdf5a8a7a73ada2191c30ff3ae31c164ff44b6b0fd1878e0f7"
+  "hash": "71f6428cef0072ad3855cebb8ef87e697ab2413ea6bfb471481823e398156432"
 }

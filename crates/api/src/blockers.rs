@@ -24,6 +24,7 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
+    filters::{self, BlockerStateParam},
     people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
     projects::{PersonRefBody, not_allowed, present},
@@ -190,9 +191,14 @@ pub struct ListParams {
     limit: Option<u32>,
     #[param(minimum = 0, default = 0)]
     offset: Option<u32>,
-    /// Include cleared Blockers.
+    /// Include cleared Blockers. Ignored when `state` is given.
     #[param(default = false)]
     include_cleared: Option<bool>,
+    /// Open (the default), cleared or all Blockers.
+    #[param(inline)]
+    state: Option<BlockerStateParam>,
+    /// Only Blockers this Person ID is accountable for, or `unassigned`.
+    accountable: Option<String>,
 }
 
 /// Lists Blockers by Project Code, then Reference. Cleared Blockers are left
@@ -219,9 +225,13 @@ async fn list(
         )));
     }
     let offset = params.offset.unwrap_or(0);
+    let (include_cleared, cleared_only) =
+        BlockerStateParam::flags(params.state, params.include_cleared);
     let filter = BlockerFilter {
         project_id: params.project_id.map(ProjectId::from_uuid),
-        include_cleared: params.include_cleared.unwrap_or(false),
+        include_cleared,
+        cleared_only,
+        accountable: filters::assignee(params.accountable.as_deref(), "accountable")?,
     };
     let page = state
         .blockers

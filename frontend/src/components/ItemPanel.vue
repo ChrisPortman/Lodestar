@@ -14,8 +14,10 @@ const props = withDefaults(
     /** Heading of the collapsed list, e.g. "Closed" or "Cleared". */
     finalisedLabel?: string
     canAdd?: boolean
+    /** Show the finalised list expanded, e.g. when filtered to it. */
+    expandFinalised?: boolean
   }>(),
-  { finalisedLabel: 'Closed', canAdd: true },
+  { finalisedLabel: 'Closed', canAdd: true, expandFinalised: false },
 )
 
 defineSlots<{
@@ -52,7 +54,7 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
       </li>
     </ul>
     <p v-if="open.length === 0" class="text-sm text-gray-500">No open {{ title }}.</p>
-    <details v-if="finalised.length > 0" class="mt-3">
+    <details v-if="finalised.length > 0" class="mt-3" :open="expandFinalised">
       <summary class="cursor-pointer text-sm text-gray-600">
         {{ finalisedLabel }} ({{ finalised.length }})
       </summary>

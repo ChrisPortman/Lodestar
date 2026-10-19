@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT b.id, b.project_id, p.project_code, b.reference, b.description,\n                      b.accountable_id, pe.display_name AS \"accountable_name?\",\n                      b.cleared, b.version\n               FROM blockers b\n               JOIN projects p ON p.id = b.project_id\n               LEFT JOIN people pe ON pe.id = b.accountable_id\n               WHERE (?1 IS NULL OR b.project_id = ?1) AND (?2 OR b.cleared = 0)\n               ORDER BY p.project_code, b.reference, b.id LIMIT ?3 OFFSET ?4",
+  "query": "SELECT b.id, b.project_id, p.project_code, b.reference, b.description,\n                      b.accountable_id, pe.display_name AS \"accountable_name?\",\n                      b.cleared, b.version\n               FROM blockers b\n               JOIN projects p ON p.id = b.project_id\n               LEFT JOIN people pe ON pe.id = b.accountable_id\n               WHERE (?1 IS NULL OR b.project_id = ?1) AND (?2 OR b.cleared = 0)\n                 AND (NOT ?3 OR b.cleared = 1) AND (NOT ?4 OR b.accountable_id IS NULL)\n                 AND (?5 IS NULL OR b.accountable_id = ?5)\n               ORDER BY p.project_code, b.reference, b.id LIMIT ?6 OFFSET ?7",
   "describe": {
     "columns": [
       {
@@ -104,7 +104,7 @@
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 7
     },
     "nullable": [
       false,
@@ -118,5 +118,5 @@
       false
     ]
   },
-  "hash": "04ac8cd7094f39dfd6f6770aef77c7ff94ae62d2de401195b2cd751099561caa"
+  "hash": "a1639b8223bc5a57b91d48b342b86e5c982a67239f8245ee91f0fea4adb35dce"
 }

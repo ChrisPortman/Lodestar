@@ -523,7 +523,8 @@ impl RisksQuery for InMemoryStore {
             .risks
             .values()
             .filter(|r| filter.project_id.is_none_or(|p| r.project_id() == p))
-            .filter(|r| filter.include_closed || !r.closed())
+            .filter(|r| filter.include_closed || filter.closed_only || !r.closed())
+            .filter(|r| !filter.closed_only || r.closed())
             .collect();
         match sort {
             RiskSort::Id => all.sort_by_key(|r| r.id()),
@@ -624,7 +625,14 @@ impl ActionsQuery for InMemoryStore {
             .actions
             .values()
             .filter(|a| filter.project_id.is_none_or(|p| a.project_id() == p))
-            .filter(|a| filter.include_closed || !a.closed())
+            .filter(|a| filter.include_closed || filter.closed_only || !a.closed())
+            .filter(|a| !filter.closed_only || a.closed())
+            .filter(|a| filter.assignee.is_none_or(|f| f.matches(a.assignee())))
+            .filter(|a| {
+                filter
+                    .due_by
+                    .is_none_or(|d| a.due_date().is_some_and(|due| due <= d))
+            })
             .map(|a| (a.reference(), action_view(&state, a)))
             .collect();
         all.sort_by(|(ra, a), (rb, b)| {
@@ -684,7 +692,13 @@ impl BlockersQuery for InMemoryStore {
             .blockers
             .values()
             .filter(|b| filter.project_id.is_none_or(|p| b.project_id() == p))
-            .filter(|b| filter.include_cleared || !b.cleared())
+            .filter(|b| filter.include_cleared || filter.cleared_only || !b.cleared())
+            .filter(|b| !filter.cleared_only || b.cleared())
+            .filter(|b| {
+                filter
+                    .accountable
+                    .is_none_or(|f| f.matches(b.accountable()))
+            })
             .map(|b| (b.reference(), blocker_view(&state, b)))
             .collect();
         all.sort_by(|(ra, a), (rb, b)| {

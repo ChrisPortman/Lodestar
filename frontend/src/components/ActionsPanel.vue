@@ -14,6 +14,8 @@ import {
 import { useMembers } from '../members'
 import DescriptionEditor from './DescriptionEditor.vue'
 import ItemPanel from './ItemPanel.vue'
+import ListControls from './ListControls.vue'
+import { applyQuery, useListQuery } from '../listControls'
 
 const props = defineProps<{ project: Project }>()
 
@@ -24,8 +26,21 @@ const create = useCreateAction()
 const update = useUpdateAction()
 const close = useSetActionClosed()
 
-const open = computed(() => (actions.data.value ?? []).filter((a) => !a.closed))
-const closed = computed(() => (actions.data.value ?? []).filter((a) => a.closed))
+const query = useListQuery()
+const SORTS = [
+  { value: 'reference', label: 'Reference' },
+  { value: 'due', label: 'Due date' },
+  { value: 'assignee', label: 'Assignee' },
+]
+const shown = computed(() =>
+  applyQuery(actions.data.value ?? [], query, {
+    reference: (a) => a.reference,
+    assignee: (a) => a.assignee ?? null,
+    due: (a) => a.due_date ?? null,
+  }),
+)
+const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((a) => !a.closed)))
+const closed = computed(() => (query.state === 'open' ? [] : shown.value.filter((a) => a.closed)))
 const writable = computed(() => !props.project.archived)
 const error = computed(() => update.error.value ?? close.error.value ?? create.error.value)
 
@@ -70,6 +85,7 @@ function setDue(action: Action, event: Event) {
     :open="open"
     :finalised="closed"
     :can-add="writable"
+    :expand-finalised="query.state === 'closed'"
   >
     <template #add="{ done }">
       <DescriptionEditor
@@ -81,6 +97,13 @@ function setDue(action: Action, event: Event) {
       />
     </template>
 
+    <ListControls
+      title="Actions"
+      :query="query"
+      :sorts="SORTS"
+      :people="members.data.value ?? []"
+      show-due
+    />
     <p v-if="error" role="alert" class="mt-2 text-sm text-red-700">
       Couldn't save: {{ error.message }}
     </p>

@@ -3,6 +3,7 @@
 mod actions;
 mod blockers;
 mod export;
+mod filters;
 mod frontend;
 mod health;
 mod members;

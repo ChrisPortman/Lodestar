@@ -240,6 +240,21 @@ async fn risks_can_be_sorted_by_score() {
 }
 
 #[tokio::test]
+async fn risks_can_be_filtered_by_state() {
+    let (app, cookie, project) = with_project().await;
+    let first = new_risk(&app, &cookie, &project, "Gone", 1, 1).await;
+    new_risk(&app, &cookie, &project, "Live", 1, 1).await;
+    let id = first.body["id"].as_str().unwrap();
+    patch(&app, &cookie, id, "\"1\"", json!({"closed": true})).await;
+    let path = format!("/api/v1/risks?project_id={project}");
+    let closed = app.get(&format!("{path}&state=closed"), "").await;
+    assert_eq!(descriptions(&closed), ["Gone"]);
+    assert_eq!(closed.body["total"], 1);
+    let all = app.get(&format!("{path}&state=all"), "").await;
+    assert_eq!(descriptions(&all), ["Gone", "Live"]);
+}
+
+#[tokio::test]
 async fn risks_in_an_archived_project_are_read_only() {
     let (app, cookie, project) = with_project().await;
     let risk = new_risk(&app, &cookie, &project, "Risk", 1, 1).await;

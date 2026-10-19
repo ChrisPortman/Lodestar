@@ -129,6 +129,36 @@ describe('Blockers panel', () => {
     await waitFor(() => expect(backend.blockers[0]?.cleared).toBe(false))
   })
 
+  it('filters by accountable Member, unassigned or state', async () => {
+    await meeting([
+      blocker({
+        id: 'k1',
+        reference: 'B-001',
+        description: 'No env',
+        accountable: { id: 'b', display_name: 'Bob' },
+      }),
+      blocker({ id: 'k2', reference: 'B-002', description: 'No key' }),
+      blocker({ id: 'k3', reference: 'B-003', description: 'Gone', cleared: true }),
+    ])
+    const refs = async () =>
+      (await openBlockers()).map((li) => li.querySelector('.font-mono')!.textContent)
+    await waitFor(async () => expect(await refs()).toEqual(['B-001', 'B-002']))
+    const region = await panel()
+    await userEvent.click(within(region).getByRole('button', { name: 'Unassigned only' }))
+    expect(await refs()).toEqual(['B-002'])
+    const who = within(region).getByLabelText('Filter Blockers by accountable')
+    await within(who).findByRole('option', { name: 'Bob' })
+    await userEvent.selectOptions(who, 'b')
+    expect(await refs()).toEqual(['B-001'])
+    await userEvent.selectOptions(who, '')
+    await userEvent.selectOptions(
+      within(region).getByLabelText('Filter Blockers by state'),
+      'closed',
+    )
+    expect(await openBlockers()).toHaveLength(0)
+    expect(within(region).getByText('Cleared (1)').closest('details')!.open).toBe(true)
+  })
+
   it('is read-only in an archived Project', async () => {
     await meeting([blocker({ id: 'k1', reference: 'B-001', description: 'No env' })], {
       archived: true,

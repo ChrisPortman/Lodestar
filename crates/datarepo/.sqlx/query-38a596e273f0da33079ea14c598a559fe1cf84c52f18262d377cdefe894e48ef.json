@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT a.id, a.project_id, p.project_code, a.reference, a.description,\n                      a.assignee_id, pe.display_name AS \"assignee_name?\", a.due_date,\n                      a.closed, a.version\n               FROM actions a\n               JOIN projects p ON p.id = a.project_id\n               LEFT JOIN people pe ON pe.id = a.assignee_id\n               WHERE (?1 IS NULL OR a.project_id = ?1) AND (?2 OR a.closed = 0)\n               ORDER BY p.project_code, a.reference, a.id LIMIT ?3 OFFSET ?4",
+  "query": "SELECT r.id, r.project_id, p.project_code, r.number, r.description,\n                    r.likelihood, r.impact, r.closed, r.version\n             FROM risks r JOIN projects p ON p.id = r.project_id\n             WHERE (?1 IS NULL OR r.project_id = ?1) AND (?2 OR r.closed = 0)\n               AND (NOT ?7 OR r.closed = 1)\n             ORDER BY CASE WHEN ?3 THEN r.likelihood * r.impact END DESC,\n                      CASE WHEN ?4 THEN r.project_id END,\n                      CASE WHEN ?4 THEN r.number END,\n                      r.id\n             LIMIT ?5 OFFSET ?6",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "actions",
+            "table": "risks",
             "name": "id"
           }
         }
@@ -20,7 +20,7 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "actions",
+            "table": "risks",
             "name": "project_id"
           }
         }
@@ -37,13 +37,13 @@
         }
       },
       {
-        "name": "reference",
+        "name": "number",
         "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "actions",
-            "name": "reference"
+            "table": "risks",
+            "name": "number"
           }
         }
       },
@@ -53,69 +53,58 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "actions",
+            "table": "risks",
             "name": "description"
           }
         }
       },
       {
-        "name": "assignee_id",
+        "name": "likelihood",
         "ordinal": 5,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "actions",
-            "name": "assignee_id"
+            "table": "risks",
+            "name": "likelihood"
           }
         }
       },
       {
-        "name": "assignee_name?",
+        "name": "impact",
         "ordinal": 6,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "people",
-            "name": "display_name"
-          }
-        }
-      },
-      {
-        "name": "due_date",
-        "ordinal": 7,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "actions",
-            "name": "due_date"
+            "table": "risks",
+            "name": "impact"
           }
         }
       },
       {
         "name": "closed",
-        "ordinal": 8,
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "actions",
+            "table": "risks",
             "name": "closed"
           }
         }
       },
       {
         "name": "version",
-        "ordinal": 9,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "actions",
+            "table": "risks",
             "name": "version"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 7
     },
     "nullable": [
       false,
@@ -123,12 +112,11 @@
       false,
       false,
       false,
-      true,
-      true,
-      true,
+      false,
+      false,
       false,
       false
     ]
   },
-  "hash": "a57bb0b2600c65f45cc6a994e37f2114943b7b079716339f5829e642d2319ed1"
+  "hash": "38a596e273f0da33079ea14c598a559fe1cf84c52f18262d377cdefe894e48ef"
 }

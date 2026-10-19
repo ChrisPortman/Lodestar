@@ -5,7 +5,8 @@ use lodestar_core::action::{Action, ActionId, ActionParts, ActionView};
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, Page, PageRequest, ReferenceKind, RepoError,
+    ActionFilter, ActionRepository, ActionsQuery, AssigneeFilter, Page, PageRequest, ReferenceKind,
+    RepoError,
 };
 use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
 use std::collections::HashMap;
@@ -240,7 +241,14 @@ impl ActionsQuery for SqliteStore {
         page: PageRequest,
     ) -> Result<Page<ActionView>, RepoError> {
         let project = filter.project_id.map(|p| p.to_string());
-        let include_closed = filter.include_closed;
+        let include_closed = filter.include_closed || filter.closed_only;
+        let closed_only = filter.closed_only;
+        let unassigned = filter.assignee == Some(AssigneeFilter::Unassigned);
+        let assignee = match filter.assignee {
+            Some(AssigneeFilter::Person(id)) => Some(id.to_string()),
+            _ => None,
+        };
+        let due_by = filter.due_by.map(|d| d.to_string());
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
         let rows = sqlx::query_as!(
@@ -252,9 +260,15 @@ impl ActionsQuery for SqliteStore {
                JOIN projects p ON p.id = a.project_id
                LEFT JOIN people pe ON pe.id = a.assignee_id
                WHERE (?1 IS NULL OR a.project_id = ?1) AND (?2 OR a.closed = 0)
-               ORDER BY p.project_code, a.reference, a.id LIMIT ?3 OFFSET ?4"#,
+                 AND (NOT ?3 OR a.closed = 1) AND (NOT ?4 OR a.assignee_id IS NULL)
+                 AND (?5 IS NULL OR a.assignee_id = ?5) AND (?6 IS NULL OR a.due_date <= ?6)
+               ORDER BY p.project_code, a.reference, a.id LIMIT ?7 OFFSET ?8"#,
             project,
             include_closed,
+            closed_only,
+            unassigned,
+            assignee,
+            due_by,
             limit,
             offset
         )
@@ -263,9 +277,15 @@ impl ActionsQuery for SqliteStore {
         .map_err(unexpected)?;
         let total = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM actions
-             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)",
+             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)
+               AND (NOT ?3 OR closed = 1) AND (NOT ?4 OR assignee_id IS NULL)
+               AND (?5 IS NULL OR assignee_id = ?5) AND (?6 IS NULL OR due_date <= ?6)",
             project,
-            include_closed
+            include_closed,
+            closed_only,
+            unassigned,
+            assignee,
+            due_by
         )
         .fetch_one(&self.pool)
         .await

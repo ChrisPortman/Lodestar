@@ -324,6 +324,37 @@ async fn cleared_blockers_are_listed_only_on_request() {
 }
 
 #[tokio::test]
+async fn blockers_can_be_filtered_by_state() {
+    let w = world().await;
+    let first = w.new_blocker("One", None).await;
+    w.new_blocker("Two", None).await;
+    w.patch(first.body["id"].as_str().unwrap(), "\"1\"", true)
+        .await;
+    let base = format!("/api/v1/blockers?project_id={}", w.project);
+    let cleared = w.get(&format!("{base}&state=cleared")).await;
+    assert_eq!(cleared.body["total"], 1);
+    assert_eq!(cleared.body["items"][0]["reference"], "B-001");
+    let all = w.get(&format!("{base}&state=all")).await;
+    assert_eq!(all.body["total"], 2);
+}
+
+#[tokio::test]
+async fn blockers_can_be_filtered_by_accountable_or_unassigned() {
+    let w = world().await;
+    w.new_blocker("Bob's", Some(&w.bob)).await;
+    w.new_blocker("Nobody's", None).await;
+    let base = format!("/api/v1/blockers?project_id={}", w.project);
+    let bobs = w.get(&format!("{base}&accountable={}", w.bob)).await;
+    assert_eq!(bobs.body["total"], 1);
+    assert_eq!(bobs.body["items"][0]["reference"], "B-001");
+    let unassigned = w.get(&format!("{base}&accountable=unassigned")).await;
+    assert_eq!(unassigned.body["total"], 1);
+    assert_eq!(unassigned.body["items"][0]["reference"], "B-002");
+    let bad = w.get(&format!("{base}&accountable=x")).await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
 async fn writing_needs_a_session() {
     let w = world().await;
     let reply = w

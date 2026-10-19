@@ -7,6 +7,8 @@ import type { Risk } from '../api/risks'
 import { severity, useCreateRisk, useRisks, useSetRiskClosed, useUpdateRisk } from '../risks'
 import DescriptionEditor from './DescriptionEditor.vue'
 import ItemPanel from './ItemPanel.vue'
+import ListControls from './ListControls.vue'
+import { applyQuery, useListQuery } from '../listControls'
 
 const props = defineProps<{ project: Project }>()
 
@@ -15,8 +17,19 @@ const create = useCreateRisk()
 const update = useUpdateRisk()
 const close = useSetRiskClosed()
 
-const open = computed(() => (risks.data.value ?? []).filter((r) => !r.closed))
-const closed = computed(() => (risks.data.value ?? []).filter((r) => r.closed))
+const query = useListQuery()
+const SORTS = [
+  { value: 'reference', label: 'Reference' },
+  { value: 'score', label: 'Score' },
+]
+const shown = computed(() =>
+  applyQuery(risks.data.value ?? [], query, {
+    reference: (r) => r.reference,
+    score: (r) => r.score,
+  }),
+)
+const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((r) => !r.closed)))
+const closed = computed(() => (query.state === 'open' ? [] : shown.value.filter((r) => r.closed)))
 const writable = computed(() => !props.project.archived)
 const error = computed(() => update.error.value ?? close.error.value ?? create.error.value)
 
@@ -54,7 +67,14 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
 </script>
 
 <template>
-  <ItemPanel title="Risks" item-label="Risk" :open="open" :finalised="closed" :can-add="writable">
+  <ItemPanel
+    title="Risks"
+    item-label="Risk"
+    :open="open"
+    :finalised="closed"
+    :can-add="writable"
+    :expand-finalised="query.state === 'closed'"
+  >
     <template #add="{ done }">
       <DescriptionEditor
         initial=""
@@ -80,6 +100,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
       </DescriptionEditor>
     </template>
 
+    <ListControls title="Risks" :query="query" :sorts="SORTS" />
     <p v-if="error" role="alert" class="mt-2 text-sm text-red-700">
       Couldn't save: {{ error.message }}
     </p>

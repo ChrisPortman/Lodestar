@@ -178,6 +178,76 @@ describe('Actions panel', () => {
     )
   })
 
+  describe('sort and filter', () => {
+    const list = () => [
+      action({
+        id: 'x1',
+        reference: 'A-001',
+        description: 'Late',
+        assignee: { id: 'b', display_name: 'Bob' },
+        due_date: '2030-09-01',
+      }),
+      action({ id: 'x2', reference: 'A-002', description: 'Floating' }),
+      action({
+        id: 'x3',
+        reference: 'A-003',
+        description: 'Soon',
+        assignee: { id: 'a', display_name: 'Ada' },
+        due_date: '2030-01-01',
+      }),
+      action({ id: 'x4', reference: 'A-004', description: 'Done', closed: true }),
+    ]
+    const refs = async () =>
+      (await openActions()).map((li) => li.querySelector('.font-mono')!.textContent)
+
+    it('sorts by Reference by default, and by due date or assignee on request', async () => {
+      await meeting(list())
+      await waitFor(async () => expect(await refs()).toEqual(['A-001', 'A-002', 'A-003']))
+      const region = await panel()
+      await userEvent.selectOptions(within(region).getByLabelText('Sort Actions'), 'due')
+      expect(await refs()).toEqual(['A-003', 'A-001', 'A-002'])
+      await userEvent.selectOptions(within(region).getByLabelText('Sort Actions'), 'assignee')
+      expect(await refs()).toEqual(['A-003', 'A-001', 'A-002'])
+    })
+
+    it('filters to unassigned Actions with one click, or by assignee', async () => {
+      await meeting(list())
+      await waitFor(async () => expect(await openActions()).toHaveLength(3))
+      const region = await panel()
+      const quick = within(region).getByRole('button', { name: 'Unassigned only' })
+      await userEvent.click(quick)
+      expect(quick.getAttribute('aria-pressed')).toBe('true')
+      expect(await refs()).toEqual(['A-002'])
+      await userEvent.click(quick)
+      expect(await refs()).toHaveLength(3)
+
+      const assignee = within(region).getByLabelText('Filter Actions by assignee')
+      await within(assignee).findByRole('option', { name: 'Bob' })
+      await userEvent.selectOptions(assignee, 'b')
+      expect(await refs()).toEqual(['A-001'])
+    })
+
+    it('filters by state and by due date', async () => {
+      await meeting(list())
+      await waitFor(async () => expect(await openActions()).toHaveLength(3))
+      const region = await panel()
+      await userEvent.selectOptions(
+        within(region).getByLabelText('Filter Actions by state'),
+        'closed',
+      )
+      expect(await openActions()).toHaveLength(0)
+      expect(within(region).getByText('Closed (1)').closest('details')!.open).toBe(true)
+      await userEvent.selectOptions(
+        within(region).getByLabelText('Filter Actions by state'),
+        'open',
+      )
+      expect(within(region).queryByText('Closed (1)')).toBeNull()
+
+      await userEvent.type(within(region).getByLabelText('Due by'), '2030-06-30')
+      expect(await refs()).toEqual(['A-003'])
+    })
+  })
+
   it('is read-only in an archived Project', async () => {
     await meeting([action({ id: 'x1', reference: 'A-001', description: 'Draft plan' })], {
       archived: true,
