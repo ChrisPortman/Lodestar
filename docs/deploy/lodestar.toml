@@ -1,0 +1,29 @@
+# Example Lodestar configuration. Every key is optional; unless a comment says
+# otherwise, the values shown are the defaults. An environment variable
+# LODESTAR_<SECTION>__<KEY> overrides any key, e.g. LODESTAR_SERVER__PORT=9000.
+
+[server]
+# The MVP has no authentication. Keep this on loopback unless you have put
+# access control in front of it. Binding anywhere else is a deliberate choice.
+bind = "127.0.0.1"
+port = 8080
+
+[database]
+# Relative paths resolve against the working directory.
+# (Default: "sqlite://lodestar.db")
+url = "sqlite:///var/lib/lodestar/lodestar.db"
+
+[log]
+# A tracing EnvFilter directive, e.g. "info" or "info,lodestar_api=debug".
+level = "info"
+# "json" (default) or "pretty".
+format = "json"
+
+[session]
+# Signs and encrypts the session cookie. If the file is missing, Lodestar
+# generates a key and writes it with mode 0600.
+# (Default: "lodestar-session.key")
+key_file = "/var/lib/lodestar/lodestar-session.key"
+# Or give the key inline as base64 (at least 32 bytes once decoded), usually
+# via LODESTAR_SESSION__KEY. It takes precedence over key_file.
+# key = "..."

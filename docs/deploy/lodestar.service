@@ -1,0 +1,27 @@
+# Example systemd unit. Install the binary at /usr/local/bin/lodestar and the
+# config at /etc/lodestar/lodestar.toml, then:
+#   systemctl daemon-reload && systemctl enable --now lodestar
+[Unit]
+Description=Lodestar project manager
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lodestar --config /etc/lodestar/lodestar.toml
+DynamicUser=yes
+StateDirectory=lodestar
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/lodestar
+UMask=0077
+Restart=on-failure
+# Exit codes 64 (usage) and 78 (configuration) will not fix themselves.
+RestartPreventExitStatus=64 78
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+
+[Install]
+WantedBy=multi-user.target
