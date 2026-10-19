@@ -369,6 +369,35 @@ pub async fn each_project_save_writes_a_history_entry(store: impl Store) {
     assert_eq!(second.after, snapshot(&v2));
 }
 
+pub async fn project_history_holds_the_project_and_its_items_in_time_order(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let other = a_saved_project(&store, "DOCS").await;
+    let risk = a_risk(project.id(), 1).build();
+    let elsewhere = a_risk(other.id(), 1).build();
+    let mut tx = store.begin().await.unwrap();
+    tx.risks().save(None, &risk, &ctx()).await.unwrap();
+    tx.risks().save(None, &elsewhere, &ctx()).await.unwrap();
+    tx.risks()
+        .save(Some(&risk), &risk.with_closed(true), &ctx())
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let history = store.project_history(project.id()).await.unwrap();
+    let seen: Vec<(EntityType, Uuid, u32)> = history
+        .iter()
+        .map(|e| (e.entity_type, e.entity_id, e.version))
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            (EntityType::Project, project.id().as_uuid(), 1),
+            (EntityType::Risk, risk.id().as_uuid(), 1),
+            (EntityType::Risk, risk.id().as_uuid(), 2),
+        ]
+    );
+}
+
 pub async fn projects_are_listed_without_archived_ones_by_default(store: impl Store) {
     let ada = a_saved_person(&store, "Ada").await;
     let web = a_project(ada).named("Web").coded("WEBR").build();
@@ -986,7 +1015,8 @@ macro_rules! port_contract_tests {
             saved_blocker_with_links_can_be_loaded_updated_and_viewed,
             actions_show_the_open_blockers_blocking_them,
             open_blockers_a_person_is_accountable_for_can_be_found,
-            blockers_are_listed_by_project_code_and_reference
+            blockers_are_listed_by_project_code_and_reference,
+            project_history_holds_the_project_and_its_items_in_time_order
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

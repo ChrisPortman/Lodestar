@@ -1798,6 +1798,83 @@
         }
       }
     },
+    "/api/v1/projects/{id}/export": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Downloads a Project, archived or not, with all its Members, Actions, Risks\nand Blockers as an attachment named `<project-code>-<date>.json`. Needs a\nsession.",
+        "operationId": "export_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "include_history",
+            "in": "query",
+            "description": "Include the Change History.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "headers": {
+              "content-disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{id}/members": {
       "get": {
         "tags": [
@@ -2815,6 +2892,71 @@
         },
         "additionalProperties": false
       },
+      "ChangeHistoryEntry": {
+        "type": "object",
+        "description": "One Change History entry, with its snapshots exactly as stored. Snapshots\nfollow the domain shape when the entry was written, not `format_version`.",
+        "required": [
+          "id",
+          "entity_type",
+          "entity_id",
+          "version",
+          "change_kind",
+          "acting_person_id",
+          "recorded_at",
+          "after"
+        ],
+        "properties": {
+          "acting_person_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Listed in `people`."
+          },
+          "after": {
+            "type": "object"
+          },
+          "before": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "`null` on creation."
+          },
+          "caused_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The entry that triggered this one, if any."
+          },
+          "change_kind": {
+            "type": "string",
+            "description": "`created` or `updated`."
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entity_type": {
+            "type": "string",
+            "description": "`project`, `action`, `risk` or `blocker`."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The entity version this change produced.",
+            "minimum": 0
+          }
+        }
+      },
       "CodeSuggestion": {
         "type": "object",
         "description": "A suggested Project Code.",
@@ -3101,6 +3243,90 @@
             "format": "int32",
             "readOnly": true,
             "minimum": 1
+          }
+        }
+      },
+      "ProjectExport": {
+        "type": "object",
+        "description": "A whole Project as one JSON document (FR-110).",
+        "required": [
+          "format",
+          "format_version",
+          "exported_at",
+          "exported_by",
+          "project",
+          "members",
+          "actions",
+          "risks",
+          "blockers",
+          "people"
+        ],
+        "properties": {
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Action"
+            },
+            "description": "Every Action, closed ones included, ordered by Reference."
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Blocker"
+            },
+            "description": "Every Blocker, cleared ones included, ordered by Reference."
+          },
+          "change_history": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ChangeHistoryEntry"
+            },
+            "description": "Present only with `include_history=true`: every entry for the\nProject and its items, in the order recorded."
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "exported_by": {
+            "$ref": "#/components/schemas/PersonRef",
+            "description": "The Acting Person."
+          },
+          "format": {
+            "type": "string",
+            "description": "Always `lodestar.project-export`."
+          },
+          "format_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Currently 1.",
+            "minimum": 0
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "description": "Ordered by display name."
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "description": "Every Person the document mentions, ordered by display name."
+          },
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "risks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Risk"
+            },
+            "description": "Every Risk, closed ones included, ordered by Reference."
           }
         }
       },
