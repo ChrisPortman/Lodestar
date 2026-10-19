@@ -1,0 +1,5 @@
+# cargo-audit configuration (NFR-33).
+# Every ignored advisory needs a comment stating why it is accepted, e.g.
+#   "RUSTSEC-0000-0000", # reason: not reachable, we never call X
+[advisories]
+ignore = []
