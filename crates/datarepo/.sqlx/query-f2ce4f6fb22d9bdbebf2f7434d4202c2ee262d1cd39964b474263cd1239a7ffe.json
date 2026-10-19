@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT project_code FROM projects WHERE substr(project_code, 1, length(?1)) = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "project_code",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f2ce4f6fb22d9bdbebf2f7434d4202c2ee262d1cd39964b474263cd1239a7ffe"
+}

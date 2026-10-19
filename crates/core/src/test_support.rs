@@ -3,7 +3,7 @@
 
 pub mod contract;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
@@ -14,13 +14,18 @@ use crate::history::{
 };
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
-    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ReferenceCounter,
-    ReferenceKind, RepoError, Transaction, UnitOfWork,
+    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
+    UnitOfWork,
+};
+use crate::project::{
+    Description, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
 };
 
 #[derive(Debug, Clone, Default)]
 struct State {
     people: BTreeMap<PersonId, Person>,
+    projects: BTreeMap<ProjectId, Project>,
     history: Vec<HistoryEntry>,
     references: HashMap<(Uuid, ReferenceKind), u32>,
 }
@@ -63,6 +68,10 @@ impl Transaction for InMemoryTx {
         InMemoryPeople(&mut self.work)
     }
 
+    fn projects(&mut self) -> impl ProjectRepository + Send + '_ {
+        InMemoryProjects(&mut self.work)
+    }
+
     fn references(&mut self) -> impl ReferenceCounter + Send + '_ {
         InMemoryReferences(&mut self.work)
     }
@@ -97,6 +106,56 @@ impl PersonRepository for InMemoryPeople<'_> {
             entity_type: EntityType::Person,
             entity_id: after.id().as_uuid(),
             project_id: None,
+            version: after.version(),
+            change_kind: if before.is_some() {
+                ChangeKind::Updated
+            } else {
+                ChangeKind::Created
+            },
+            acting_person: ctx.acting_person,
+            recorded_at: Utc::now(),
+            before: before.map(snapshot),
+            after: snapshot(after),
+            caused_by: ctx.caused_by,
+        });
+        Ok(id)
+    }
+}
+
+struct InMemoryProjects<'a>(&'a mut State);
+
+impl ProjectRepository for InMemoryProjects<'_> {
+    async fn load(&mut self, id: ProjectId) -> Result<Project, RepoError> {
+        self.0.projects.get(&id).cloned().ok_or(RepoError::NotFound)
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&Project>,
+        after: &Project,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        let stored_version = self.0.projects.get(&after.id()).map(Project::version);
+        if stored_version != before.map(Project::version) {
+            return Err(RepoError::Conflict);
+        }
+        let code_clash = self
+            .0
+            .projects
+            .values()
+            .any(|p| p.id() != after.id() && p.project_code() == after.project_code());
+        if code_clash {
+            return Err(RepoError::UniqueViolation {
+                constraint: "projects.project_code".to_owned(),
+            });
+        }
+        self.0.projects.insert(after.id(), after.clone());
+        let id = HistoryEntryId::new();
+        self.0.history.push(HistoryEntry {
+            id,
+            entity_type: EntityType::Project,
+            entity_id: after.id().as_uuid(),
+            project_id: Some(after.id().as_uuid()),
             version: after.version(),
             change_kind: if before.is_some() {
                 ChangeKind::Updated
@@ -166,6 +225,70 @@ impl PeopleQuery for InMemoryStore {
     }
 }
 
+fn project_view(state: &State, project: &Project) -> ProjectView {
+    ProjectView {
+        id: project.id(),
+        name: project.name().as_str().to_owned(),
+        description: project.description().map(|d| d.as_str().to_owned()),
+        project_code: project.project_code().as_str().to_owned(),
+        archived: project.archived(),
+        project_leader: project.project_leader().map(|id| PersonRef {
+            id,
+            display_name: state
+                .people
+                .get(&id)
+                .map(|p| p.display_name().as_str().to_owned())
+                .unwrap_or_default(),
+        }),
+        version: project.version(),
+    }
+}
+
+impl ProjectsQuery for InMemoryStore {
+    async fn list_projects(
+        &self,
+        page: PageRequest,
+        include_archived: bool,
+        sort: ProjectSort,
+    ) -> Result<Page<ProjectView>, RepoError> {
+        let state = self.snapshot();
+        let mut all: Vec<_> = state
+            .projects
+            .values()
+            .filter(|p| include_archived || !p.archived())
+            .map(|p| project_view(&state, p))
+            .collect();
+        match sort {
+            ProjectSort::Id => all.sort_by_key(|p| p.id),
+            ProjectSort::Name => all.sort_by(|a, b| (&a.name, a.id).cmp(&(&b.name, b.id))),
+        }
+        Ok(page_of(all, page))
+    }
+
+    async fn get_project(&self, id: ProjectId) -> Result<ProjectView, RepoError> {
+        let state = self.snapshot();
+        state
+            .projects
+            .get(&id)
+            .map(|p| project_view(&state, p))
+            .ok_or(RepoError::NotFound)
+    }
+
+    async fn project_codes_starting_with(
+        &self,
+        prefix: &str,
+    ) -> Result<HashSet<String>, RepoError> {
+        Ok(self
+            .snapshot()
+            .projects
+            .values()
+            .map(|p| p.project_code().as_str())
+            .filter(|c| c.starts_with(prefix))
+            .map(str::to_owned)
+            .collect())
+    }
+}
+
 impl HistoryQuery for InMemoryStore {
     async fn entity_history(
         &self,
@@ -202,5 +325,49 @@ impl PersonBuilder {
 
     pub fn build(self) -> Person {
         Person::create(&self.display_name).expect("builder produces a valid person")
+    }
+}
+
+/// Builds a valid [`Project`] led by `creator`, defaulting every other field.
+pub fn a_project(creator: PersonId) -> ProjectBuilder {
+    ProjectBuilder {
+        creator,
+        name: "Test Project".to_owned(),
+        description: None,
+        code: "TEST".to_owned(),
+    }
+}
+
+pub struct ProjectBuilder {
+    creator: PersonId,
+    name: String,
+    description: Option<String>,
+    code: String,
+}
+
+impl ProjectBuilder {
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn described(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    pub fn coded(mut self, code: impl Into<String>) -> Self {
+        self.code = code.into();
+        self
+    }
+
+    pub fn build(self) -> Project {
+        Project::create(
+            ProjectName::new(&self.name).expect("valid name"),
+            self.description
+                .map(|d| Description::new(d).expect("valid description")),
+            ProjectCode::new(&self.code).expect("valid code"),
+            self.creator,
+        )
     }
 }

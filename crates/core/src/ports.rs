@@ -3,12 +3,14 @@
 //! Adapters live in `lodestar-datarepo`; in-memory fakes live in
 //! [`crate::test_support`]. No adapter types appear here.
 
+use std::collections::HashSet;
 use std::future::Future;
 
 use uuid::Uuid;
 
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
 use crate::person::{Person, PersonId, PersonView};
+use crate::project::{Project, ProjectId, ProjectView};
 
 /// Errors every port can return. Adapters map their own errors onto these.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -35,6 +37,8 @@ pub trait UnitOfWork: Send + Sync {
 pub trait Transaction: Send {
     fn people(&mut self) -> impl PersonRepository + Send + '_;
 
+    fn projects(&mut self) -> impl ProjectRepository + Send + '_;
+
     fn references(&mut self) -> impl ReferenceCounter + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
@@ -50,6 +54,19 @@ pub trait PersonRepository {
         &mut self,
         before: Option<&Person>,
         after: &Person,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+pub trait ProjectRepository {
+    fn load(&mut self, id: ProjectId) -> impl Future<Output = Result<Project, RepoError>> + Send;
+
+    /// As [`PersonRepository::save`]. Creating a Project whose code is in use
+    /// is a [`RepoError::UniqueViolation`].
+    fn save(
+        &mut self,
+        before: Option<&Project>,
+        after: &Project,
         ctx: &ChangeContext,
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
 }
@@ -121,6 +138,37 @@ pub trait PeopleQuery: Send + Sync {
         &self,
         id: PersonId,
     ) -> impl Future<Output = Result<PersonView, RepoError>> + Send;
+}
+
+/// The order Projects are listed in. Ties are broken by ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProjectSort {
+    /// Creation order (IDs are UUIDv7).
+    #[default]
+    Id,
+    Name,
+}
+
+/// Read-only views of Projects.
+pub trait ProjectsQuery: Send + Sync {
+    /// Lists Projects, leaving out archived ones unless `include_archived`.
+    fn list_projects(
+        &self,
+        page: PageRequest,
+        include_archived: bool,
+        sort: ProjectSort,
+    ) -> impl Future<Output = Result<Page<ProjectView>, RepoError>> + Send;
+
+    fn get_project(
+        &self,
+        id: ProjectId,
+    ) -> impl Future<Output = Result<ProjectView, RepoError>> + Send;
+
+    /// Every Project Code in use that starts with `prefix`.
+    fn project_codes_starting_with(
+        &self,
+        prefix: &str,
+    ) -> impl Future<Output = Result<HashSet<String>, RepoError>> + Send;
 }
 
 /// Read-only Change History, oldest entry first.

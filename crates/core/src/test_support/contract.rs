@@ -6,14 +6,16 @@ use uuid::Uuid;
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
-    HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ReferenceCounter,
-    ReferenceKind, RepoError, Transaction, UnitOfWork,
+    HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
+    UnitOfWork,
 };
-use crate::test_support::a_person;
+use crate::project::{ProjectId, ProjectName};
+use crate::test_support::{a_person, a_project};
 
 /// Everything a full store adapter provides.
-pub trait Store: UnitOfWork + PeopleQuery + HistoryQuery {}
-impl<T: UnitOfWork + PeopleQuery + HistoryQuery> Store for T {}
+pub trait Store: UnitOfWork + PeopleQuery + ProjectsQuery + HistoryQuery {}
+impl<T: UnitOfWork + PeopleQuery + ProjectsQuery + HistoryQuery> Store for T {}
 
 fn ctx() -> ChangeContext {
     ChangeContext::by(PersonId::new())
@@ -262,6 +264,167 @@ pub async fn a_person_can_be_fetched_by_id(store: impl Store) {
     );
 }
 
+/// Saves a Person to lead Projects, returning their ID.
+async fn a_saved_person(store: &impl Store, name: &str) -> PersonId {
+    let person = a_person().named(name).build();
+    let mut tx = store.begin().await.unwrap();
+    tx.people().save(None, &person, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+    person.id()
+}
+
+pub async fn saved_project_can_be_loaded_and_updated(store: impl Store) {
+    let ada = a_saved_person(&store, "Ada").await;
+    let v1 = a_project(ada)
+        .named("Web")
+        .described("Site")
+        .coded("WEBR")
+        .build();
+    let v2 = v1.edited(ProjectName::new("Website").unwrap(), None);
+    let mut tx = store.begin().await.unwrap();
+    tx.projects().save(None, &v1, &ctx()).await.unwrap();
+    assert_eq!(tx.projects().load(v1.id()).await.unwrap(), v1);
+    tx.projects().save(Some(&v1), &v2, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.projects().load(v1.id()).await.unwrap(), v2);
+    assert_eq!(
+        tx.projects().load(ProjectId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+    assert_eq!(
+        tx.projects()
+            .save(Some(&v1), &v2, &ctx())
+            .await
+            .unwrap_err(),
+        RepoError::Conflict
+    );
+}
+
+pub async fn a_project_code_can_be_used_only_once(store: impl Store) {
+    let ada = a_saved_person(&store, "Ada").await;
+    let first = a_project(ada).coded("WEBR").build();
+    let second = a_project(ada).coded("WEBR").build();
+    let mut tx = store.begin().await.unwrap();
+    tx.projects().save(None, &first, &ctx()).await.unwrap();
+    assert!(matches!(
+        tx.projects().save(None, &second, &ctx()).await.unwrap_err(),
+        RepoError::UniqueViolation { .. }
+    ));
+}
+
+pub async fn each_project_save_writes_a_history_entry(store: impl Store) {
+    let ada = a_saved_person(&store, "Ada").await;
+    let v1 = a_project(ada).build();
+    let v2 = v1.with_archived(true);
+    let mut tx = store.begin().await.unwrap();
+    tx.projects()
+        .save(None, &v1, &ChangeContext::by(ada))
+        .await
+        .unwrap();
+    tx.projects()
+        .save(Some(&v1), &v2, &ChangeContext::by(ada))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let history = store
+        .entity_history(
+            EntityType::Project,
+            v1.id().as_uuid(),
+            PageRequest::first(10),
+        )
+        .await
+        .unwrap();
+    let [first, second] = history.items.as_slice() else {
+        panic!("expected two entries, got {:?}", history.items);
+    };
+    assert_eq!(first.change_kind, ChangeKind::Created);
+    assert_eq!(first.project_id, Some(v1.id().as_uuid()));
+    assert_eq!(first.acting_person, ada);
+    assert_eq!(first.after, snapshot(&v1));
+    assert_eq!(second.change_kind, ChangeKind::Updated);
+    assert_eq!(second.before, Some(snapshot(&v1)));
+    assert_eq!(second.after, snapshot(&v2));
+}
+
+pub async fn projects_are_listed_without_archived_ones_by_default(store: impl Store) {
+    let ada = a_saved_person(&store, "Ada").await;
+    let web = a_project(ada).named("Web").coded("WEBR").build();
+    let alpha = a_project(ada)
+        .named("Alpha")
+        .described("First")
+        .coded("ALPH")
+        .build();
+    let old = a_project(ada).named("Old").coded("OLD").build();
+    let mut tx = store.begin().await.unwrap();
+    for p in [&web, &alpha, &old] {
+        tx.projects().save(None, p, &ctx()).await.unwrap();
+    }
+    tx.projects()
+        .save(Some(&old), &old.with_archived(true), &ctx())
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let names = |page: crate::ports::Page<crate::project::ProjectView>| -> Vec<String> {
+        page.items.into_iter().map(|p| p.name).collect()
+    };
+    let default = store
+        .list_projects(PageRequest::first(10), false, ProjectSort::Id)
+        .await
+        .unwrap();
+    assert_eq!(default.total, 2);
+    assert_eq!(names(default), ["Web", "Alpha"]);
+    let all = store
+        .list_projects(
+            PageRequest {
+                offset: 1,
+                limit: 2,
+            },
+            true,
+            ProjectSort::Name,
+        )
+        .await
+        .unwrap();
+    assert_eq!(all.total, 3);
+    assert_eq!(names(all), ["Old", "Web"]);
+
+    let view = store.get_project(alpha.id()).await.unwrap();
+    assert_eq!(view.name, "Alpha");
+    assert_eq!(view.description.as_deref(), Some("First"));
+    assert_eq!(view.project_code, "ALPH");
+    assert!(!view.archived);
+    let leader = view.project_leader.unwrap();
+    assert_eq!((leader.id, leader.display_name.as_str()), (ada, "Ada"));
+    assert_eq!(view.version, 1);
+    assert!(store.get_project(old.id()).await.unwrap().archived);
+    assert_eq!(
+        store.get_project(ProjectId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+}
+
+pub async fn project_codes_can_be_found_by_prefix(store: impl Store) {
+    let ada = a_saved_person(&store, "Ada").await;
+    let mut tx = store.begin().await.unwrap();
+    for code in ["WEBS", "WEBS1", "WEB", "AWEBS"] {
+        let p = a_project(ada).coded(code).build();
+        tx.projects().save(None, &p, &ctx()).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+
+    let mut found: Vec<_> = store
+        .project_codes_starting_with("WEBS")
+        .await
+        .unwrap()
+        .into_iter()
+        .collect();
+    found.sort();
+    assert_eq!(found, ["WEBS", "WEBS1"]);
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -284,7 +447,12 @@ macro_rules! port_contract_tests {
             rolled_back_references_are_reused,
             people_are_listed_by_name_in_pages,
             people_are_listed_by_id_by_default,
-            a_person_can_be_fetched_by_id
+            a_person_can_be_fetched_by_id,
+            saved_project_can_be_loaded_and_updated,
+            a_project_code_can_be_used_only_once,
+            each_project_save_writes_a_history_entry,
+            projects_are_listed_without_archived_ones_by_default,
+            project_codes_can_be_found_by_prefix
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

@@ -43,6 +43,66 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/projects': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Lists Projects, ordered by ID unless `sort` is given. Archived Projects
+     *     are left out unless `include_archived=true`.
+     */
+    get: operations['list_projects']
+    put?: never
+    /** Creates a Project. The Acting Person becomes a Member and its Project Leader. */
+    post: operations['create_project']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/projects/code_suggestion': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Suggests an unused Project Code for a name (FR-16). */
+    get: operations['suggest_project_code']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/projects/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Fetches a Project, archived or not. */
+    get: operations['get_project']
+    /** Replaces a Project's name and description. Needs a session and `If-Match`. */
+    put: operations['update_project']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Archives or unarchives a Project, with `{"archived": …}` as
+     *     `application/merge-patch+json`. Needs a session and `If-Match`.
+     */
+    patch: operations['archive_project']
+    trace?: never
+  }
   '/api/v1/session': {
     parameters: {
       query?: never
@@ -65,6 +125,11 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** @description A suggested Project Code. */
+    CodeSuggestion: {
+      /** @description `null` when the name has too few letters to suggest one. */
+      project_code?: string | null
+    }
     /** @description Chooses the Acting Person. */
     NewSession: {
       /** Format: uuid */
@@ -95,6 +160,12 @@ export interface components {
        */
       total: number
     }
+    /** @description A Person as shown on something that refers to them. */
+    PersonRefBody: {
+      display_name: string
+      /** Format: uuid */
+      id: string
+    }
     /** @description An RFC 9457 problem details object, served as `application/problem+json`. */
     Problem: {
       detail?: string | null
@@ -103,6 +174,45 @@ export interface components {
       title: string
       /** @description Always `about:blank`: the status code says what went wrong. */
       type: string
+    }
+    /**
+     * @description A Project. Also the request body for `POST` and `PUT`: read-only fields may
+     *     be sent to `PUT` only if they match what is stored.
+     */
+    Project: {
+      /** @description Changed only with `PATCH`. */
+      readonly archived: boolean
+      /** @description 1–4000 characters once trimmed, or `null`. Required on `PUT`. */
+      description?: string | null
+      /** Format: uuid */
+      readonly id: string
+      /** @description Required, 1–100 characters; surrounding whitespace is trimmed. */
+      name: string
+      /**
+       * @description Set on creation and never changed: an uppercase letter followed by
+       *     1–9 uppercase letters or digits, unique across Projects.
+       */
+      project_code: string
+      readonly project_leader?: components['schemas']['PersonRefBody'] | null
+      /** Format: int32 */
+      readonly version: number
+    }
+    /** @description A page of Projects. */
+    ProjectPage: {
+      items: components['schemas']['Project'][]
+      /** Format: int32 */
+      limit: number
+      /** Format: int32 */
+      offset: number
+      /**
+       * Format: int64
+       * @description Matching Projects across all pages.
+       */
+      total: number
+    }
+    /** @description The only change `PATCH` makes (ADR-0006). */
+    ProjectPatch: {
+      archived: boolean
     }
     /** @description The current Acting Person. */
     Session: {
@@ -270,6 +380,309 @@ export interface operations {
         }
       }
       /** @description Invalid Person */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  list_projects: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1–1000. */
+        limit?: number
+        offset?: number
+        sort?: 'id' | 'name'
+        /** @description Include archived Projects. */
+        include_archived?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ProjectPage']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  create_project: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Project']
+      }
+    }
+    responses: {
+      201: {
+        headers: {
+          etag?: string
+          location?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Project Code in use */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Project */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  suggest_project_code: {
+    parameters: {
+      query: {
+        /** @description The Project name to suggest a code for. */
+        name: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CodeSuggestion']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  get_project: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  update_project: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Project']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Project */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  archive_project: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/merge-patch+json': components['schemas']['ProjectPatch']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid patch */
       422: {
         headers: {
           [name: string]: unknown

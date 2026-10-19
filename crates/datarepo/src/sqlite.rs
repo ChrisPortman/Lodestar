@@ -1,6 +1,7 @@
 //! SQLite adapter (ADR-0007): WAL, 5-second busy timeout, foreign keys on.
 //! Queries use sqlx's compile-time checked macros against `.sqlx/`.
 
+use std::collections::{BTreeSet, HashSet};
 use std::{str::FromStr, time::Duration};
 
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -10,8 +11,13 @@ use lodestar_core::history::{
 };
 use lodestar_core::person::{DisplayName, Person, PersonId, PersonView};
 use lodestar_core::ports::{
-    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ReferenceCounter,
-    ReferenceKind, RepoError, Transaction, UnitOfWork,
+    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
+    UnitOfWork,
+};
+use lodestar_core::project::{
+    Description, HealthRating, PersonRef, Project, ProjectCode, ProjectId, ProjectName,
+    ProjectParts, ProjectView, Rag,
 };
 use sqlx::Sqlite;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
@@ -93,6 +99,10 @@ impl Transaction for SqliteTx {
         SqlitePeople(&mut self.0)
     }
 
+    fn projects(&mut self) -> impl ProjectRepository + Send + '_ {
+        SqliteProjects(&mut self.0)
+    }
+
     fn references(&mut self) -> impl ReferenceCounter + Send + '_ {
         SqliteReferences(&mut self.0)
     }
@@ -171,6 +181,162 @@ impl PersonRepository for SqlitePeople<'_> {
                 entity_type: EntityType::Person,
                 entity_id: after.id().as_uuid(),
                 project_id: None,
+                version: after.version(),
+                change_kind,
+                before: before.map(snapshot),
+                after: snapshot(after),
+            },
+            ctx,
+        )
+        .await
+    }
+}
+
+struct SqliteProjects<'a>(&'a mut sqlx::Transaction<'static, Sqlite>);
+
+impl ProjectRepository for SqliteProjects<'_> {
+    async fn load(&mut self, id: ProjectId) -> Result<Project, RepoError> {
+        let id_text = id.to_string();
+        let row = sqlx::query!(
+            "SELECT name, description, project_code, archived, project_leader_id,
+                    health_rating, health_comment, version
+             FROM projects WHERE id = ?",
+            id_text
+        )
+        .fetch_optional(&mut **self.0)
+        .await
+        .map_err(unexpected)?
+        .ok_or(RepoError::NotFound)?;
+        let members = sqlx::query_scalar!(
+            "SELECT person_id FROM project_members WHERE project_id = ?",
+            id_text
+        )
+        .fetch_all(&mut **self.0)
+        .await
+        .map_err(unexpected)?
+        .iter()
+        .map(|m| uuid(m).map(PersonId::from_uuid))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+        let health_rating = match row.health_rating {
+            None => None,
+            Some(rating) => Some(HealthRating {
+                rating: Rag::parse(&rating).ok_or_else(|| corrupt("health_rating", &rating))?,
+                comment: row.health_comment.map(description).transpose()?,
+            }),
+        };
+        Ok(Project::restore(ProjectParts {
+            id,
+            name: ProjectName::new(&row.name).map_err(|_| corrupt("name", &row.name))?,
+            description: row.description.map(description).transpose()?,
+            project_code: ProjectCode::new(&row.project_code)
+                .map_err(|_| corrupt("project_code", &row.project_code))?,
+            archived: row.archived != 0,
+            project_leader: row
+                .project_leader_id
+                .as_deref()
+                .map(|l| uuid(l).map(PersonId::from_uuid))
+                .transpose()?,
+            members,
+            health_rating,
+            version: version(row.version)?,
+        }))
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&Project>,
+        after: &Project,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        let id = after.id().to_string();
+        let name = after.name().as_str();
+        let description = after.description().map(Description::as_str);
+        let code = after.project_code().as_str();
+        let archived = after.archived();
+        let leader = after.project_leader().map(|l| l.to_string());
+        let rating = after.health_rating().map(|h| h.rating.as_str());
+        let comment = after
+            .health_rating()
+            .and_then(|h| h.comment.as_ref())
+            .map(Description::as_str);
+        let new_version = i64::from(after.version());
+        let change_kind = match before {
+            None => {
+                sqlx::query!(
+                    "INSERT INTO projects
+                        (id, name, description, project_code, archived, project_leader_id,
+                         health_rating, health_comment, version)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    id,
+                    name,
+                    description,
+                    code,
+                    archived,
+                    leader,
+                    rating,
+                    comment,
+                    new_version
+                )
+                .execute(&mut **self.0)
+                .await
+                .map_err(|e| match e {
+                    sqlx::Error::Database(db)
+                        if db.is_unique_violation() && db.message().contains("projects.id") =>
+                    {
+                        RepoError::Conflict
+                    }
+                    e => map_constraint(e),
+                })?;
+                ChangeKind::Created
+            }
+            Some(before) => {
+                let old_version = i64::from(before.version());
+                let updated = sqlx::query!(
+                    "UPDATE projects SET name = ?, description = ?, archived = ?,
+                        project_leader_id = ?, health_rating = ?, health_comment = ?, version = ?
+                     WHERE id = ? AND version = ?",
+                    name,
+                    description,
+                    archived,
+                    leader,
+                    rating,
+                    comment,
+                    new_version,
+                    id,
+                    old_version
+                )
+                .execute(&mut **self.0)
+                .await
+                .map_err(map_constraint)?;
+                if updated.rows_affected() != 1 {
+                    return Err(RepoError::Conflict);
+                }
+                ChangeKind::Updated
+            }
+        };
+        if before.is_none_or(|b| b.members() != after.members()) {
+            sqlx::query!("DELETE FROM project_members WHERE project_id = ?", id)
+                .execute(&mut **self.0)
+                .await
+                .map_err(unexpected)?;
+            for member in after.members() {
+                let member = member.to_string();
+                sqlx::query!(
+                    "INSERT INTO project_members (project_id, person_id) VALUES (?, ?)",
+                    id,
+                    member
+                )
+                .execute(&mut **self.0)
+                .await
+                .map_err(map_constraint)?;
+            }
+        }
+        record_history(
+            self.0,
+            NewEntry {
+                entity_type: EntityType::Project,
+                entity_id: after.id().as_uuid(),
+                project_id: Some(after.id().as_uuid()),
                 version: after.version(),
                 change_kind,
                 before: before.map(snapshot),
@@ -310,6 +476,115 @@ impl PeopleQuery for SqliteStore {
     }
 }
 
+/// A row of the Project list query.
+struct ProjectRow {
+    id: String,
+    name: String,
+    description: Option<String>,
+    project_code: String,
+    archived: i64,
+    project_leader_id: Option<String>,
+    leader_name: Option<String>,
+    version: i64,
+}
+
+impl TryFrom<ProjectRow> for ProjectView {
+    type Error = RepoError;
+
+    fn try_from(r: ProjectRow) -> Result<Self, RepoError> {
+        let project_leader = match r.project_leader_id {
+            None => None,
+            Some(l) => Some(PersonRef {
+                id: PersonId::from_uuid(uuid(&l)?),
+                display_name: r.leader_name.unwrap_or_default(),
+            }),
+        };
+        Ok(ProjectView {
+            id: ProjectId::from_uuid(uuid(&r.id)?),
+            name: r.name,
+            description: r.description,
+            project_code: r.project_code,
+            archived: r.archived != 0,
+            project_leader,
+            version: version(r.version)?,
+        })
+    }
+}
+
+impl ProjectsQuery for SqliteStore {
+    async fn list_projects(
+        &self,
+        page: PageRequest,
+        include_archived: bool,
+        sort: ProjectSort,
+    ) -> Result<Page<ProjectView>, RepoError> {
+        let limit = i64::from(page.limit);
+        let offset = i64::from(page.offset);
+        let by_name = sort == ProjectSort::Name;
+        let rows = sqlx::query_as!(
+            ProjectRow,
+            r#"SELECT p.id, p.name, p.description, p.project_code, p.archived,
+                      p.project_leader_id, pe.display_name AS "leader_name?", p.version
+               FROM projects p LEFT JOIN people pe ON pe.id = p.project_leader_id
+               WHERE ? OR p.archived = 0
+               ORDER BY CASE WHEN ? THEN p.name END, p.id LIMIT ? OFFSET ?"#,
+            include_archived,
+            by_name,
+            limit,
+            offset
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(unexpected)?;
+        let total = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM projects WHERE ? OR archived = 0",
+            include_archived
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(unexpected)?;
+        let items = rows
+            .into_iter()
+            .map(ProjectView::try_from)
+            .collect::<Result<_, RepoError>>()?;
+        Ok(Page {
+            items,
+            total: count(total)?,
+        })
+    }
+
+    async fn get_project(&self, id: ProjectId) -> Result<ProjectView, RepoError> {
+        let id_text = id.to_string();
+        sqlx::query_as!(
+            ProjectRow,
+            r#"SELECT p.id, p.name, p.description, p.project_code, p.archived,
+                      p.project_leader_id, pe.display_name AS "leader_name?", p.version
+               FROM projects p LEFT JOIN people pe ON pe.id = p.project_leader_id
+               WHERE p.id = ?"#,
+            id_text
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(unexpected)?
+        .ok_or(RepoError::NotFound)?
+        .try_into()
+    }
+
+    async fn project_codes_starting_with(
+        &self,
+        prefix: &str,
+    ) -> Result<HashSet<String>, RepoError> {
+        let codes = sqlx::query_scalar!(
+            "SELECT project_code FROM projects WHERE substr(project_code, 1, length(?1)) = ?1",
+            prefix
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(unexpected)?;
+        Ok(codes.into_iter().collect())
+    }
+}
+
 impl HistoryQuery for SqliteStore {
     async fn entity_history(
         &self,
@@ -413,4 +688,8 @@ fn json(s: &str) -> Result<serde_json::Value, RepoError> {
 
 fn display_name(s: String) -> Result<DisplayName, RepoError> {
     DisplayName::new(&s).map_err(|_| corrupt("display_name", &s))
+}
+
+fn description(s: String) -> Result<Description, RepoError> {
+    Description::new(&s).map_err(|_| corrupt("description", &s))
 }

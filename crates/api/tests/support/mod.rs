@@ -71,7 +71,12 @@ impl App {
         }
         let body = match body {
             Some(json) => {
-                request = request.header(header::CONTENT_TYPE, "application/json");
+                if !headers
+                    .iter()
+                    .any(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+                {
+                    request = request.header(header::CONTENT_TYPE, "application/json");
+                }
                 Body::from(json.to_string())
             }
             None => Body::empty(),

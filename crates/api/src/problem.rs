@@ -7,7 +7,9 @@ use axum::{
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use lodestar_core::{person::use_cases::PersonError, ports::RepoError};
+use lodestar_core::{
+    person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
+};
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -109,6 +111,21 @@ impl From<PersonError> for Problem {
         match error {
             PersonError::InvalidDisplayName(e) => Self::invalid(e.to_string()),
             PersonError::Repo(e) => e.into(),
+        }
+    }
+}
+
+impl From<ProjectError> for Problem {
+    fn from(error: ProjectError) -> Self {
+        match error {
+            ProjectError::InvalidName(_)
+            | ProjectError::InvalidDescription(_)
+            | ProjectError::InvalidCode(_) => Self::invalid(error.to_string()),
+            ProjectError::CodeTaken | ProjectError::Archived => {
+                Self::new(StatusCode::CONFLICT).detail(error.to_string())
+            }
+            ProjectError::UnknownActingPerson => Self::unauthorized(),
+            ProjectError::Repo(e) => e.into(),
         }
     }
 }

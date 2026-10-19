@@ -54,18 +54,21 @@ impl ChangeContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntityType {
     Person,
+    Project,
 }
 
 impl EntityType {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Person => "person",
+            Self::Project => "project",
         }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "person" => Some(Self::Person),
+            "project" => Some(Self::Project),
             _ => None,
         }
     }

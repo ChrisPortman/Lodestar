@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT name, description, project_code, archived, project_leader_id,\n                    health_rating, health_comment, version\n             FROM projects WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "project_code",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_code"
+          }
+        }
+      },
+      {
+        "name": "archived",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "archived"
+          }
+        }
+      },
+      {
+        "name": "project_leader_id",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_leader_id"
+          }
+        }
+      },
+      {
+        "name": "health_rating",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "health_rating"
+          }
+        }
+      },
+      {
+        "name": "health_comment",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "health_comment"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "d5351107e11bca6c04a4eb75ddd2ece905693a7ba2b1d2e96f241ae94fa05cda"
+}

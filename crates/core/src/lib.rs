@@ -4,6 +4,7 @@ pub mod health;
 pub mod history;
 pub mod person;
 pub mod ports;
+pub mod project;
 
 #[cfg(feature = "test-support")]
 pub mod test_support;

@@ -4,6 +4,7 @@ mod frontend;
 mod health;
 mod people;
 mod problem;
+mod projects;
 mod request;
 mod security;
 mod services;
@@ -15,7 +16,7 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
-    ports::{PeopleQuery, UnitOfWork},
+    ports::{PeopleQuery, ProjectsQuery, UnitOfWork},
 };
 use rust_embed::RustEmbed;
 use tower_http::compression::CompressionLayer;
@@ -42,6 +43,7 @@ pub struct Services<H, S> {
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub people: Arc<dyn services::People>,
+    pub projects: Arc<dyn services::Projects>,
     pub session_key: Key,
 }
 
@@ -49,7 +51,7 @@ pub(crate) struct AppState {
 pub fn router<H, S>(services: Services<H, S>) -> Router
 where
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + 'static,
+    S: UnitOfWork + PeopleQuery + ProjectsQuery + Clone + 'static,
 {
     router_with::<Frontend, H, S>(services)
 }
@@ -62,15 +64,17 @@ pub fn router_with<A, H, S>(services: Services<H, S>) -> Router
 where
     A: RustEmbed + Send + Sync + 'static,
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + 'static,
+    S: UnitOfWork + PeopleQuery + ProjectsQuery + Clone + 'static,
 {
     let state = AppState {
-        people: Arc::new(services.store),
+        people: Arc::new(services.store.clone()),
+        projects: Arc::new(services.store),
         session_key: Key::try_from(services.session_key.as_slice())
             .expect("session key must be at least 64 bytes"),
     };
     let v1 = Router::new()
         .merge(people::routes())
+        .merge(projects::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .with_state(state);
@@ -94,6 +98,12 @@ where
         people::create,
         people::fetch,
         people::update,
+        projects::list,
+        projects::suggest_code,
+        projects::create,
+        projects::fetch,
+        projects::update,
+        projects::archive,
         session::current,
         session::choose,
     )

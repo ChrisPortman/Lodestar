@@ -8,7 +8,11 @@ use lodestar_core::{
         Person, PersonId, PersonView,
         use_cases::{self, PersonError},
     },
-    ports::{Page, PageRequest, PeopleQuery, PeopleSort, UnitOfWork},
+    ports::{Page, PageRequest, PeopleQuery, PeopleSort, ProjectSort, ProjectsQuery, UnitOfWork},
+    project::{
+        Project, ProjectCode, ProjectId, ProjectView,
+        use_cases::{self as project_use_cases, NewProject, ProjectError},
+    },
 };
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -71,6 +75,114 @@ impl<S: UnitOfWork + PeopleQuery> People for S {
             id,
             expected_version,
             display_name,
+        ))
+    }
+}
+
+pub trait Projects: Send + Sync {
+    fn list(
+        &self,
+        page: PageRequest,
+        include_archived: bool,
+        sort: ProjectSort,
+    ) -> BoxFuture<'_, Result<Page<ProjectView>, ProjectError>>;
+
+    fn get(&self, id: ProjectId) -> BoxFuture<'_, Result<ProjectView, ProjectError>>;
+
+    fn suggest_code<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<Option<ProjectCode>, ProjectError>>;
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewProject<'a>,
+    ) -> BoxFuture<'a, Result<Project, ProjectError>>;
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        name: &'a str,
+        description: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Project, ProjectError>>;
+
+    fn set_archived(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        archived: bool,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>>;
+}
+
+impl<S: UnitOfWork + ProjectsQuery> Projects for S {
+    fn list(
+        &self,
+        page: PageRequest,
+        include_archived: bool,
+        sort: ProjectSort,
+    ) -> BoxFuture<'_, Result<Page<ProjectView>, ProjectError>> {
+        Box::pin(project_use_cases::list_projects(
+            self,
+            page,
+            include_archived,
+            sort,
+        ))
+    }
+
+    fn get(&self, id: ProjectId) -> BoxFuture<'_, Result<ProjectView, ProjectError>> {
+        Box::pin(project_use_cases::get_project(self, id))
+    }
+
+    fn suggest_code<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<Option<ProjectCode>, ProjectError>> {
+        Box::pin(project_use_cases::suggest_project_code(self, name))
+    }
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewProject<'a>,
+    ) -> BoxFuture<'a, Result<Project, ProjectError>> {
+        Box::pin(project_use_cases::create_project(self, acting, input))
+    }
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        name: &'a str,
+        description: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Project, ProjectError>> {
+        Box::pin(project_use_cases::update_project(
+            self,
+            acting,
+            id,
+            expected_version,
+            name,
+            description,
+        ))
+    }
+
+    fn set_archived(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        archived: bool,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>> {
+        Box::pin(project_use_cases::set_archived(
+            self,
+            acting,
+            id,
+            expected_version,
+            archived,
         ))
     }
 }
