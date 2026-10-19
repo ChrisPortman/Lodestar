@@ -46,11 +46,23 @@ async function openRisks() {
 
 describe('Risks panel', () => {
   it('lists open Risks with a score coloured by severity, and closed ones collapsed', async () => {
-    await renderApp('/projects/p1', [ada], 'a', [project()], [
-      risk({ id: 'r1', reference: 'R-001', description: 'Vendor late\nAgain', likelihood: 5, impact: 4 }),
-      risk({ id: 'r2', reference: 'R-002', description: 'Minor', likelihood: 1, impact: 2 }),
-      risk({ id: 'r3', reference: 'R-003', description: 'Old one', closed: true }),
-    ])
+    await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project()],
+      [
+        risk({
+          id: 'r1',
+          reference: 'R-001',
+          description: 'Vendor late\nAgain',
+          likelihood: 5,
+          impact: 4,
+        }),
+        risk({ id: 'r2', reference: 'R-002', description: 'Minor', likelihood: 1, impact: 2 }),
+        risk({ id: 'r3', reference: 'R-003', description: 'Old one', closed: true }),
+      ],
+    )
     await waitFor(async () => expect(await openRisks()).toHaveLength(2))
     const [first, second] = await openRisks()
     expect(first!.textContent).toContain('R-001')
@@ -86,26 +98,42 @@ describe('Risks panel', () => {
   })
 
   it('saves likelihood and impact as soon as they change', async () => {
-    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project()], [
-      risk({ id: 'r1', reference: 'R-001', description: 'Vendor late', likelihood: 1, impact: 1 }),
-    ])
+    const { backend } = await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project()],
+      [
+        risk({
+          id: 'r1',
+          reference: 'R-001',
+          description: 'Vendor late',
+          likelihood: 1,
+          impact: 1,
+        }),
+      ],
+    )
     const region = await panel()
     await userEvent.selectOptions(await within(region).findByLabelText('Likelihood of R-001'), '5')
     await waitFor(() => expect(backend.risks[0]).toMatchObject({ likelihood: 5, version: 2 }))
-    await waitFor(() =>
-      expect(within(region).getByLabelText('Score').textContent).toContain('5'),
-    )
+    await waitFor(() => expect(within(region).getByLabelText('Score').textContent).toContain('5'))
     await userEvent.selectOptions(within(region).getByLabelText('Impact of R-001'), '3')
-    await waitFor(() => expect(backend.risks[0]).toMatchObject({ impact: 3, score: 15, version: 3 }))
+    await waitFor(() =>
+      expect(backend.risks[0]).toMatchObject({ impact: 3, score: 15, version: 3 }),
+    )
     await waitFor(() =>
       expect(within(region).getByLabelText('Score').dataset.severity).toBe('high'),
     )
   })
 
   it('edits a description with an explicit Save', async () => {
-    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project()], [
-      risk({ id: 'r1', reference: 'R-001', description: 'Vendor late' }),
-    ])
+    const { backend } = await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project()],
+      [risk({ id: 'r1', reference: 'R-001', description: 'Vendor late' })],
+    )
     const region = await panel()
     await userEvent.click(await within(region).findByRole('button', { name: 'Edit R-001' }))
     const text = within(region).getByLabelText('Description of R-001')
@@ -117,9 +145,13 @@ describe('Risks panel', () => {
   })
 
   it('closes and reopens a Risk', async () => {
-    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project()], [
-      risk({ id: 'r1', reference: 'R-001', description: 'Vendor late' }),
-    ])
+    const { backend } = await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project()],
+      [risk({ id: 'r1', reference: 'R-001', description: 'Vendor late' })],
+    )
     const region = await panel()
     await userEvent.click(await within(region).findByRole('button', { name: 'Close R-001' }))
     await waitFor(async () => expect(await openRisks()).toHaveLength(0))
@@ -132,9 +164,13 @@ describe('Risks panel', () => {
   })
 
   it('reports a change made elsewhere and reloads', async () => {
-    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project()], [
-      risk({ id: 'r1', reference: 'R-001', description: 'Vendor late', likelihood: 1 }),
-    ])
+    const { backend } = await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project()],
+      [risk({ id: 'r1', reference: 'R-001', description: 'Vendor late', likelihood: 1 })],
+    )
     const region = await panel()
     await within(region).findByLabelText('Likelihood of R-001')
     // Someone else edits the Risk after it was loaded.
@@ -142,16 +178,20 @@ describe('Risks panel', () => {
     await userEvent.selectOptions(within(region).getByLabelText('Likelihood of R-001'), '5')
     expect((await within(region).findByRole('alert')).textContent).toContain('Precondition Failed')
     await waitFor(() =>
-      expect(
-        within(region).getByLabelText<HTMLSelectElement>('Likelihood of R-001').value,
-      ).toBe('2'),
+      expect(within(region).getByLabelText<HTMLSelectElement>('Likelihood of R-001').value).toBe(
+        '2',
+      ),
     )
   })
 
   it('is read-only in an archived Project', async () => {
-    await renderApp('/projects/p1', [ada], 'a', [project({ archived: true })], [
-      risk({ id: 'r1', reference: 'R-001', description: 'Vendor late' }),
-    ])
+    await renderApp(
+      '/projects/p1',
+      [ada],
+      'a',
+      [project({ archived: true })],
+      [risk({ id: 'r1', reference: 'R-001', description: 'Vendor late' })],
+    )
     const region = await panel()
     await waitFor(async () => expect(await openRisks()).toHaveLength(1))
     expect(within(region).queryByRole('button', { name: 'Add Risk' })).toBeNull()

@@ -3,7 +3,7 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createMemoryHistory } from 'vue-router'
 import App from '../App.vue'
 import { createAppRouter } from '../router'
-import { server, fakeBackend, type Person, type Project } from './server'
+import { server, fakeBackend, type Person, type Project, type Risk } from './server'
 
 /** Renders the whole app at `path` against an in-memory backend. */
 export async function renderApp(
@@ -11,8 +11,9 @@ export async function renderApp(
   people: Person[],
   actingId: string | null = null,
   projects: Project[] = [],
+  risks: Risk[] = [],
 ) {
-  const backend = fakeBackend(people, actingId, projects)
+  const backend = fakeBackend(people, actingId, projects, risks)
   server.use(...backend.handlers)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createAppRouter(createMemoryHistory(), queryClient)
