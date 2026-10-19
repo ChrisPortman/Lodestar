@@ -559,6 +559,15 @@ impl HistoryQuery for InMemoryStore {
             .collect();
         Ok(page_of(all, page))
     }
+
+    async fn project_history(&self, project_id: ProjectId) -> Result<Vec<HistoryEntry>, RepoError> {
+        Ok(self
+            .snapshot()
+            .history
+            .into_iter()
+            .filter(|e| e.project_id == Some(project_id.as_uuid()))
+            .collect())
+    }
 }
 
 fn person_ref(state: &State, id: PersonId) -> PersonRef {
