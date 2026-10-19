@@ -38,8 +38,25 @@ export function fakeBackend(
 ) {
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
+  // Member IDs per Project; each Project starts with its leader as its only Member.
+  const members = new Map(
+    projects.map((p) => [p.id, new Set(p.project_leader ? [p.project_leader.id] : [])]),
+  )
   let acting = actingId
   let n = 0
+  const personRef = (id: string) => {
+    const person = people.find((p) => p.id === id)
+    return { id, display_name: person?.display_name ?? '' }
+  }
+  /** The writable Project, or the problem that stops it changing. */
+  const writable = (id: unknown, request: Request): Mutable<Project> | Response => {
+    const project = projects.find((p) => p.id === id)
+    if (!project) return problem(404, 'Not Found')
+    if (request.headers.get('If-Match') !== `"${project.version}"`)
+      return problem(412, 'Precondition Failed')
+    if (project.archived) return problem(409, 'Conflict')
+    return project
+  }
   const handlers = [
     http.get(api('/people'), () =>
       HttpResponse.json<Schemas['PersonPage']>({
@@ -101,18 +118,54 @@ export function fakeBackend(
         project_leader: person ? { id: person.id, display_name: person.display_name } : null,
       }
       projects.push(project)
+      members.set(project.id, new Set(person ? [person.id] : []))
       return HttpResponse.json<Project>(project, { status: 201 })
     }),
-    http.put(api('/projects/:id'), async ({ request, params }) => {
+    http.get(api('/projects/:id'), ({ params }) => {
       const project = projects.find((p) => p.id === params.id)
-      if (!project) return problem(404, 'Not Found')
-      if (request.headers.get('If-Match') !== `"${project.version}"`)
-        return problem(412, 'Precondition Failed')
-      if (project.archived) return problem(409, 'Conflict')
+      return project ? HttpResponse.json<Project>(project) : problem(404, 'Not Found')
+    }),
+    http.get(api('/projects/:id/members'), ({ params }) => {
+      const ids = members.get(params.id as string)
+      if (!ids) return problem(404, 'Not Found')
+      const items = [...ids]
+        .map(personRef)
+        .sort((a, b) => a.display_name.localeCompare(b.display_name))
+      return HttpResponse.json<Schemas['MemberList']>({ items })
+    }),
+    http.post(api('/projects/:id/members'), async ({ request, params }) => {
+      const project = writable(params.id, request)
+      if (project instanceof Response) return project
+      const { person_id } = (await request.json()) as Schemas['NewMember']
+      if (!people.some((p) => p.id === person_id)) return problem(422, 'Unprocessable Content')
+      const ids = members.get(project.id)!
+      if (!ids.has(person_id)) {
+        ids.add(person_id)
+        project.version += 1
+      }
+      return HttpResponse.json<Project>(project)
+    }),
+    http.delete(api('/projects/:id/members/:personId'), ({ request, params }) => {
+      const project = writable(params.id, request)
+      if (project instanceof Response) return project
+      const ids = members.get(project.id)!
+      if (!ids.delete(params.personId as string)) return problem(404, 'Not Found')
+      if (project.project_leader?.id === params.personId) project.project_leader = null
+      project.version += 1
+      return HttpResponse.json<Project>(project)
+    }),
+    http.put(api('/projects/:id'), async ({ request, params }) => {
+      const project = writable(params.id, request)
+      if (project instanceof Response) return project
       const body = (await request.json()) as Project
-      if (!('description' in body)) return problem(422, 'Unprocessable Content')
+      if (!('description' in body) || !('project_leader' in body))
+        return problem(422, 'Unprocessable Content')
+      const leader = body.project_leader?.id ?? null
+      if (leader && !members.get(project.id)!.has(leader))
+        return problem(422, 'Unprocessable Content')
       project.name = body.name.trim()
       project.description = body.description ?? null
+      project.project_leader = leader ? personRef(leader) : null
       project.version += 1
       return HttpResponse.json<Project>(project)
     }),
@@ -144,7 +197,7 @@ export function fakeBackend(
       return HttpResponse.json<Schemas['Session']>({ person })
     }),
   ]
-  return { handlers, people, projects, acting: () => acting }
+  return { handlers, people, projects, members, acting: () => acting }
 }
 
 export const server = setupServer()
