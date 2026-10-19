@@ -99,6 +99,8 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 |----|-----|-------------|
 | FR-90 | M | The Project view shows open **Actions**, **Risks** and **Blockers** first. Closed or cleared items are kept in a separate tab or a collapsed list so they don't distract during a meeting. |
 | FR-91 | M | Common meeting tasks can be done inline, without leaving the Project view: closing an Action, reassigning it, changing a Risk's likelihood or impact, clearing a Blocker, and adding a new item. |
+| FR-93 | M | Descriptions can be multi-line and are shown with their line breaks. Editing a description needs an explicit Save (or Cancel). Discrete fields (assignee, due date, likelihood, impact) and Close/Clear apply straight away. |
+| FR-94 | M | The meeting view is a single column with Actions, Blockers and Risks panels in that order. Members are managed in a panel that's opened on demand, not shown all the time. |
 | FR-92 | S | Lists can be sorted and filtered by assignee, state and due date, and Risks also by score. |
 
 ### 1.11 Project on a Page
