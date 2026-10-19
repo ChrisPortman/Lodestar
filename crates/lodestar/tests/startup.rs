@@ -91,3 +91,44 @@ fn missing_explicit_config_file_exits_with_ex_config() {
         .unwrap();
     assert_eq!(status.code(), Some(78));
 }
+
+#[cfg(unix)]
+#[test]
+fn sigterm_shuts_down_cleanly() {
+    let dir = tempfile::tempdir().unwrap();
+    let port = free_port();
+    let mut child = lodestar(&dir)
+        .env("LODESTAR_SERVER__PORT", port.to_string())
+        .spawn()
+        .unwrap();
+    let started = Instant::now();
+    while get_healthz(port).is_none() {
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "server did not start"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    let sent = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(sent.success());
+    let stopping = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if stopping.elapsed() > Duration::from_secs(5) {
+            child.kill().unwrap();
+            panic!("still running 5s after SIGTERM");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert_eq!(status.code(), Some(0), "{status:?}");
+    assert!(
+        TcpStream::connect(("127.0.0.1", port)).is_err(),
+        "no longer listening"
+    );
+}

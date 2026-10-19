@@ -12,7 +12,7 @@ lodestar-core = { path = "crates/core" }
 lodestar-datarepo = { path = "crates/datarepo" }
 lodestar-api = { path = "crates/api" }
 axum = "0.8"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["compression-full", "set-header"] }
 rust-embed = { version = "8", features = ["mime-guess"] }

@@ -26,7 +26,7 @@ curl http://127.0.0.1:8080/api/v1/healthz
 
 With no configuration, Lodestar listens on `127.0.0.1:8080`, and creates `lodestar.db` and `lodestar-session.key` in the working directory.
 
-Exit codes: `64` means a bad command line, and `78` means invalid configuration. Both are logged with the offending key.
+Exit codes: `64` means a bad command line, and `78` means invalid configuration. Both are logged with the offending key. On SIGTERM or SIGINT, Lodestar stops accepting connections, finishes the requests in flight, closes the database and exits `0`.
 
 ## Configuration
 

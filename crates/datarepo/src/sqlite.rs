@@ -61,6 +61,11 @@ impl SqliteDatabase {
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
+
+    /// Waits for connections in use to be returned, then closes them all.
+    pub async fn close(&self) {
+        self.pool.close().await;
+    }
 }
 
 impl HealthProbe for SqliteDatabase {

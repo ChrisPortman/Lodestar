@@ -88,20 +88,53 @@ async fn main() -> ExitCode {
         }
     };
     tracing::info!("Lodestar listening on http://{addr}");
-    if let Err(error) = axum::serve(
+    let served = axum::serve(
         listener,
         lodestar_api::router(lodestar_api::Services {
             store: database.store(),
-            health: database,
+            health: database.clone(),
             session_key,
         }),
     )
-    .await
-    {
+    .with_graceful_shutdown(shutdown_signal())
+    .await;
+    database.close().await;
+    if let Err(error) = served {
         tracing::error!(%error, "server error");
         return ExitCode::FAILURE;
     }
+    tracing::info!("Lodestar stopped");
     ExitCode::SUCCESS
+}
+
+/// Resolves on SIGINT (Ctrl-C) or, on Unix, SIGTERM. The server then stops
+/// accepting connections and finishes the requests in flight.
+async fn shutdown_signal() {
+    let interrupt = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!(%error, "cannot listen for Ctrl-C");
+            std::future::pending::<()>().await;
+        }
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                tracing::error!(%error, "cannot listen for SIGTERM");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = interrupt => {}
+        () = terminate => {}
+    }
+    tracing::info!("shutting down");
 }
 
 fn write_openapi(out: &std::path::Path) -> ExitCode {
