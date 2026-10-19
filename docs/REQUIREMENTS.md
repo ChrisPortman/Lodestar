@@ -13,7 +13,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | FR-01 | M | Anyone can create a **Person** with a display name. **People** exist across the whole system, not inside a **Project**. |
 | FR-02 | M | When the UI is opened, the user must select an existing **Person** or create one. That Person becomes the **Acting Person** for the session. |
 | FR-03 | M | The UI shows the current **Acting Person** and lets the user switch to a different one. |
-| FR-04 | S | The **Acting Person** is remembered per browser between visits. |
+| FR-04 | M | The **Acting Person** is held in a long-lived session cookie, so it is remembered per browser between visits (ADR-0006). |
 | FR-05 | M | A **Person**'s display name (required, up to 100 characters) can be edited. People are never deleted. |
 
 ### 1.2 Projects
@@ -125,7 +125,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | NFR-02 | M | Storage goes through a repository port. SQLite is the MVP adapter, and the schema and queries must not block adding Postgres or MySQL adapters later. |
 | NFR-03 | M | The frontend is a Vue single-page app styled with Tailwind. Its build output is embedded in the backend binary and served from it. |
 | NFR-04 | M | The MVP is delivered as one self-contained Linux executable. OCI image and Helm chart packaging come later. |
-| NFR-05 | M | All entities use UUIDs as their primary keys and as their identifiers in the API (ADR-0001). |
+| NFR-05 | M | All entities use UUIDv7s as their primary keys and as their identifiers in the API (ADR-0001). |
 
 ### 2.2 API
 
@@ -133,8 +133,8 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 |----|-----|-------------|
 | NFR-10 | M | The REST API is served under `/api/v1`. The UI uses only this public API. |
 | NFR-11 | M | The OpenAPI document is generated from the code with utoipa and served by the app. The frontend's TypeScript types are generated from it (ADR-0002). |
-| NFR-12 | M | Updates use optimistic concurrency. A save based on an out-of-date version of an item is rejected (e.g. HTTP 409), and the UI asks the user to reload. |
-| NFR-13 | M | Errors use one consistent, machine-readable format (e.g. RFC 9457 problem details). |
+| NFR-12 | M | Updates use optimistic concurrency. A save based on an out-of-date version of an item is rejected (HTTP 412, using `If-Match` and `ETag`), and the UI asks the user to reload (ADR-0006). |
+| NFR-13 | M | Errors use RFC 9457 problem details. The API follows the conventions in ADR-0006: flat URLs, `PUT` with every writable field, `PATCH` only for the finalise flag, no deletion, snake_case, and limit/offset pagination. |
 
 ### 2.3 Configuration and operations
 
