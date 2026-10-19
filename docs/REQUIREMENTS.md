@@ -45,7 +45,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 |----|-----|-------------|
 | FR-30 | M | An **Action** has a description, an optional assignee (one **Member**), an optional due date (dates in the past are allowed), and a state of open or closed. |
 | FR-31 | M | An **Action** can be created, edited, closed and reopened. |
-| FR-32 | M | When an **Action** is created, it is given the next **Reference** in its Project (`A-0001`, `A-0002`, …). |
+| FR-32 | M | When an **Action** is created, it is given the next **Reference** in its Project (`A-001`, `A-002`, …). |
 | FR-33 | S | An open **Action** past its due date is highlighted. |
 
 ### 1.5 Risks
@@ -55,7 +55,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | FR-40 | M | A **Risk** has a description, a likelihood (1–5), an impact (1–5), and a state of open or closed. |
 | FR-41 | M | A **Risk**'s score is likelihood × impact. It's calculated, not stored, and used for sorting. |
 | FR-42 | M | A **Risk** can be created, edited (including its likelihood and impact), closed and reopened. |
-| FR-43 | M | When a **Risk** is created, it is given the next **Reference** in its Project (`R-0001`, …). |
+| FR-43 | M | When a **Risk** is created, it is given the next **Reference** in its Project (`R-001`, …). |
 | FR-44 | M | Turning a **Risk** into a **Blocker** is done by hand: close the Risk, then create a Blocker. No automatic conversion. |
 
 ### 1.6 Blockers
@@ -64,7 +64,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 |----|-----|-------------|
 | FR-50 | M | A **Blocker** has a description, an optional accountable **Member**, a state of open or cleared, and links to zero or more **Actions** in the same Project that it blocks. |
 | FR-51 | M | A **Blocker** can be created, edited, cleared and reopened, and its links to **Actions** can be added or removed. |
-| FR-52 | M | When a **Blocker** is created, it is given the next **Reference** in its Project (`B-0001`, …). |
+| FR-52 | M | When a **Blocker** is created, it is given the next **Reference** in its Project (`B-001`, …). |
 | FR-54 | M | Links between Blockers and Actions can be added or removed whatever state either item is in. A Blocker only counts as blocking while it is open. |
 | FR-53 | S | An **Action** shows any open **Blockers** that block it. |
 
@@ -72,9 +72,9 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 
 | ID | Pri | Requirement |
 |----|-----|-------------|
-| FR-60 | M | **References** are numbered separately for each type and each Project, increase strictly, and are never reused. |
+| FR-60 | M | **References** are numbered separately for each type and each Project, increase strictly, and are never reused. The number is zero-padded to at least 3 digits (`A-001`); past 999 it simply grows (`A-1000`). |
 | FR-61 | M | **References** are display labels only. They are never used as identifiers in the API or the database (ADR-0001). |
-| FR-62 | M | Wherever items from more than one Project appear together, the **Reference** is shown with the **Project Code** in front (e.g. `WEBR/A-0003`). |
+| FR-62 | M | Wherever items from more than one Project appear together, the **Reference** is shown with the **Project Code** in front (e.g. `WEBR/A-003`). |
 
 ### 1.8 Health Rating
 

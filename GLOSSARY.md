@@ -52,7 +52,7 @@ A report summarising a Project's open Actions, Risks and Blockers, plus its Heal
 _Avoid_: Status report, dashboard
 
 **Reference**:
-The short, human-readable label shown for an Action, Risk or Blocker, made of a type prefix and a number (e.g. A-0001, R-0001, B-0001). It is numbered within its Project and never reused.
+The short, human-readable label shown for an Action, Risk or Blocker, made of a type prefix and a number (e.g. A-001, R-001, B-001). It is numbered within its Project and never reused.
 _Avoid_: ID, key, number
 
 **Change History**:
