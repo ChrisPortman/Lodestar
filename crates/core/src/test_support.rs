@@ -10,18 +10,19 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
+use crate::blocker::{Blocker, BlockerId, BlockerView};
 use crate::history::{
     ChangeContext, ChangeKind, EntityType, HistoryEntry, HistoryEntryId, snapshot,
 };
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, HistoryQuery, Page, PageRequest, PeopleQuery,
-    PeopleSort, PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
-    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
-    UnitOfWork,
+    ActionFilter, ActionRepository, ActionsQuery, BlockerFilter, BlockerRepository, BlockersQuery,
+    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter,
+    RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
 use crate::project::{
-    Description, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
+    Description, ItemRef, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
 };
 use crate::risk::{Rating, Risk, RiskId, RiskView};
 
@@ -33,6 +34,7 @@ struct State {
     history: Vec<HistoryEntry>,
     references: HashMap<(Uuid, ReferenceKind), u32>,
     actions: BTreeMap<ActionId, Action>,
+    blockers: BTreeMap<BlockerId, Blocker>,
 }
 
 /// An in-memory store implementing every port. Transactions work on a copy
@@ -87,6 +89,10 @@ impl Transaction for InMemoryTx {
 
     fn actions(&mut self) -> impl ActionRepository + Send + '_ {
         InMemoryActions(&mut self.work)
+    }
+
+    fn blockers(&mut self) -> impl BlockerRepository + Send + '_ {
+        InMemoryBlockers(&mut self.work)
     }
 
     async fn commit(self) -> Result<(), RepoError> {
@@ -234,6 +240,71 @@ impl ActionRepository for InMemoryActions<'_> {
             .actions
             .values()
             .filter(|a| a.project_id() == project && !a.closed() && a.assignee() == Some(person))
+            .cloned()
+            .collect())
+    }
+}
+
+struct InMemoryBlockers<'a>(&'a mut State);
+
+impl BlockerRepository for InMemoryBlockers<'_> {
+    async fn load(&mut self, id: BlockerId) -> Result<Blocker, RepoError> {
+        self.0.blockers.get(&id).cloned().ok_or(RepoError::NotFound)
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&Blocker>,
+        after: &Blocker,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        let stored_version = self.0.blockers.get(&after.id()).map(Blocker::version);
+        if stored_version != before.map(Blocker::version) {
+            return Err(RepoError::Conflict);
+        }
+        if after
+            .blocked_actions()
+            .iter()
+            .any(|a| !self.0.actions.contains_key(a))
+        {
+            return Err(RepoError::Unexpected(
+                "blocker linked to an unknown action".to_owned(),
+            ));
+        }
+        self.0.blockers.insert(after.id(), after.clone());
+        let id = HistoryEntryId::new();
+        self.0.history.push(HistoryEntry {
+            id,
+            entity_type: EntityType::Blocker,
+            entity_id: after.id().as_uuid(),
+            project_id: Some(after.project_id().as_uuid()),
+            version: after.version(),
+            change_kind: if before.is_some() {
+                ChangeKind::Updated
+            } else {
+                ChangeKind::Created
+            },
+            acting_person: ctx.acting_person,
+            recorded_at: Utc::now(),
+            before: before.map(snapshot),
+            after: snapshot(after),
+            caused_by: ctx.caused_by,
+        });
+        Ok(id)
+    }
+
+    async fn open_accountable(
+        &mut self,
+        project: ProjectId,
+        person: PersonId,
+    ) -> Result<Vec<Blocker>, RepoError> {
+        Ok(self
+            .0
+            .blockers
+            .values()
+            .filter(|b| {
+                b.project_id() == project && !b.cleared() && b.accountable() == Some(person)
+            })
             .cloned()
             .collect())
     }
@@ -515,6 +586,20 @@ fn action_view(state: &State, action: &Action) -> ActionView {
         assignee: action.assignee().map(|id| person_ref(state, id)),
         due_date: action.due_date(),
         closed: action.closed(),
+        blocked_by: {
+            let mut open: Vec<_> = state
+                .blockers
+                .values()
+                .filter(|b| !b.cleared() && b.blocked_actions().contains(&action.id()))
+                .collect();
+            open.sort_by_key(|b| b.reference());
+            open.into_iter()
+                .map(|b| ItemRef {
+                    id: b.id().as_uuid(),
+                    reference: b.reference_label(),
+                })
+                .collect()
+        },
         version: action.version(),
     }
 }
@@ -545,6 +630,66 @@ impl ActionsQuery for InMemoryStore {
             .actions
             .get(&id)
             .map(|a| action_view(&state, a))
+            .ok_or(RepoError::NotFound)
+    }
+}
+
+fn blocker_view(state: &State, blocker: &Blocker) -> BlockerView {
+    let mut blocked: Vec<_> = blocker
+        .blocked_actions()
+        .iter()
+        .filter_map(|id| state.actions.get(id))
+        .collect();
+    blocked.sort_by_key(|a| a.reference());
+    BlockerView {
+        id: blocker.id(),
+        project_id: blocker.project_id(),
+        project_code: state
+            .projects
+            .get(&blocker.project_id())
+            .map(|p| p.project_code().as_str().to_owned())
+            .unwrap_or_default(),
+        reference: blocker.reference_label(),
+        description: blocker.description().as_str().to_owned(),
+        accountable: blocker.accountable().map(|id| person_ref(state, id)),
+        cleared: blocker.cleared(),
+        blocked_actions: blocked
+            .into_iter()
+            .map(|a| ItemRef {
+                id: a.id().as_uuid(),
+                reference: a.reference_label(),
+            })
+            .collect(),
+        version: blocker.version(),
+    }
+}
+
+impl BlockersQuery for InMemoryStore {
+    async fn list_blockers(
+        &self,
+        filter: BlockerFilter,
+        page: PageRequest,
+    ) -> Result<Page<BlockerView>, RepoError> {
+        let state = self.snapshot();
+        let mut all: Vec<_> = state
+            .blockers
+            .values()
+            .filter(|b| filter.project_id.is_none_or(|p| b.project_id() == p))
+            .filter(|b| filter.include_cleared || !b.cleared())
+            .map(|b| (b.reference(), blocker_view(&state, b)))
+            .collect();
+        all.sort_by(|(ra, a), (rb, b)| {
+            (&a.project_code, ra, a.id).cmp(&(&b.project_code, rb, b.id))
+        });
+        Ok(page_of(all.into_iter().map(|(_, v)| v).collect(), page))
+    }
+
+    async fn get_blocker(&self, id: BlockerId) -> Result<BlockerView, RepoError> {
+        let state = self.snapshot();
+        state
+            .blockers
+            .get(&id)
+            .map(|b| blocker_view(&state, b))
             .ok_or(RepoError::NotFound)
     }
 }

@@ -3,6 +3,7 @@
 //! its Change History entry.
 
 use crate::action::use_cases::unassign_open_actions;
+use crate::blocker::use_cases::unassign_open_blockers;
 use crate::history::ChangeContext;
 use crate::person::PersonId;
 use crate::ports::{
@@ -71,8 +72,6 @@ pub async fn remove_member<U: UnitOfWork>(
 /// open Action assigned to `person` and every open Blocker they are
 /// accountable for becomes unassigned, each as its own versioned change
 /// recorded with `ctx` (whose `caused_by` is the removal).
-///
-/// Actions and Blockers plug their unassignment in here as they are built.
 async fn unassign_open_items<T: Transaction>(
     tx: &mut T,
     project: ProjectId,
@@ -80,6 +79,7 @@ async fn unassign_open_items<T: Transaction>(
     ctx: &ChangeContext,
 ) -> Result<(), RepoError> {
     unassign_open_actions(tx, project, person, ctx).await?;
+    unassign_open_blockers(tx, project, person, ctx).await?;
     Ok(())
 }
 

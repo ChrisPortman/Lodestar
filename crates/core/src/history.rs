@@ -57,6 +57,7 @@ pub enum EntityType {
     Project,
     Action,
     Risk,
+    Blocker,
 }
 
 impl EntityType {
@@ -66,6 +67,7 @@ impl EntityType {
             Self::Project => "project",
             Self::Action => "action",
             Self::Risk => "risk",
+            Self::Blocker => "blocker",
         }
     }
 
@@ -75,6 +77,7 @@ impl EntityType {
             "project" => Some(Self::Project),
             "action" => Some(Self::Action),
             "risk" => Some(Self::Risk),
+            "blocker" => Some(Self::Blocker),
             _ => None,
         }
     }

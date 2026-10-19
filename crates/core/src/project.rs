@@ -186,6 +186,14 @@ pub struct PersonRef {
     pub display_name: String,
 }
 
+/// Another item named by its ID and Reference, e.g. an Action a Blocker blocks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemRef {
+    pub id: uuid::Uuid,
+    /// The label, e.g. `A-001`.
+    pub reference: String,
+}
+
 /// A read-only view of a Project, served by [`crate::ports::ProjectsQuery`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectView {

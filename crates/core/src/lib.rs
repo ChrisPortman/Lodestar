@@ -1,6 +1,7 @@
 //! Lodestar domain, use cases and port traits.
 
 pub mod action;
+pub mod blocker;
 pub mod health;
 pub mod history;
 pub mod person;

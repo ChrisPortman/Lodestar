@@ -4,14 +4,15 @@
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId};
+use crate::blocker::{Blocker, BlockerId};
 
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, HistoryQuery, PageRequest, PeopleQuery,
-    PeopleSort, PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
-    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
-    UnitOfWork,
+    ActionFilter, ActionRepository, ActionsQuery, BlockerFilter, BlockerRepository, BlockersQuery,
+    HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter,
+    RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
 use crate::project::{Description, Project, ProjectId, ProjectName};
 use crate::risk::{Rating, RiskId};
@@ -19,11 +20,18 @@ use crate::test_support::{a_person, a_project, a_risk};
 
 /// Everything a full store adapter provides.
 pub trait Store:
-    UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + HistoryQuery
+    UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + BlockersQuery + HistoryQuery
 {
 }
-impl<T: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + HistoryQuery> Store
-    for T
+impl<
+    T: UnitOfWork
+        + PeopleQuery
+        + ProjectsQuery
+        + RisksQuery
+        + ActionsQuery
+        + BlockersQuery
+        + HistoryQuery,
+> Store for T
 {
 }
 
@@ -761,6 +769,185 @@ pub async fn actions_are_listed_by_project_code_and_reference(store: impl Store)
     assert_eq!(labels(web_all), ["WEBR/A-003", "WEBR/A-010"]);
 }
 
+fn a_blocker(project: ProjectId, reference: u32, accountable: Option<PersonId>) -> Blocker {
+    Blocker::create(
+        project,
+        reference,
+        Description::new(format!("Blocker {reference}\nsecond line")).unwrap(),
+        accountable,
+    )
+}
+
+pub async fn saved_blocker_with_links_can_be_loaded_updated_and_viewed(store: impl Store) {
+    let (project, _ada, bob) = a_saved_project_with(&store, "WEBR").await;
+    let a2 = an_action(project, 2, None);
+    let a1 = an_action(project, 1, None);
+    let v1 = a_blocker(project, 4, Some(bob));
+    let v2 = v1.linked_to(a2.id()).linked_to(a1.id());
+    let v3 = v2.unlinked_from(a2.id());
+    let mut tx = store.begin().await.unwrap();
+    tx.actions().save(None, &a1, &ctx()).await.unwrap();
+    tx.actions().save(None, &a2, &ctx()).await.unwrap();
+    let created = tx
+        .blockers()
+        .save(None, &v1, &ChangeContext::by(bob))
+        .await
+        .unwrap();
+    assert_eq!(tx.blockers().load(v1.id()).await.unwrap(), v1);
+    tx.blockers()
+        .save(Some(&v1), &v2, &ChangeContext::by(bob).caused_by(created))
+        .await
+        .unwrap();
+    assert_eq!(tx.blockers().load(v1.id()).await.unwrap(), v2);
+    assert_eq!(
+        tx.blockers()
+            .save(Some(&v1), &v2, &ctx())
+            .await
+            .unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.blockers().load(BlockerId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+    tx.commit().await.unwrap();
+
+    let view = store.get_blocker(v1.id()).await.unwrap();
+    assert_eq!(view.reference, "B-004");
+    assert_eq!(view.project_code, "WEBR");
+    assert_eq!(view.description, "Blocker 4\nsecond line");
+    assert_eq!(view.accountable.unwrap().display_name, "Bob");
+    assert!(!view.cleared);
+    assert_eq!(view.version, 3);
+    let refs: Vec<_> = view
+        .blocked_actions
+        .iter()
+        .map(|a| (a.id, a.reference.as_str()))
+        .collect();
+    assert_eq!(
+        refs,
+        [(a1.id().as_uuid(), "A-001"), (a2.id().as_uuid(), "A-002")]
+    );
+    assert_eq!(
+        store.get_blocker(BlockerId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+
+    let mut tx = store.begin().await.unwrap();
+    tx.blockers().save(Some(&v2), &v3, &ctx()).await.unwrap();
+    assert_eq!(tx.blockers().load(v1.id()).await.unwrap(), v3);
+    tx.commit().await.unwrap();
+
+    let history = store
+        .entity_history(
+            EntityType::Blocker,
+            v1.id().as_uuid(),
+            PageRequest::first(10),
+        )
+        .await
+        .unwrap();
+    let [first, second, _] = history.items.as_slice() else {
+        panic!("expected three entries, got {:?}", history.items);
+    };
+    assert_eq!(first.project_id, Some(project.as_uuid()));
+    assert_eq!(second.after, snapshot(&v2));
+    assert_eq!(second.caused_by, Some(created));
+}
+
+pub async fn actions_show_the_open_blockers_blocking_them(store: impl Store) {
+    let (project, _, _) = a_saved_project_with(&store, "WEBR").await;
+    let action = an_action(project, 1, None);
+    let open2 = a_blocker(project, 2, None).linked_to(action.id());
+    let open1 = a_blocker(project, 1, None).linked_to(action.id());
+    let cleared = a_blocker(project, 3, None)
+        .linked_to(action.id())
+        .cleared_now();
+    let mut tx = store.begin().await.unwrap();
+    tx.actions().save(None, &action, &ctx()).await.unwrap();
+    for b in [&open2, &open1, &cleared] {
+        tx.blockers().save(None, b, &ctx()).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+
+    let refs = |v: crate::action::ActionView| -> Vec<String> {
+        v.blocked_by.into_iter().map(|b| b.reference).collect()
+    };
+    assert_eq!(
+        refs(store.get_action(action.id()).await.unwrap()),
+        ["B-001", "B-002"]
+    );
+    let listed = store
+        .list_actions(ActionFilter::default(), PageRequest::first(10))
+        .await
+        .unwrap();
+    assert_eq!(refs(listed.items[0].clone()), ["B-001", "B-002"]);
+}
+
+pub async fn open_blockers_a_person_is_accountable_for_can_be_found(store: impl Store) {
+    let (project, ada, bob) = a_saved_project_with(&store, "WEBR").await;
+    let (other, _, _) = a_saved_project_with(&store, "OTHR").await;
+    let open = a_blocker(project, 1, Some(bob));
+    let cleared = a_blocker(project, 2, Some(bob)).cleared_now();
+    let adas = a_blocker(project, 3, Some(ada));
+    let elsewhere = a_blocker(other, 1, Some(bob));
+    let mut tx = store.begin().await.unwrap();
+    for b in [&open, &cleared, &adas, &elsewhere] {
+        tx.blockers().save(None, b, &ctx()).await.unwrap();
+    }
+    let found: Vec<_> = tx
+        .blockers()
+        .open_accountable(project, bob)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|b| b.id())
+        .collect();
+    assert_eq!(found, [open.id()]);
+}
+
+pub async fn blockers_are_listed_by_project_code_and_reference(store: impl Store) {
+    let (web, _, _) = a_saved_project_with(&store, "WEBR").await;
+    let (alpha, _, _) = a_saved_project_with(&store, "ALPH").await;
+    let mut tx = store.begin().await.unwrap();
+    for b in [
+        a_blocker(web, 10, None),
+        a_blocker(web, 2, None),
+        a_blocker(web, 3, None).cleared_now(),
+        a_blocker(alpha, 1, None),
+    ] {
+        tx.blockers().save(None, &b, &ctx()).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+
+    let labels = |page: crate::ports::Page<crate::blocker::BlockerView>| -> Vec<String> {
+        page.items
+            .into_iter()
+            .map(|b| format!("{}/{}", b.project_code, b.reference))
+            .collect()
+    };
+    let open = store
+        .list_blockers(BlockerFilter::default(), PageRequest::first(10))
+        .await
+        .unwrap();
+    assert_eq!(open.total, 3);
+    assert_eq!(labels(open), ["ALPH/B-001", "WEBR/B-002", "WEBR/B-010"]);
+    let web_all = store
+        .list_blockers(
+            BlockerFilter {
+                project_id: Some(web),
+                include_cleared: true,
+            },
+            PageRequest {
+                offset: 1,
+                limit: 5,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(web_all.total, 3);
+    assert_eq!(labels(web_all), ["WEBR/B-003", "WEBR/B-010"]);
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -795,7 +982,11 @@ macro_rules! port_contract_tests {
             project_members_are_saved_and_listed_by_name,
             saved_action_can_be_loaded_updated_and_viewed,
             open_actions_assigned_to_a_person_can_be_found,
-            actions_are_listed_by_project_code_and_reference
+            actions_are_listed_by_project_code_and_reference,
+            saved_blocker_with_links_can_be_loaded_updated_and_viewed,
+            actions_show_the_open_blockers_blocking_them,
+            open_blockers_a_person_is_accountable_for_can_be_found,
+            blockers_are_listed_by_project_code_and_reference
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

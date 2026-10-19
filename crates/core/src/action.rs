@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::person::PersonId;
 use crate::ports::ReferenceKind;
-use crate::project::{Description, PersonRef, ProjectId};
+use crate::project::{Description, ItemRef, PersonRef, ProjectId};
 
 /// Identifies an [`Action`]. Always a UUIDv7 for new Actions (NFR-05).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -193,5 +193,7 @@ pub struct ActionView {
     pub assignee: Option<PersonRef>,
     pub due_date: Option<NaiveDate>,
     pub closed: bool,
+    /// The open Blockers blocking it, ordered by Reference (FR-53).
+    pub blocked_by: Vec<ItemRef>,
     pub version: u32,
 }

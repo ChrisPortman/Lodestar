@@ -9,6 +9,7 @@ use std::future::Future;
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
+use crate::blocker::{Blocker, BlockerId, BlockerView};
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{PersonRef, Project, ProjectId, ProjectView};
@@ -46,6 +47,8 @@ pub trait Transaction: Send {
     fn risks(&mut self) -> impl RiskRepository + Send + '_;
 
     fn actions(&mut self) -> impl ActionRepository + Send + '_;
+
+    fn blockers(&mut self) -> impl BlockerRepository + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
@@ -94,6 +97,25 @@ pub trait ActionRepository {
         project: ProjectId,
         person: PersonId,
     ) -> impl Future<Output = Result<Vec<Action>, RepoError>> + Send;
+}
+
+pub trait BlockerRepository {
+    fn load(&mut self, id: BlockerId) -> impl Future<Output = Result<Blocker, RepoError>> + Send;
+
+    /// As [`PersonRepository::save`], including the Blocker's Action links.
+    fn save(
+        &mut self,
+        before: Option<&Blocker>,
+        after: &Blocker,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+
+    /// The open Blockers in `project` that `person` is accountable for.
+    fn open_accountable(
+        &mut self,
+        project: ProjectId,
+        person: PersonId,
+    ) -> impl Future<Output = Result<Vec<Blocker>, RepoError>> + Send;
 }
 
 pub trait RiskRepository {
@@ -288,4 +310,27 @@ pub trait ActionsQuery: Send + Sync {
         &self,
         id: ActionId,
     ) -> impl Future<Output = Result<ActionView, RepoError>> + Send;
+}
+
+/// Which Blockers to list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BlockerFilter {
+    /// Only this Project's Blockers; all Projects when `None`.
+    pub project_id: Option<ProjectId>,
+    /// Include cleared Blockers as well as open ones.
+    pub include_cleared: bool,
+}
+
+/// Read-only views of Blockers, ordered by Project Code then Reference.
+pub trait BlockersQuery: Send + Sync {
+    fn list_blockers(
+        &self,
+        filter: BlockerFilter,
+        page: PageRequest,
+    ) -> impl Future<Output = Result<Page<BlockerView>, RepoError>> + Send;
+
+    fn get_blocker(
+        &self,
+        id: BlockerId,
+    ) -> impl Future<Output = Result<BlockerView, RepoError>> + Send;
 }
