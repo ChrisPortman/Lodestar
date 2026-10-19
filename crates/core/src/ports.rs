@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{Project, ProjectId, ProjectView};
+use crate::risk::{Risk, RiskId, RiskView};
 
 /// Errors every port can return. Adapters map their own errors onto these.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -40,6 +41,8 @@ pub trait Transaction: Send {
     fn projects(&mut self) -> impl ProjectRepository + Send + '_;
 
     fn references(&mut self) -> impl ReferenceCounter + Send + '_;
+
+    fn risks(&mut self) -> impl RiskRepository + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
@@ -71,6 +74,18 @@ pub trait ProjectRepository {
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
 }
 
+pub trait RiskRepository {
+    fn load(&mut self, id: RiskId) -> impl Future<Output = Result<Risk, RepoError>> + Send;
+
+    /// As [`PersonRepository::save`].
+    fn save(
+        &mut self,
+        before: Option<&Risk>,
+        after: &Risk,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
 /// The kinds of item that get a per-Project Reference (ADR-0001).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ReferenceKind {
@@ -86,6 +101,16 @@ impl ReferenceKind {
             Self::Risk => "risk",
             Self::Blocker => "blocker",
         }
+    }
+
+    /// The Reference for item `number` of this kind: `R-001`, …, `R-1000`.
+    pub fn reference(self, number: u32) -> String {
+        let prefix = match self {
+            Self::Action => 'A',
+            Self::Risk => 'R',
+            Self::Blocker => 'B',
+        };
+        format!("{prefix}-{number:03}")
     }
 }
 
@@ -169,6 +194,38 @@ pub trait ProjectsQuery: Send + Sync {
         &self,
         prefix: &str,
     ) -> impl Future<Output = Result<HashSet<String>, RepoError>> + Send;
+}
+
+/// The order Risks are listed in. Ties are broken by ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RiskSort {
+    /// Creation order (IDs are UUIDv7).
+    #[default]
+    Id,
+    /// Reference number, within each Project.
+    Reference,
+    /// Highest score first (FR-41).
+    Score,
+}
+
+/// Which Risks to list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RiskFilter {
+    /// Only this Project's Risks; every Project's when `None`.
+    pub project_id: Option<ProjectId>,
+    pub include_closed: bool,
+}
+
+/// Read-only views of Risks.
+pub trait RisksQuery: Send + Sync {
+    fn list_risks(
+        &self,
+        page: PageRequest,
+        filter: RiskFilter,
+        sort: RiskSort,
+    ) -> impl Future<Output = Result<Page<RiskView>, RepoError>> + Send;
+
+    fn get_risk(&self, id: RiskId) -> impl Future<Output = Result<RiskView, RepoError>> + Send;
 }
 
 /// Read-only Change History, oldest entry first.

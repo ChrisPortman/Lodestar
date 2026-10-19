@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO risks\n                        (id, project_id, number, description, likelihood, impact, closed, version)\n                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "621e153d134582356325efe9108ad402e972c698a69f0e51caf1bec71326b293"
+}

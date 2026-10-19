@@ -7,15 +7,16 @@ use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
     HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
-    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
-    UnitOfWork,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter,
+    RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
-use crate::project::{ProjectId, ProjectName};
-use crate::test_support::{a_person, a_project};
+use crate::project::{Description, Project, ProjectId, ProjectName};
+use crate::risk::{Rating, RiskId};
+use crate::test_support::{a_person, a_project, a_risk};
 
 /// Everything a full store adapter provides.
-pub trait Store: UnitOfWork + PeopleQuery + ProjectsQuery + HistoryQuery {}
-impl<T: UnitOfWork + PeopleQuery + ProjectsQuery + HistoryQuery> Store for T {}
+pub trait Store: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + HistoryQuery {}
+impl<T: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + HistoryQuery> Store for T {}
 
 fn ctx() -> ChangeContext {
     ChangeContext::by(PersonId::new())
@@ -425,6 +426,153 @@ pub async fn project_codes_can_be_found_by_prefix(store: impl Store) {
     assert_eq!(found, ["WEBS", "WEBS1"]);
 }
 
+/// Saves a Project, with a Person to lead it.
+async fn a_saved_project(store: &impl Store, code: &str) -> Project {
+    let ada = a_saved_person(store, "Ada").await;
+    let project = a_project(ada).coded(code).build();
+    let mut tx = store.begin().await.unwrap();
+    tx.projects().save(None, &project, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+    project
+}
+
+pub async fn saved_risk_can_be_loaded_and_updated(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let v1 = a_risk(project.id(), 1).described("Vendor late").build();
+    let v2 = v1.edited(
+        Description::new("Vendor very late").unwrap(),
+        Rating::new(5).unwrap(),
+        Rating::new(4).unwrap(),
+    );
+    let v3 = v2.with_closed(true);
+    let mut tx = store.begin().await.unwrap();
+    tx.risks().save(None, &v1, &ctx()).await.unwrap();
+    assert_eq!(tx.risks().load(v1.id()).await.unwrap(), v1);
+    tx.risks().save(Some(&v1), &v2, &ctx()).await.unwrap();
+    tx.risks().save(Some(&v2), &v3, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.risks().load(v1.id()).await.unwrap(), v3);
+    assert_eq!(
+        tx.risks().load(RiskId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+    assert_eq!(
+        tx.risks().save(Some(&v1), &v2, &ctx()).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.risks().save(None, &v1, &ctx()).await.unwrap_err(),
+        RepoError::Conflict
+    );
+}
+
+pub async fn each_risk_save_writes_a_history_entry(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let actor = PersonId::new();
+    let v1 = a_risk(project.id(), 1).build();
+    let v2 = v1.with_closed(true);
+    let mut tx = store.begin().await.unwrap();
+    tx.risks()
+        .save(None, &v1, &ChangeContext::by(actor))
+        .await
+        .unwrap();
+    tx.risks()
+        .save(Some(&v1), &v2, &ChangeContext::by(actor))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let history = store
+        .entity_history(EntityType::Risk, v1.id().as_uuid(), PageRequest::first(10))
+        .await
+        .unwrap();
+    let [first, second] = history.items.as_slice() else {
+        panic!("expected two entries, got {:?}", history.items);
+    };
+    assert_eq!(first.change_kind, ChangeKind::Created);
+    assert_eq!(first.project_id, Some(project.id().as_uuid()));
+    assert_eq!(first.acting_person, actor);
+    assert_eq!(first.after, snapshot(&v1));
+    assert_eq!(second.change_kind, ChangeKind::Updated);
+    assert_eq!(second.before, Some(snapshot(&v1)));
+    assert_eq!(second.after, snapshot(&v2));
+}
+
+pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
+    let web = a_saved_project(&store, "WEBR").await;
+    let other = a_saved_project(&store, "OTHR").await;
+    // Built out of Reference order, so ID order and Reference order differ.
+    let mid = a_risk(web.id(), 3).described("Mid").rated(3, 3).build();
+    let low = a_risk(web.id(), 1).described("Low").rated(1, 2).build();
+    let high = a_risk(web.id(), 2).described("High").rated(5, 4).build();
+    let shut = a_risk(web.id(), 4).described("Shut").rated(5, 5).build();
+    let elsewhere = a_risk(other.id(), 1).described("Elsewhere").build();
+    let mut tx = store.begin().await.unwrap();
+    for r in [&mid, &low, &high, &shut, &elsewhere] {
+        tx.risks().save(None, r, &ctx()).await.unwrap();
+    }
+    tx.risks()
+        .save(Some(&shut), &shut.with_closed(true), &ctx())
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let in_web = |include_closed| RiskFilter {
+        project_id: Some(web.id()),
+        include_closed,
+    };
+    let all = PageRequest::first(10);
+    let names = |page: crate::ports::Page<crate::risk::RiskView>| -> (u64, Vec<String>) {
+        (
+            page.total,
+            page.items.into_iter().map(|r| r.description).collect(),
+        )
+    };
+    let by_id = store.list_risks(all, in_web(false), RiskSort::Id).await;
+    assert_eq!(
+        names(by_id.unwrap()),
+        (3, vec!["Mid".into(), "Low".into(), "High".into()])
+    );
+    let by_score = store.list_risks(all, in_web(false), RiskSort::Score).await;
+    assert_eq!(
+        names(by_score.unwrap()),
+        (3, vec!["High".into(), "Mid".into(), "Low".into()])
+    );
+    let paged = PageRequest {
+        offset: 1,
+        limit: 2,
+    };
+    let by_reference = store
+        .list_risks(paged, in_web(true), RiskSort::Reference)
+        .await;
+    assert_eq!(
+        names(by_reference.unwrap()),
+        (4, vec!["High".into(), "Mid".into()])
+    );
+    let everywhere = RiskFilter {
+        project_id: None,
+        include_closed: true,
+    };
+    let everything = store.list_risks(all, everywhere, RiskSort::Id).await;
+    assert_eq!(everything.unwrap().total, 5);
+
+    let view = store.get_risk(high.id()).await.unwrap();
+    assert_eq!(view.project_id, web.id());
+    assert_eq!(view.project_code, "WEBR");
+    assert_eq!(view.reference, "R-002");
+    assert_eq!(view.description, "High");
+    assert_eq!((view.likelihood, view.impact, view.score), (5, 4, 20));
+    assert!(!view.closed);
+    assert_eq!(view.version, 1);
+    assert!(store.get_risk(shut.id()).await.unwrap().closed);
+    assert_eq!(
+        store.get_risk(RiskId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -452,7 +600,10 @@ macro_rules! port_contract_tests {
             a_project_code_can_be_used_only_once,
             each_project_save_writes_a_history_entry,
             projects_are_listed_without_archived_ones_by_default,
-            project_codes_can_be_found_by_prefix
+            project_codes_can_be_found_by_prefix,
+            saved_risk_can_be_loaded_and_updated,
+            each_risk_save_writes_a_history_entry,
+            risks_are_listed_by_project_state_and_score
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

@@ -15,17 +15,19 @@ use crate::history::{
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
     HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
-    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
-    UnitOfWork,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter,
+    RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
 use crate::project::{
     Description, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
 };
+use crate::risk::{Rating, Risk, RiskId, RiskView};
 
 #[derive(Debug, Clone, Default)]
 struct State {
     people: BTreeMap<PersonId, Person>,
     projects: BTreeMap<ProjectId, Project>,
+    risks: BTreeMap<RiskId, Risk>,
     history: Vec<HistoryEntry>,
     references: HashMap<(Uuid, ReferenceKind), u32>,
 }
@@ -74,6 +76,10 @@ impl Transaction for InMemoryTx {
 
     fn references(&mut self) -> impl ReferenceCounter + Send + '_ {
         InMemoryReferences(&mut self.work)
+    }
+
+    fn risks(&mut self) -> impl RiskRepository + Send + '_ {
+        InMemoryRisks(&mut self.work)
     }
 
     async fn commit(self) -> Result<(), RepoError> {
@@ -156,6 +162,51 @@ impl ProjectRepository for InMemoryProjects<'_> {
             entity_type: EntityType::Project,
             entity_id: after.id().as_uuid(),
             project_id: Some(after.id().as_uuid()),
+            version: after.version(),
+            change_kind: if before.is_some() {
+                ChangeKind::Updated
+            } else {
+                ChangeKind::Created
+            },
+            acting_person: ctx.acting_person,
+            recorded_at: Utc::now(),
+            before: before.map(snapshot),
+            after: snapshot(after),
+            caused_by: ctx.caused_by,
+        });
+        Ok(id)
+    }
+}
+
+struct InMemoryRisks<'a>(&'a mut State);
+
+impl RiskRepository for InMemoryRisks<'_> {
+    async fn load(&mut self, id: RiskId) -> Result<Risk, RepoError> {
+        self.0.risks.get(&id).cloned().ok_or(RepoError::NotFound)
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&Risk>,
+        after: &Risk,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        let stored_version = self.0.risks.get(&after.id()).map(Risk::version);
+        if stored_version != before.map(Risk::version) {
+            return Err(RepoError::Conflict);
+        }
+        if !self.0.projects.contains_key(&after.project_id()) {
+            return Err(RepoError::Unexpected(
+                "risk in an unknown project".to_owned(),
+            ));
+        }
+        self.0.risks.insert(after.id(), after.clone());
+        let id = HistoryEntryId::new();
+        self.0.history.push(HistoryEntry {
+            id,
+            entity_type: EntityType::Risk,
+            entity_id: after.id().as_uuid(),
+            project_id: Some(after.project_id().as_uuid()),
             version: after.version(),
             change_kind: if before.is_some() {
                 ChangeKind::Updated
@@ -289,6 +340,58 @@ impl ProjectsQuery for InMemoryStore {
     }
 }
 
+fn risk_view(state: &State, risk: &Risk) -> RiskView {
+    RiskView {
+        id: risk.id(),
+        project_id: risk.project_id(),
+        project_code: state
+            .projects
+            .get(&risk.project_id())
+            .map(|p| p.project_code().as_str().to_owned())
+            .unwrap_or_default(),
+        reference: ReferenceKind::Risk.reference(risk.number()),
+        description: risk.description().as_str().to_owned(),
+        likelihood: risk.likelihood().get(),
+        impact: risk.impact().get(),
+        score: risk.score(),
+        closed: risk.closed(),
+        version: risk.version(),
+    }
+}
+
+impl RisksQuery for InMemoryStore {
+    async fn list_risks(
+        &self,
+        page: PageRequest,
+        filter: RiskFilter,
+        sort: RiskSort,
+    ) -> Result<Page<RiskView>, RepoError> {
+        let state = self.snapshot();
+        let mut all: Vec<_> = state
+            .risks
+            .values()
+            .filter(|r| filter.project_id.is_none_or(|p| r.project_id() == p))
+            .filter(|r| filter.include_closed || !r.closed())
+            .collect();
+        match sort {
+            RiskSort::Id => all.sort_by_key(|r| r.id()),
+            RiskSort::Reference => all.sort_by_key(|r| (r.project_id(), r.number(), r.id())),
+            RiskSort::Score => all.sort_by_key(|r| (std::cmp::Reverse(r.score()), r.id())),
+        }
+        let all = all.into_iter().map(|r| risk_view(&state, r)).collect();
+        Ok(page_of(all, page))
+    }
+
+    async fn get_risk(&self, id: RiskId) -> Result<RiskView, RepoError> {
+        let state = self.snapshot();
+        state
+            .risks
+            .get(&id)
+            .map(|r| risk_view(&state, r))
+            .ok_or(RepoError::NotFound)
+    }
+}
+
 impl HistoryQuery for InMemoryStore {
     async fn entity_history(
         &self,
@@ -368,6 +471,48 @@ impl ProjectBuilder {
                 .map(|d| Description::new(d).expect("valid description")),
             ProjectCode::new(&self.code).expect("valid code"),
             self.creator,
+        )
+    }
+}
+
+/// Builds a valid open [`Risk`] in `project`, defaulting every other field.
+pub fn a_risk(project: ProjectId, number: u32) -> RiskBuilder {
+    RiskBuilder {
+        project,
+        number,
+        description: "Test Risk".to_owned(),
+        likelihood: 3,
+        impact: 3,
+    }
+}
+
+pub struct RiskBuilder {
+    project: ProjectId,
+    number: u32,
+    description: String,
+    likelihood: u8,
+    impact: u8,
+}
+
+impl RiskBuilder {
+    pub fn described(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    pub fn rated(mut self, likelihood: u8, impact: u8) -> Self {
+        self.likelihood = likelihood;
+        self.impact = impact;
+        self
+    }
+
+    pub fn build(self) -> Risk {
+        Risk::create(
+            self.project,
+            self.number,
+            Description::new(&self.description).expect("valid description"),
+            Rating::new(self.likelihood).expect("valid likelihood"),
+            Rating::new(self.impact).expect("valid impact"),
         )
     }
 }
