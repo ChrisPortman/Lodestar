@@ -90,7 +90,10 @@ export interface paths {
     }
     /** Fetches a Project, archived or not. */
     get: operations['get_project']
-    /** Replaces a Project's name and description. Needs a session and `If-Match`. */
+    /**
+     * Replaces a Project's name, description and Project Leader. Needs a
+     *     session and `If-Match`.
+     */
     put: operations['update_project']
     post?: never
     delete?: never
@@ -101,6 +104,49 @@ export interface paths {
      *     `application/merge-patch+json`. Needs a session and `If-Match`.
      */
     patch: operations['archive_project']
+    trace?: never
+  }
+  '/api/v1/projects/{id}/members': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Lists a Project's Members, archived Project or not. */
+    get: operations['list_members']
+    put?: never
+    /**
+     * Adds a Person as a Member. Adding an existing Member changes nothing; a
+     *     Person added back is not reassigned their old items. Needs a session and
+     *     the Project's `If-Match`.
+     */
+    post: operations['add_member']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/projects/{id}/members/{person_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Removes a Member. Their open Actions and Blockers become unassigned, and
+     *     removing the Project Leader leaves no Project Leader. Needs a session and
+     *     the Project's `If-Match`.
+     */
+    delete: operations['remove_member']
+    options?: never
+    head?: never
+    patch?: never
     trace?: never
   }
   '/api/v1/session': {
@@ -129,6 +175,15 @@ export interface components {
     CodeSuggestion: {
       /** @description `null` when the name has too few letters to suggest one. */
       project_code?: string | null
+    }
+    /** @description A Project's Members, ordered by display name. */
+    MemberList: {
+      items: components['schemas']['PersonRef'][]
+    }
+    /** @description The Person to add as a Member. */
+    NewMember: {
+      /** Format: uuid */
+      person_id: string
     }
     /** @description Chooses the Acting Person. */
     NewSession: {
@@ -193,7 +248,7 @@ export interface components {
        *     1–9 uppercase letters or digits, unique across Projects.
        */
       project_code: string
-      readonly project_leader?: components['schemas']['PersonRef'] | null
+      project_leader?: components['schemas']['PersonRef'] | null
       /** Format: int32 */
       readonly version: number
     }
@@ -684,6 +739,188 @@ export interface operations {
       }
       /** @description Invalid patch */
       422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  list_members: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MemberList']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  add_member: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the Project version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NewMember']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description No such Person */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  remove_member: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the Project version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+        person_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Project']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description No such Project, or not a Member */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
         headers: {
           [name: string]: unknown
         }

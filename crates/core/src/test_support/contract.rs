@@ -280,7 +280,9 @@ pub async fn saved_project_can_be_loaded_and_updated(store: impl Store) {
         .described("Site")
         .coded("WEBR")
         .build();
-    let v2 = v1.edited(ProjectName::new("Website").unwrap(), None);
+    let v2 = v1
+        .edited(ProjectName::new("Website").unwrap(), None, None)
+        .unwrap();
     let mut tx = store.begin().await.unwrap();
     tx.projects().save(None, &v1, &ctx()).await.unwrap();
     assert_eq!(tx.projects().load(v1.id()).await.unwrap(), v1);
@@ -425,6 +427,40 @@ pub async fn project_codes_can_be_found_by_prefix(store: impl Store) {
     assert_eq!(found, ["WEBS", "WEBS1"]);
 }
 
+pub async fn project_members_are_saved_and_listed_by_name(store: impl Store) {
+    let zed = a_saved_person(&store, "Zed").await;
+    let ada = a_saved_person(&store, "Ada").await;
+    let bob = a_saved_person(&store, "Bob").await;
+    let v1 = a_project(zed).build();
+    let v2 = v1.with_member(ada).with_member(bob);
+    let v3 = v2.without_member(zed);
+    let mut tx = store.begin().await.unwrap();
+    tx.projects().save(None, &v1, &ctx()).await.unwrap();
+    tx.projects().save(Some(&v1), &v2, &ctx()).await.unwrap();
+    tx.projects().save(Some(&v2), &v3, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.projects().load(v1.id()).await.unwrap(), v3);
+    drop(tx);
+    let members: Vec<_> = store
+        .project_members(v1.id())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|m| (m.id, m.display_name))
+        .collect();
+    assert_eq!(members, [(ada, "Ada".to_owned()), (bob, "Bob".to_owned())]);
+    assert_eq!(
+        store.get_project(v1.id()).await.unwrap().project_leader,
+        None
+    );
+    assert_eq!(
+        store.project_members(ProjectId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -452,7 +488,8 @@ macro_rules! port_contract_tests {
             a_project_code_can_be_used_only_once,
             each_project_save_writes_a_history_entry,
             projects_are_listed_without_archived_ones_by_default,
-            project_codes_can_be_found_by_prefix
+            project_codes_can_be_found_by_prefix,
+            project_members_are_saved_and_listed_by_name
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

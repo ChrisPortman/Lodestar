@@ -2,6 +2,7 @@
 
 mod frontend;
 mod health;
+mod members;
 mod people;
 mod problem;
 mod projects;
@@ -75,6 +76,7 @@ where
     let v1 = Router::new()
         .merge(people::routes())
         .merge(projects::routes())
+        .merge(members::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .with_state(state);
@@ -104,6 +106,9 @@ where
         projects::fetch,
         projects::update,
         projects::archive,
+        members::list,
+        members::add,
+        members::remove,
         session::current,
         session::choose,
     )

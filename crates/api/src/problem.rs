@@ -120,7 +120,10 @@ impl From<ProjectError> for Problem {
         match error {
             ProjectError::InvalidName(_)
             | ProjectError::InvalidDescription(_)
-            | ProjectError::InvalidCode(_) => Self::invalid(error.to_string()),
+            | ProjectError::InvalidCode(_)
+            | ProjectError::LeaderNotAMember
+            | ProjectError::UnknownPerson => Self::invalid(error.to_string()),
+            ProjectError::NotAMember => Self::not_found().detail(error.to_string()),
             ProjectError::CodeTaken | ProjectError::Archived => {
                 Self::new(StatusCode::CONFLICT).detail(error.to_string())
             }

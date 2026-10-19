@@ -9,6 +9,7 @@ use axum::{
     routing::get,
 };
 use lodestar_core::{
+    person::PersonId,
     ports::{PageRequest, ProjectSort},
     project::{ProjectId, ProjectView, use_cases::NewProject},
 };
@@ -72,8 +73,8 @@ pub struct ProjectBody {
     /// Changed only with `PATCH`.
     #[schema(read_only)]
     pub archived: bool,
-    /// The creator, to begin with.
-    #[schema(read_only)]
+    /// The creator, to begin with. Must be a Member; `null` means no
+    /// Project Leader. Required on `PUT`, where only `id` is read.
     pub project_leader: Option<PersonRefBody>,
     #[schema(read_only, minimum = 1)]
     pub version: u32,
@@ -113,10 +114,17 @@ struct ProjectInput {
     description: Option<Option<String>>,
     project_code: Option<String>,
     archived: Option<bool>,
-    // Read-only until the Project Leader can be changed (FR-13); ignored.
-    #[allow(dead_code)]
-    project_leader: Option<serde_json::Value>,
+    #[serde(default, deserialize_with = "present")]
+    project_leader: Option<Option<LeaderInput>>,
     version: Option<u32>,
+}
+
+/// The Project Leader as sent: only `id` matters; `display_name` may be echoed back.
+#[derive(Debug, Deserialize)]
+struct LeaderInput {
+    id: Uuid,
+    #[allow(dead_code)]
+    display_name: Option<String>,
 }
 
 /// The only change `PATCH` makes (ADR-0006).
@@ -126,7 +134,7 @@ pub struct ProjectPatch {
     pub archived: bool,
 }
 
-fn with_etag(status: StatusCode, project: ProjectBody) -> Response {
+pub(crate) fn with_etag(status: StatusCode, project: ProjectBody) -> Response {
     (
         status,
         [(header::ETAG, etag(project.version))],
@@ -317,7 +325,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
-/// Replaces a Project's name and description. Needs a session and `If-Match`.
+/// Replaces a Project's name, description and Project Leader. Needs a
+/// session and `If-Match`.
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{id}",
@@ -352,6 +361,11 @@ async fn update(
     let Some(description) = input.description else {
         return Err(Problem::invalid("description is required (null clears it)"));
     };
+    let Some(leader) = input.project_leader else {
+        return Err(Problem::invalid(
+            "project_leader is required (null means no Project Leader)",
+        ));
+    };
     let id = ProjectId::from_uuid(id);
     let stored = state.projects.get(id).await?;
     if input
@@ -365,7 +379,14 @@ async fn update(
     }
     state
         .projects
-        .update(acting, id, expected, &input.name, description.as_deref())
+        .update(
+            acting,
+            id,
+            expected,
+            &input.name,
+            description.as_deref(),
+            leader.map(|l| PersonId::from_uuid(l.id)),
+        )
         .await?;
     Ok(with_etag(
         StatusCode::OK,

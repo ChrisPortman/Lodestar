@@ -158,7 +158,7 @@ async fn editing_changes_name_and_description_but_never_the_code() {
     )
     .await
     .unwrap();
-    let edited = update_project(&store, ada.id(), p.id(), 1, "Website", None)
+    let edited = update_project(&store, ada.id(), p.id(), 1, "Website", None, Some(ada.id()))
         .await
         .unwrap();
     assert_eq!(edited.version(), 2);
@@ -168,7 +168,7 @@ async fn editing_changes_name_and_description_but_never_the_code() {
     assert_eq!(view.project_code, "WEBR");
 
     assert_eq!(
-        update_project(&store, ada.id(), p.id(), 1, "Stale", None)
+        update_project(&store, ada.id(), p.id(), 1, "Stale", None, Some(ada.id()))
             .await
             .unwrap_err(),
         ProjectError::Repo(RepoError::Conflict)
@@ -187,7 +187,7 @@ async fn an_archived_project_rejects_edits_until_unarchived() {
     assert!(archived.archived());
 
     assert_eq!(
-        update_project(&store, ada.id(), p.id(), 2, "Website", None)
+        update_project(&store, ada.id(), p.id(), 2, "Website", None, Some(ada.id()))
             .await
             .unwrap_err(),
         ProjectError::Archived
@@ -202,7 +202,7 @@ async fn an_archived_project_rejects_edits_until_unarchived() {
     set_archived(&store, ada.id(), p.id(), 2, false)
         .await
         .unwrap();
-    update_project(&store, ada.id(), p.id(), 3, "Website", None)
+    update_project(&store, ada.id(), p.id(), 3, "Website", None, Some(ada.id()))
         .await
         .unwrap();
 }
@@ -247,7 +247,7 @@ async fn every_change_is_in_the_change_history() {
     let p = create_project(&store, ada.id(), new("Web", "WEBR"))
         .await
         .unwrap();
-    update_project(&store, ada.id(), p.id(), 1, "Website", None)
+    update_project(&store, ada.id(), p.id(), 1, "Website", None, Some(ada.id()))
         .await
         .unwrap();
     set_archived(&store, ada.id(), p.id(), 2, true)

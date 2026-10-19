@@ -8,8 +8,8 @@ use crate::ports::{
 };
 use crate::project::guard::{GuardError, writable_project};
 use crate::project::{
-    Description, DescriptionError, Project, ProjectCode, ProjectCodeError, ProjectId, ProjectName,
-    ProjectNameError, ProjectView, suggest_code,
+    Description, DescriptionError, LeaderNotAMember, Project, ProjectCode, ProjectCodeError,
+    ProjectId, ProjectName, ProjectNameError, ProjectView, suggest_code,
 };
 
 pub use crate::ports::ProjectSort;
@@ -26,10 +26,22 @@ pub enum ProjectError {
     CodeTaken,
     #[error("the project is archived; unarchive it first")]
     Archived,
+    #[error("the project leader must be a member")]
+    LeaderNotAMember,
+    #[error("that person is not a member of the project")]
+    NotAMember,
+    #[error("that person does not exist")]
+    UnknownPerson,
     #[error("the acting person does not exist")]
     UnknownActingPerson,
     #[error(transparent)]
     Repo(#[from] RepoError),
+}
+
+impl From<LeaderNotAMember> for ProjectError {
+    fn from(_: LeaderNotAMember) -> Self {
+        Self::LeaderNotAMember
+    }
 }
 
 impl From<GuardError> for ProjectError {
@@ -76,7 +88,8 @@ pub async fn create_project<U: UnitOfWork>(
     Ok(project)
 }
 
-/// Renames and re-describes a Project. Its code never changes (FR-11).
+/// Renames and re-describes a Project and sets its Project Leader, who must
+/// be a Member (FR-13). Its code never changes (FR-11).
 pub async fn update_project<U: UnitOfWork>(
     uow: &U,
     acting: PersonId,
@@ -84,6 +97,7 @@ pub async fn update_project<U: UnitOfWork>(
     expected_version: u32,
     name: &str,
     description: Option<&str>,
+    project_leader: Option<PersonId>,
 ) -> Result<Project, ProjectError> {
     let name = ProjectName::new(name)?;
     let description = Description::optional(description)?;
@@ -92,7 +106,7 @@ pub async fn update_project<U: UnitOfWork>(
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
-    let after = before.edited(name, description);
+    let after = before.edited(name, description, project_leader)?;
     tx.projects()
         .save(Some(&before), &after, &ChangeContext::by(acting))
         .await?;

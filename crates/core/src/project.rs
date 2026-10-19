@@ -2,6 +2,7 @@
 
 mod code;
 pub mod guard;
+pub mod members;
 pub mod use_cases;
 
 use std::collections::BTreeSet;
@@ -173,6 +174,11 @@ pub struct HealthRating {
     pub comment: Option<Description>,
 }
 
+/// Only a Member can be the Project Leader (FR-13).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("the project leader must be a member")]
+pub struct LeaderNotAMember;
+
 /// A Person as shown alongside something that refers to them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PersonRef {
@@ -256,11 +262,45 @@ impl Project {
         }
     }
 
-    /// The Project with a new name and description. The code never changes (FR-11).
-    pub fn edited(&self, name: ProjectName, description: Option<Description>) -> Self {
-        Self {
+    /// The Project with a new name, description and Project Leader, who must
+    /// be a Member (FR-13). The code never changes (FR-11).
+    pub fn edited(
+        &self,
+        name: ProjectName,
+        description: Option<Description>,
+        project_leader: Option<PersonId>,
+    ) -> Result<Self, LeaderNotAMember> {
+        if project_leader.is_some_and(|l| !self.members.contains(&l)) {
+            return Err(LeaderNotAMember);
+        }
+        Ok(Self {
             name,
             description,
+            project_leader,
+            version: self.version + 1,
+            ..self.clone()
+        })
+    }
+
+    /// The Project with `person` as a Member (FR-20).
+    pub fn with_member(&self, person: PersonId) -> Self {
+        let mut members = self.members.clone();
+        members.insert(person);
+        Self {
+            members,
+            version: self.version + 1,
+            ..self.clone()
+        }
+    }
+
+    /// The Project without `person` as a Member. Removing the Project Leader
+    /// leaves the Project with no Project Leader (FR-13, FR-21).
+    pub fn without_member(&self, person: PersonId) -> Self {
+        let mut members = self.members.clone();
+        members.remove(&person);
+        Self {
+            members,
+            project_leader: self.project_leader.filter(|l| *l != person),
             version: self.version + 1,
             ..self.clone()
         }

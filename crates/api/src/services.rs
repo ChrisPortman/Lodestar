@@ -10,7 +10,7 @@ use lodestar_core::{
     },
     ports::{Page, PageRequest, PeopleQuery, PeopleSort, ProjectSort, ProjectsQuery, UnitOfWork},
     project::{
-        Project, ProjectCode, ProjectId, ProjectView,
+        PersonRef, Project, ProjectCode, ProjectId, ProjectView, members,
         use_cases::{self as project_use_cases, NewProject, ProjectError},
     },
 };
@@ -107,7 +107,26 @@ pub trait Projects: Send + Sync {
         expected_version: u32,
         name: &'a str,
         description: Option<&'a str>,
+        project_leader: Option<PersonId>,
     ) -> BoxFuture<'a, Result<Project, ProjectError>>;
+
+    fn members(&self, id: ProjectId) -> BoxFuture<'_, Result<Vec<PersonRef>, ProjectError>>;
+
+    fn add_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>>;
+
+    fn remove_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>>;
 
     fn set_archived(
         &self,
@@ -159,6 +178,7 @@ impl<S: UnitOfWork + ProjectsQuery> Projects for S {
         expected_version: u32,
         name: &'a str,
         description: Option<&'a str>,
+        project_leader: Option<PersonId>,
     ) -> BoxFuture<'a, Result<Project, ProjectError>> {
         Box::pin(project_use_cases::update_project(
             self,
@@ -167,6 +187,43 @@ impl<S: UnitOfWork + ProjectsQuery> Projects for S {
             expected_version,
             name,
             description,
+            project_leader,
+        ))
+    }
+
+    fn members(&self, id: ProjectId) -> BoxFuture<'_, Result<Vec<PersonRef>, ProjectError>> {
+        Box::pin(members::project_members(self, id))
+    }
+
+    fn add_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>> {
+        Box::pin(members::add_member(
+            self,
+            acting,
+            id,
+            expected_version,
+            person,
+        ))
+    }
+
+    fn remove_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>> {
+        Box::pin(members::remove_member(
+            self,
+            acting,
+            id,
+            expected_version,
+            person,
         ))
     }
 
