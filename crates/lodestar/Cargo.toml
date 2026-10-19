@@ -10,3 +10,14 @@ lodestar-core.workspace = true
 lodestar-datarepo.workspace = true
 tokio.workspace = true
 axum.workspace = true
+figment = { version = "0.10.19", features = ["toml", "env"] }
+serde = { version = "1.0.229", features = ["derive"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "fmt"] }
+base64 = "0.23.1"
+getrandom = "0.4.3"
+thiserror = "2.0.21"
+
+[dev-dependencies]
+figment = { version = "0.10.19", features = ["test"] }
+tempfile = "3.27.0"

@@ -1,9 +1,10 @@
-//! SQLite adapter for every port, using sqlx's compile-time checked queries.
-//!
-//! The pool's connection settings (WAL, `busy_timeout`, foreign keys) belong
-//! to whoever builds the pool; this module only needs a migrated pool.
+//! SQLite adapter (ADR-0007): WAL, 5-second busy timeout, foreign keys on.
+//! Queries use sqlx's compile-time checked macros against `.sqlx/`.
+
+use std::{str::FromStr, time::Duration};
 
 use chrono::{DateTime, SecondsFormat, Utc};
+use lodestar_core::health::HealthProbe;
 use lodestar_core::history::{
     ChangeContext, ChangeKind, EntityType, HistoryEntry, HistoryEntryId, snapshot,
 };
@@ -12,12 +13,53 @@ use lodestar_core::ports::{
     HistoryQuery, Page, PageRequest, PeopleQuery, PersonRepository, ReferenceCounter,
     ReferenceKind, RepoError, Transaction, UnitOfWork,
 };
-use sqlx::{Sqlite, SqlitePool};
+use sqlx::Sqlite;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 use uuid::Uuid;
 
-/// Embedded migrations for the SQLite backend.
-pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations/sqlite");
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("migrations/sqlite");
 
+/// Errors opening or migrating the database.
+pub type Error = Box<dyn std::error::Error + Send + Sync>;
+
+/// A connection pool to a migrated SQLite database.
+#[derive(Clone)]
+pub struct SqliteDatabase {
+    pool: SqlitePool,
+}
+
+impl SqliteDatabase {
+    /// Opens (creating if needed) the database at `url` and applies the
+    /// embedded migrations (NFR-22).
+    pub async fn connect(url: &str) -> Result<Self, Error> {
+        let options = SqliteConnectOptions::from_str(url)?
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5))
+            .foreign_keys(true);
+        let pool = SqlitePoolOptions::new().connect_with(options).await?;
+        MIGRATOR.run(&pool).await?;
+        Ok(Self { pool })
+    }
+
+    /// A store implementing every repository and query port.
+    pub fn store(&self) -> SqliteStore {
+        SqliteStore::new(self.pool.clone())
+    }
+
+    /// The underlying pool, for adapters in this crate and tests.
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+}
+
+impl HealthProbe for SqliteDatabase {
+    async fn database_reachable(&self) -> bool {
+        sqlx::query("SELECT 1").execute(&self.pool).await.is_ok()
+    }
+}
+
+/// Implements the unit of work, repository and query ports over a migrated pool.
 #[derive(Debug, Clone)]
 pub struct SqliteStore {
     pool: SqlitePool,
