@@ -73,3 +73,12 @@ audit-npm:
 # Backend on :8080 and Vite dev server proxying /api to it.
 dev:
     cargo run -p lodestar & cd frontend && npm run dev
+
+# Browser smoke tests (Playwright) against the release binary with the real dist embedded.
+e2e: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd frontend
+    # System deps need root: CI has passwordless sudo, locally they're usually present.
+    if [ -n "${CI:-}" ]; then npx playwright install --with-deps chromium; else npx playwright install chromium; fi
+    npx playwright test
