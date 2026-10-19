@@ -1,1 +1,7 @@
 .claude/worktrees/
+/target
+/frontend/node_modules
+/frontend/dist
+/frontend/playwright-report
+/frontend/test-results
+/dist

@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, project_id, reference, description, assignee_id, due_date, closed, version\n             FROM actions WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "project_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "reference",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "reference"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "assignee_id",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "assignee_id"
+          }
+        }
+      },
+      {
+        "name": "due_date",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "due_date"
+          }
+        }
+      },
+      {
+        "name": "closed",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "closed"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "b7fe6f25af4ee4d86c0294b85a10beaab4a905c085815245a0b39f431a6c948c"
+}

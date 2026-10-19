@@ -146,7 +146,7 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 | NFR-21 | M | Settings include at least the bind address and port, the database location, and the log level. |
 | NFR-22 | M | Database migrations run automatically on startup. |
 | NFR-23 | M | Logs are structured (`tracing`) and written to stdout, at a log level you can configure. |
-| NFR-24 | M | A `/healthz` endpoint reports whether the app is running and can reach the database. |
+| NFR-24 | M | A `/api/v1/healthz` endpoint reports whether the app is running and can reach the database. |
 | NFR-25 | M | Backups are the administrator's responsibility in the MVP. The documentation explains how to back up the SQLite database safely while it's in use (WAL mode). |
 
 ### 2.4 Security

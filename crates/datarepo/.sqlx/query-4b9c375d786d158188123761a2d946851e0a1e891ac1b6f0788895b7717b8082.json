@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT person_id FROM project_members WHERE project_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "person_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "project_members",
+            "name": "person_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4b9c375d786d158188123761a2d946851e0a1e891ac1b6f0788895b7717b8082"
+}

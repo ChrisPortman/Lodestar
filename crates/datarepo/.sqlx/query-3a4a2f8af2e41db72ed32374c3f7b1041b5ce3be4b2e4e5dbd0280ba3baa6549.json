@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT display_name, version FROM people WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "display_name",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3a4a2f8af2e41db72ed32374c3f7b1041b5ce3be4b2e4e5dbd0280ba3baa6549"
+}

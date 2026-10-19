@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ba.action_id, b.id AS blocker_id, b.reference\n         FROM blocker_actions ba JOIN blockers b ON b.id = ba.blocker_id\n         WHERE b.cleared = 0 AND ba.action_id IN (SELECT value FROM json_each(?))\n         ORDER BY b.reference, b.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "action_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocker_actions",
+            "name": "action_id"
+          }
+        }
+      },
+      {
+        "name": "blocker_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "reference",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "reference"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "511ad01f361389b32ed6e87f7d6cfb9904f5ab557ea062761af9f7cb3026806e"
+}

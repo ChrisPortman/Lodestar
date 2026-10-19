@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id, p.name, p.description, p.project_code, p.archived,\n                      p.project_leader_id, pe.display_name AS \"leader_name?\",\n                      p.health_rating, p.health_comment, p.version\n               FROM projects p LEFT JOIN people pe ON pe.id = p.project_leader_id\n               WHERE ? OR p.archived = 0\n               ORDER BY CASE WHEN ? THEN p.name END, p.id LIMIT ? OFFSET ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "project_code",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_code"
+          }
+        }
+      },
+      {
+        "name": "archived",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "archived"
+          }
+        }
+      },
+      {
+        "name": "project_leader_id",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_leader_id"
+          }
+        }
+      },
+      {
+        "name": "leader_name?",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "health_rating",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "health_rating"
+          }
+        }
+      },
+      {
+        "name": "health_comment",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "health_comment"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "7e6a0f39b2ae8ef0210b9a742da85e667940fbd77855e7896a6e9d584a917c52"
+}

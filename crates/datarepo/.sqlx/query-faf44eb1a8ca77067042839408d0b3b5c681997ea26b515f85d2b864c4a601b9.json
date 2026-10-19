@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM risks\n             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)\n               AND (NOT ?3 OR closed = 1)",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "faf44eb1a8ca77067042839408d0b3b5c681997ea26b515f85d2b864c4a601b9"
+}

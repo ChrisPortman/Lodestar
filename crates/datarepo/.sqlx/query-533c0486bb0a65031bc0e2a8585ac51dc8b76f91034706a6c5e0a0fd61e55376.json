@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT b.id, b.project_id, p.project_code, b.reference, b.description,\n                      b.accountable_id, pe.display_name AS \"accountable_name?\",\n                      b.cleared, b.version\n               FROM blockers b\n               JOIN projects p ON p.id = b.project_id\n               LEFT JOIN people pe ON pe.id = b.accountable_id\n               WHERE (?1 IS NULL OR b.project_id = ?1) AND (?2 OR b.cleared = 0)\n                 AND (NOT ?3 OR b.cleared = 1) AND (NOT ?4 OR b.accountable_id IS NULL)\n                 AND (?5 IS NULL OR b.accountable_id = ?5)\n               ORDER BY CASE WHEN ?8 THEN p.project_code END,\n                        CASE WHEN ?8 THEN b.reference END,\n                        CASE WHEN ?9 THEN pe.display_name IS NULL END,\n                        CASE WHEN ?9 THEN pe.display_name END,\n                        b.id\n               LIMIT ?6 OFFSET ?7",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "project_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "project_code",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_code"
+          }
+        }
+      },
+      {
+        "name": "reference",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "reference"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "accountable_id",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "accountable_id"
+          }
+        }
+      },
+      {
+        "name": "accountable_name?",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "cleared",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "cleared"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "blockers",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "533c0486bb0a65031bc0e2a8585ac51dc8b76f91034706a6c5e0a0fd61e55376"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT action_id FROM blocker_actions WHERE blocker_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "action_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocker_actions",
+            "name": "action_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "108330b05e193a1fd0c5c05c71b017bf24c59b6b003c6c0c4e1e545f52863ddc"
+}

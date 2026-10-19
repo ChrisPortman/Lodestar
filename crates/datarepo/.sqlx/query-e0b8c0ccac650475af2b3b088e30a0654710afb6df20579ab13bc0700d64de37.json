@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT project_id, number, description, likelihood, impact, closed, version\n             FROM risks WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "project_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "number",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "likelihood",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "likelihood"
+          }
+        }
+      },
+      {
+        "name": "impact",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "impact"
+          }
+        }
+      },
+      {
+        "name": "closed",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "closed"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "risks",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e0b8c0ccac650475af2b3b088e30a0654710afb6df20579ab13bc0700d64de37"
+}

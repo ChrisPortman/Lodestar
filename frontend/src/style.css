@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+/* Project on a Page prints on A4 portrait (FR-101). */
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}

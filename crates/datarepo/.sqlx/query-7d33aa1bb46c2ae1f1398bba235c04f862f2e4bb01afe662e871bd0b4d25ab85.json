@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT pe.id, pe.display_name\n             FROM project_members m JOIN people pe ON pe.id = m.person_id\n             WHERE m.project_id = ?\n             ORDER BY pe.display_name, pe.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "display_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7d33aa1bb46c2ae1f1398bba235c04f862f2e4bb01afe662e871bd0b4d25ab85"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO actions\n                        (id, project_id, reference, description, assignee_id, due_date,\n                         closed, version)\n                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "cbe8db385dc257ae0b09d25d1bc6a15be60d5e2ed6ed76ccd791384f716665c7"
+}

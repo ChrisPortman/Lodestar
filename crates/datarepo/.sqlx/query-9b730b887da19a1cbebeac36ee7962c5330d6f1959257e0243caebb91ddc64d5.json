@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE risks SET description = ?, likelihood = ?, impact = ?, closed = ?,\n                        version = ?\n                     WHERE id = ? AND version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "9b730b887da19a1cbebeac36ee7962c5330d6f1959257e0243caebb91ddc64d5"
+}

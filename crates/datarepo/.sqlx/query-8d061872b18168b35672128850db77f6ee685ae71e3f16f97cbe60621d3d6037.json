@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE actions SET description = ?, assignee_id = ?, due_date = ?,\n                        closed = ?, version = ?\n                     WHERE id = ? AND version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "8d061872b18168b35672128850db77f6ee685ae71e3f16f97cbe60621d3d6037"
+}
