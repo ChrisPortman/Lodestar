@@ -116,6 +116,7 @@ export function fakeBackend(
         project_code: body.project_code,
         archived: false,
         project_leader: person ? { id: person.id, display_name: person.display_name } : null,
+        health_rating: null,
       }
       projects.push(project)
       members.set(project.id, new Set(person ? [person.id] : []))
@@ -158,7 +159,7 @@ export function fakeBackend(
       const project = writable(params.id, request)
       if (project instanceof Response) return project
       const body = (await request.json()) as Project
-      if (!('description' in body) || !('project_leader' in body))
+      if (!('description' in body) || !('health_rating' in body) || !('project_leader' in body))
         return problem(422, 'Unprocessable Content')
       const leader = body.project_leader?.id ?? null
       if (leader && !members.get(project.id)!.has(leader))
@@ -166,8 +167,16 @@ export function fakeBackend(
       project.name = body.name.trim()
       project.description = body.description ?? null
       project.project_leader = leader ? personRef(leader) : null
+      const health = body.health_rating
+      project.health_rating = health
+        ? { rating: health.rating, comment: health.comment?.trim() || null }
+        : null
       project.version += 1
       return HttpResponse.json<Project>(project)
+    }),
+    http.get(api('/projects/:id'), ({ params }) => {
+      const project = projects.find((p) => p.id === params.id)
+      return project ? HttpResponse.json<Project>(project) : problem(404, 'Not Found')
     }),
     http.patch(api('/projects/:id'), async ({ request, params }) => {
       const project = projects.find((p) => p.id === params.id)

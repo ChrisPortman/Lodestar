@@ -4,7 +4,7 @@ use lodestar_core::ports::{HistoryQuery, PageRequest, ProjectsQuery, RepoError};
 use lodestar_core::project::Project;
 use lodestar_core::project::members::{add_member, project_members, remove_member};
 use lodestar_core::project::use_cases::{
-    NewProject, ProjectError, create_project, set_archived, update_project,
+    NewProject, ProjectEdit, ProjectError, create_project, set_archived, update_project,
 };
 use lodestar_core::test_support::InMemoryStore;
 
@@ -36,6 +36,15 @@ async fn world() -> World {
         ada,
         bob,
         project,
+    }
+}
+
+fn lead(name: &str, leader: PersonId) -> ProjectEdit<'_> {
+    ProjectEdit {
+        name,
+        description: None,
+        health_rating: None,
+        project_leader: Some(leader),
     }
 }
 
@@ -140,9 +149,7 @@ async fn the_leader_can_be_changed_to_another_member() {
         w.ada.id(),
         w.project.id(),
         2,
-        "Web",
-        None,
-        Some(w.bob.id()),
+        lead("Web", w.bob.id()),
     )
     .await
     .unwrap();
@@ -159,9 +166,7 @@ async fn only_a_member_can_lead() {
             w.ada.id(),
             w.project.id(),
             1,
-            "Web",
-            None,
-            Some(w.bob.id()),
+            lead("Web", w.bob.id()),
         )
         .await
         .unwrap_err(),

@@ -80,7 +80,7 @@ impl World {
                 Method::PUT,
                 &format!("/api/v1/projects/{}", self.project),
                 &[("cookie", &self.cookie), ("if-match", etag)],
-                Some(json!({"name": "Web", "description": null, "project_leader": leader})),
+                Some(json!({"name": "Web", "description": null, "health_rating": null, "project_leader": leader})),
             )
             .await
     }
@@ -179,7 +179,7 @@ async fn the_leader_is_a_required_put_field() {
             Method::PUT,
             &format!("/api/v1/projects/{}", w.project),
             &[("cookie", &w.cookie), ("if-match", "\"1\"")],
-            Some(json!({"name": "Web", "description": null})),
+            Some(json!({"name": "Web", "description": null, "health_rating": null})),
         )
         .await;
     assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);

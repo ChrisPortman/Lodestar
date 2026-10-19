@@ -11,7 +11,10 @@ use axum::{
 use lodestar_core::{
     person::PersonId,
     ports::{PageRequest, ProjectSort},
-    project::{ProjectId, ProjectView, use_cases::NewProject},
+    project::{
+        HealthRating, ProjectId, ProjectView, Rag,
+        use_cases::{HealthRatingInput, NewProject, ProjectEdit},
+    },
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::{IntoParams, ToSchema};
@@ -53,6 +56,57 @@ pub struct PersonRefBody {
     pub display_name: String,
 }
 
+/// Red, Amber or Green.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = Rag)]
+pub enum RagBody {
+    Red,
+    Amber,
+    Green,
+}
+
+impl From<Rag> for RagBody {
+    fn from(rag: Rag) -> Self {
+        match rag {
+            Rag::Red => Self::Red,
+            Rag::Amber => Self::Amber,
+            Rag::Green => Self::Green,
+        }
+    }
+}
+
+impl From<RagBody> for Rag {
+    fn from(rag: RagBody) -> Self {
+        match rag {
+            RagBody::Red => Self::Red,
+            RagBody::Amber => Self::Amber,
+            RagBody::Green => Self::Green,
+        }
+    }
+}
+
+/// A Project's Health Rating, set by hand (FR-70).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+#[schema(as = HealthRating)]
+pub struct HealthRatingBody {
+    pub rating: RagBody,
+    /// 1–4000 characters once trimmed, or `null`.
+    #[schema(min_length = 1, max_length = 4000)]
+    #[serde(default)]
+    pub comment: Option<String>,
+}
+
+impl From<HealthRating> for HealthRatingBody {
+    fn from(h: HealthRating) -> Self {
+        Self {
+            rating: h.rating.into(),
+            comment: h.comment.map(String::from),
+        }
+    }
+}
+
 /// A Project. Also the request body for `POST` and `PUT`: read-only fields may
 /// be sent to `PUT` only if they match what is stored.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
@@ -76,6 +130,8 @@ pub struct ProjectBody {
     /// The creator, to begin with. Must be a Member; `null` means no
     /// Project Leader. Required on `PUT`, where only `id` is read.
     pub project_leader: Option<PersonRefBody>,
+    /// `null` when the Project is not rated. Required on `PUT`.
+    pub health_rating: Option<HealthRatingBody>,
     #[schema(read_only, minimum = 1)]
     pub version: u32,
 }
@@ -92,6 +148,7 @@ impl From<ProjectView> for ProjectBody {
                 id: l.id.as_uuid(),
                 display_name: l.display_name,
             }),
+            health_rating: view.health_rating.map(HealthRatingBody::from),
             version: view.version,
         }
     }
@@ -116,6 +173,8 @@ struct ProjectInput {
     archived: Option<bool>,
     #[serde(default, deserialize_with = "present")]
     project_leader: Option<Option<LeaderInput>>,
+    #[serde(default, deserialize_with = "present")]
+    health_rating: Option<Option<HealthRatingBody>>,
     version: Option<u32>,
 }
 
@@ -280,9 +339,10 @@ async fn create(
         || input.version.is_some()
         || input.archived.is_some()
         || input.project_leader.is_some()
+        || input.health_rating.is_some()
     {
         return Err(Problem::invalid(
-            "id, archived, project_leader and version are set by the server",
+            "id, archived, project_leader, health_rating and version are set by the server",
         ));
     }
     let Some(code) = input.project_code.as_deref() else {
@@ -325,8 +385,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
-/// Replaces a Project's name, description and Project Leader. Needs a
-/// session and `If-Match`.
+/// Replaces a Project's name, description, Health Rating and Project Leader.
+/// Needs a session and `If-Match`.
 #[utoipa::path(
     put,
     path = "/api/v1/projects/{id}",
@@ -366,6 +426,11 @@ async fn update(
             "project_leader is required (null means no Project Leader)",
         ));
     };
+    let Some(health_rating) = input.health_rating else {
+        return Err(Problem::invalid(
+            "health_rating is required (null means not rated)",
+        ));
+    };
     let id = ProjectId::from_uuid(id);
     let stored = state.projects.get(id).await?;
     if input
@@ -383,9 +448,15 @@ async fn update(
             acting,
             id,
             expected,
-            &input.name,
-            description.as_deref(),
-            leader.map(|l| PersonId::from_uuid(l.id)),
+            ProjectEdit {
+                name: &input.name,
+                description: description.as_deref(),
+                health_rating: health_rating.as_ref().map(|h| HealthRatingInput {
+                    rating: h.rating.into(),
+                    comment: h.comment.as_deref(),
+                }),
+                project_leader: leader.map(|l| PersonId::from_uuid(l.id)),
+            },
         )
         .await?;
     Ok(with_etag(

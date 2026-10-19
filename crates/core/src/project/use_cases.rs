@@ -8,8 +8,8 @@ use crate::ports::{
 };
 use crate::project::guard::{GuardError, writable_project};
 use crate::project::{
-    Description, DescriptionError, LeaderNotAMember, Project, ProjectCode, ProjectCodeError,
-    ProjectId, ProjectName, ProjectNameError, ProjectView, suggest_code,
+    Description, DescriptionError, HealthRating, LeaderNotAMember, Project, ProjectCode,
+    ProjectCodeError, ProjectId, ProjectName, ProjectNameError, ProjectView, Rag, suggest_code,
 };
 
 pub use crate::ports::ProjectSort;
@@ -88,25 +88,50 @@ pub async fn create_project<U: UnitOfWork>(
     Ok(project)
 }
 
-/// Renames and re-describes a Project and sets its Project Leader, who must
-/// be a Member (FR-13). Its code never changes (FR-11).
+/// Every writable field of a Project, as given to [`update_project`].
+#[derive(Debug, Clone, Copy)]
+pub struct ProjectEdit<'a> {
+    pub name: &'a str,
+    pub description: Option<&'a str>,
+    /// `None` leaves the Project "not rated" (FR-70).
+    pub health_rating: Option<HealthRatingInput<'a>>,
+    /// Must be a Member; `None` leaves the Project with no Project Leader (FR-13).
+    pub project_leader: Option<PersonId>,
+}
+
+/// A Health Rating as given to [`update_project`].
+#[derive(Debug, Clone, Copy)]
+pub struct HealthRatingInput<'a> {
+    pub rating: Rag,
+    pub comment: Option<&'a str>,
+}
+
+/// Renames and re-describes a Project, and sets its Health Rating (FR-70).
+/// Its code never changes (FR-11).
 pub async fn update_project<U: UnitOfWork>(
     uow: &U,
     acting: PersonId,
     id: ProjectId,
     expected_version: u32,
-    name: &str,
-    description: Option<&str>,
-    project_leader: Option<PersonId>,
+    edit: ProjectEdit<'_>,
 ) -> Result<Project, ProjectError> {
-    let name = ProjectName::new(name)?;
-    let description = Description::optional(description)?;
+    let name = ProjectName::new(edit.name)?;
+    let description = Description::optional(edit.description)?;
+    let health_rating = edit
+        .health_rating
+        .map(|h| {
+            Ok::<_, DescriptionError>(HealthRating {
+                rating: h.rating,
+                comment: Description::optional(h.comment)?,
+            })
+        })
+        .transpose()?;
     let mut tx = uow.begin().await?;
     let before = writable_project(&mut tx, id).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
-    let after = before.edited(name, description, project_leader)?;
+    let after = before.edited(name, description, health_rating, edit.project_leader)?;
     tx.projects()
         .save(Some(&before), &after, &ChangeContext::by(acting))
         .await?;

@@ -240,6 +240,7 @@ fn project_view(state: &State, project: &Project) -> ProjectView {
                 .map(|p| p.display_name().as_str().to_owned())
                 .unwrap_or_default(),
         }),
+        health_rating: project.health_rating().cloned(),
         version: project.version(),
     }
 }

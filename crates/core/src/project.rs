@@ -195,6 +195,7 @@ pub struct ProjectView {
     pub project_code: String,
     pub archived: bool,
     pub project_leader: Option<PersonRef>,
+    pub health_rating: Option<HealthRating>,
     pub version: u32,
 }
 
@@ -262,12 +263,13 @@ impl Project {
         }
     }
 
-    /// The Project with a new name, description and Project Leader, who must
-    /// be a Member (FR-13). The code never changes (FR-11).
+    /// The Project with a new name, description, Health Rating and Project
+    /// Leader, who must be a Member (FR-13). The code never changes (FR-11).
     pub fn edited(
         &self,
         name: ProjectName,
         description: Option<Description>,
+        health_rating: Option<HealthRating>,
         project_leader: Option<PersonId>,
     ) -> Result<Self, LeaderNotAMember> {
         if project_leader.is_some_and(|l| !self.members.contains(&l)) {
@@ -276,6 +278,7 @@ impl Project {
         Ok(Self {
             name,
             description,
+            health_rating,
             project_leader,
             version: self.version + 1,
             ..self.clone()

@@ -5,69 +5,89 @@ import { renderApp } from '../test/render'
 import type { Project } from '../test/server'
 
 const ada = { id: 'a', version: 1, display_name: 'Ada' }
-const bob = { id: 'b', version: 1, display_name: 'Bob' }
 
-const web = {
-  id: 'p1',
-  name: 'Website',
-  project_code: 'WEBS',
-  description: null,
-  archived: false,
-  project_leader: { id: 'a', display_name: 'Ada' },
-  version: 1,
-} as Project
-
-async function openMembers() {
-  await userEvent.click(await screen.findByRole('button', { name: 'Members' }))
-  return screen.getByRole('dialog', { name: 'Members' })
+function project(fields: Partial<Project> = {}) {
+  return {
+    id: 'p1',
+    name: 'Website',
+    project_code: 'WEBS',
+    description: null,
+    archived: false,
+    project_leader: { id: 'a', display_name: 'Ada' },
+    health_rating: null,
+    version: 1,
+    ...fields,
+  } as Project
 }
 
-function memberNames(panel: HTMLElement) {
-  return within(within(panel).getByRole('list', { name: 'Members' }))
-    .queryAllByRole('listitem')
-    .map((li) => li.textContent ?? '')
+async function badge() {
+  return screen.findByRole('status', { name: 'Health Rating' })
 }
 
-describe('Project meeting view', () => {
-  it('shows the code, name and Acting Person in the header', async () => {
-    await renderApp('/projects/p1', [ada], 'a', [web])
-    const header = await screen.findByRole('banner', { name: 'Project' })
-    expect(within(header).getByText('WEBS')).toBeTruthy()
-    expect(within(header).getByRole('heading', { name: /Website/ })).toBeTruthy()
-    expect(within(header).getByText(/Acting as/).textContent).toContain('Ada')
-    expect(within(header).queryByText('No Project Leader')).toBeNull()
+async function openEditor() {
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit Health Rating' }))
+  return screen.getByRole('group', { name: 'Health Rating' })
+}
+
+describe('Health Rating in the meeting view header', () => {
+  it('shows a Project that is not rated', async () => {
+    await renderApp('/projects/p1', [ada], 'a', [project()])
+    expect(await screen.findByRole('heading', { name: /Website/ })).toBeTruthy()
+    expect((await badge()).textContent).toContain('Not rated')
   })
 
-  it('flags a Project with no Project Leader', async () => {
-    await renderApp('/projects/p1', [ada], 'a', [{ ...web, project_leader: null }])
-    expect(await screen.findByText('No Project Leader')).toBeTruthy()
+  it('sets a rating with a comment', async () => {
+    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project()])
+    const editor = await openEditor()
+    await userEvent.click(within(editor).getByLabelText('Amber'))
+    await userEvent.type(within(editor).getByLabelText('Comment'), 'Vendor late')
+    await userEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Health Rating' })).toBeNull())
+    expect(backend.projects[0]!.health_rating).toEqual({ rating: 'amber', comment: 'Vendor late' })
+    await waitFor(async () => expect((await badge()).textContent).toContain('Amber'))
+    expect(screen.getByText('Vendor late')).toBeTruthy()
   })
 
-  it('lists Members with a leader badge and adds one from People', async () => {
-    const { backend } = await renderApp('/projects/p1', [ada, bob], 'a', [web])
-    const panel = await openMembers()
-    await waitFor(() => expect(memberNames(panel)).toHaveLength(1))
-    expect(memberNames(panel)[0]).toContain('Leader')
+  it('changes the rating and clears the comment', async () => {
+    const rated = project({ health_rating: { rating: 'red', comment: 'Behind' } })
+    const { backend } = await renderApp('/projects/p1', [ada], 'a', [rated])
+    expect((await badge()).textContent).toContain('Red')
+    const editor = await openEditor()
+    await userEvent.click(within(editor).getByLabelText('Green'))
+    await userEvent.clear(within(editor).getByLabelText('Comment'))
+    await userEvent.click(within(editor).getByRole('button', { name: 'Save' }))
 
-    await userEvent.selectOptions(within(panel).getByLabelText('Add member'), 'b')
-    await userEvent.click(within(panel).getByRole('button', { name: 'Add' }))
-    await waitFor(() => expect(memberNames(panel)).toHaveLength(2))
-    expect(backend.projects[0]?.version).toBe(2)
+    await waitFor(() =>
+      expect(backend.projects[0]!.health_rating).toEqual({ rating: 'green', comment: null }),
+    )
+    await waitFor(async () => expect((await badge()).textContent).toContain('Green'))
+    expect(screen.queryByText('Behind')).toBeNull()
   })
 
-  it('makes another Member the Project Leader', async () => {
-    const { backend } = await renderApp('/projects/p1', [ada, bob], 'a', [web])
-    backend.members.get('p1')?.add('b')
-    const panel = await openMembers()
-    await userEvent.click(await within(panel).findByRole('button', { name: 'Make Bob leader' }))
-    await waitFor(() => expect(backend.projects[0]?.project_leader?.id).toBe('b'))
+  it('can go back to not rated', async () => {
+    const rated = project({ health_rating: { rating: 'red', comment: 'Behind' } })
+    const { backend } = await renderApp('/projects/p1', [ada], 'a', [rated])
+    const editor = await openEditor()
+    await userEvent.click(within(editor).getByLabelText('Not rated'))
+    await userEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(backend.projects[0]!.health_rating).toBeNull())
+    await waitFor(async () => expect((await badge()).textContent).toContain('Not rated'))
   })
 
-  it('removing the leader leaves the Project flagged with no leader', async () => {
-    await renderApp('/projects/p1', [ada, bob], 'a', [web])
-    const panel = await openMembers()
-    await userEvent.click(await within(panel).findByRole('button', { name: 'Remove Ada' }))
-    expect(await screen.findByText('No Project Leader')).toBeTruthy()
-    await waitFor(() => expect(memberNames(panel)).toHaveLength(0))
+  it('cancelling leaves the rating unchanged', async () => {
+    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project()])
+    const editor = await openEditor()
+    await userEvent.click(within(editor).getByLabelText('Red'))
+    await userEvent.click(within(editor).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('group', { name: 'Health Rating' })).toBeNull()
+    expect(backend.projects[0]!.version).toBe(1)
+    expect((await badge()).textContent).toContain('Not rated')
+  })
+
+  it('an archived Project cannot be rated', async () => {
+    await renderApp('/projects/p1', [ada], 'a', [project({ archived: true })])
+    await badge()
+    expect(screen.queryByRole('button', { name: 'Edit Health Rating' })).toBeNull()
   })
 })
