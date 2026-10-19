@@ -1,0 +1,12 @@
+[package]
+name = "lodestar-datarepo"
+edition.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[features]
+default = ["sqlite"]
+sqlite = []
+
+[dependencies]
+lodestar-core.workspace = true

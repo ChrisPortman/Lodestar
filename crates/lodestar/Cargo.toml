@@ -1,0 +1,12 @@
+[package]
+name = "lodestar"
+edition.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+lodestar-api.workspace = true
+lodestar-core.workspace = true
+lodestar-datarepo.workspace = true
+tokio.workspace = true
+axum.workspace = true

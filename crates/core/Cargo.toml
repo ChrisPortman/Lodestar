@@ -1,0 +1,5 @@
+[package]
+name = "lodestar-core"
+edition.workspace = true
+publish.workspace = true
+version.workspace = true
