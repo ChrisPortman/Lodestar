@@ -6,7 +6,13 @@ version.workspace = true
 
 [features]
 default = ["sqlite"]
-sqlite = []
+sqlite = ["dep:sqlx"]
 
 [dependencies]
 lodestar-core.workspace = true
+sqlx = { optional = true, version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+
+[dev-dependencies]
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite"] }
+tempfile = { version = "3.27.0", default-features = false }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

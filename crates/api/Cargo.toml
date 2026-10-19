@@ -9,8 +9,10 @@ lodestar-core.workspace = true
 axum.workspace = true
 tower-http.workspace = true
 rust-embed.workspace = true
+serde_json = "1.0.154"
 
 [dev-dependencies]
 tokio.workspace = true
 tower.workspace = true
 http-body-util.workspace = true
+lodestar-core.workspace = true
