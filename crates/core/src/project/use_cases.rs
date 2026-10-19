@@ -8,8 +8,8 @@ use crate::ports::{
 };
 use crate::project::guard::{GuardError, writable_project};
 use crate::project::{
-    Description, DescriptionError, HealthRating, Project, ProjectCode, ProjectCodeError, ProjectId,
-    ProjectName, ProjectNameError, ProjectView, Rag, suggest_code,
+    Description, DescriptionError, HealthRating, LeaderNotAMember, Project, ProjectCode,
+    ProjectCodeError, ProjectId, ProjectName, ProjectNameError, ProjectView, Rag, suggest_code,
 };
 
 pub use crate::ports::ProjectSort;
@@ -26,10 +26,22 @@ pub enum ProjectError {
     CodeTaken,
     #[error("the project is archived; unarchive it first")]
     Archived,
+    #[error("the project leader must be a member")]
+    LeaderNotAMember,
+    #[error("that person is not a member of the project")]
+    NotAMember,
+    #[error("that person does not exist")]
+    UnknownPerson,
     #[error("the acting person does not exist")]
     UnknownActingPerson,
     #[error(transparent)]
     Repo(#[from] RepoError),
+}
+
+impl From<LeaderNotAMember> for ProjectError {
+    fn from(_: LeaderNotAMember) -> Self {
+        Self::LeaderNotAMember
+    }
 }
 
 impl From<GuardError> for ProjectError {
@@ -83,6 +95,8 @@ pub struct ProjectEdit<'a> {
     pub description: Option<&'a str>,
     /// `None` leaves the Project "not rated" (FR-70).
     pub health_rating: Option<HealthRatingInput<'a>>,
+    /// Must be a Member; `None` leaves the Project with no Project Leader (FR-13).
+    pub project_leader: Option<PersonId>,
 }
 
 /// A Health Rating as given to [`update_project`].
@@ -117,7 +131,7 @@ pub async fn update_project<U: UnitOfWork>(
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
-    let after = before.edited(name, description, health_rating);
+    let after = before.edited(name, description, health_rating, edit.project_leader)?;
     tx.projects()
         .save(Some(&before), &after, &ChangeContext::by(acting))
         .await?;

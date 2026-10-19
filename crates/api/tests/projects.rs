@@ -163,7 +163,7 @@ async fn put_renames_and_redescribes() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "Website", "description": null, "health_rating": null}),
+        json!({"name": "Website", "description": null, "health_rating": null, "project_leader": null}),
     )
     .await;
     assert_eq!(reply.status, StatusCode::OK);
@@ -185,7 +185,7 @@ async fn put_renames_and_redescribes() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "X", "description": null, "health_rating": null}),
+        json!({"name": "X", "description": null, "health_rating": null, "project_leader": null}),
     )
     .await;
     assert_eq!(stale.status, StatusCode::PRECONDITION_FAILED);
@@ -207,7 +207,7 @@ async fn the_project_code_cannot_be_changed_by_put() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "Web", "description": null, "health_rating": null, "project_code": "NEWC"}),
+        json!({"name": "Web", "description": null, "health_rating": null, "project_leader": null, "project_code": "NEWC"}),
     )
     .await;
     assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -218,7 +218,7 @@ async fn the_project_code_cannot_be_changed_by_put() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "Web", "description": null, "health_rating": null, "archived": true}),
+        json!({"name": "Web", "description": null, "health_rating": null, "project_leader": null, "archived": true}),
     )
     .await;
     assert_eq!(archived.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -250,7 +250,7 @@ async fn an_archived_project_is_read_only_until_unarchived() {
         &cookie,
         id,
         "\"2\"",
-        json!({"name": "Website", "description": null, "health_rating": null}),
+        json!({"name": "Website", "description": null, "health_rating": null, "project_leader": null}),
     )
     .await;
     assert_eq!(edit.status, StatusCode::CONFLICT);
@@ -267,7 +267,7 @@ async fn an_archived_project_is_read_only_until_unarchived() {
         &cookie,
         id,
         "\"3\"",
-        json!({"name": "Website", "description": null, "health_rating": null}),
+        json!({"name": "Website", "description": null, "health_rating": null, "project_leader": null}),
     )
     .await;
     assert_eq!(edit.status, StatusCode::OK);
@@ -363,7 +363,7 @@ async fn an_unknown_project_is_404() {
 
 /// A `PUT` body keeping name and description, with the given Health Rating.
 fn rated(health: Value) -> Value {
-    json!({"name": "Web", "description": null, "health_rating": health})
+    json!({"name": "Web", "description": null, "health_rating": health, "project_leader": null})
 }
 
 #[tokio::test]

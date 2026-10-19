@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
 use crate::person::{Person, PersonId, PersonView};
-use crate::project::{Project, ProjectId, ProjectView};
+use crate::project::{PersonRef, Project, ProjectId, ProjectView};
 use crate::risk::{Risk, RiskId, RiskView};
 
 /// Errors every port can return. Adapters map their own errors onto these.
@@ -188,6 +188,13 @@ pub trait ProjectsQuery: Send + Sync {
         &self,
         id: ProjectId,
     ) -> impl Future<Output = Result<ProjectView, RepoError>> + Send;
+
+    /// A Project's Members, ordered by display name then ID.
+    /// [`RepoError::NotFound`] if there is no such Project.
+    fn project_members(
+        &self,
+        id: ProjectId,
+    ) -> impl Future<Output = Result<Vec<PersonRef>, RepoError>> + Send;
 
     /// Every Project Code in use that starts with `prefix`.
     fn project_codes_starting_with(

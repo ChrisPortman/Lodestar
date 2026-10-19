@@ -11,7 +11,7 @@ use lodestar_core::{
     ports::{Page, PageRequest, PeopleQuery, PeopleSort, ProjectSort, ProjectsQuery, UnitOfWork},
     ports::{RiskFilter, RiskSort, RisksQuery},
     project::{
-        Project, ProjectCode, ProjectId, ProjectView,
+        PersonRef, Project, ProjectCode, ProjectId, ProjectView, members,
         use_cases::{self as project_use_cases, NewProject, ProjectEdit, ProjectError},
     },
     risk::{
@@ -113,6 +113,24 @@ pub trait Projects: Send + Sync {
         edit: ProjectEdit<'a>,
     ) -> BoxFuture<'a, Result<Project, ProjectError>>;
 
+    fn members(&self, id: ProjectId) -> BoxFuture<'_, Result<Vec<PersonRef>, ProjectError>>;
+
+    fn add_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>>;
+
+    fn remove_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>>;
+
     fn set_archived(
         &self,
         acting: PersonId,
@@ -169,6 +187,42 @@ impl<S: UnitOfWork + ProjectsQuery> Projects for S {
             id,
             expected_version,
             edit,
+        ))
+    }
+
+    fn members(&self, id: ProjectId) -> BoxFuture<'_, Result<Vec<PersonRef>, ProjectError>> {
+        Box::pin(members::project_members(self, id))
+    }
+
+    fn add_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>> {
+        Box::pin(members::add_member(
+            self,
+            acting,
+            id,
+            expected_version,
+            person,
+        ))
+    }
+
+    fn remove_member(
+        &self,
+        acting: PersonId,
+        id: ProjectId,
+        expected_version: u32,
+        person: PersonId,
+    ) -> BoxFuture<'_, Result<Project, ProjectError>> {
+        Box::pin(members::remove_member(
+            self,
+            acting,
+            id,
+            expected_version,
+            person,
         ))
     }
 

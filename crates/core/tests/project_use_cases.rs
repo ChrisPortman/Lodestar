@@ -30,6 +30,7 @@ fn edit(name: &str) -> ProjectEdit<'_> {
         name,
         description: None,
         health_rating: None,
+        project_leader: None,
     }
 }
 

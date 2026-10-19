@@ -588,6 +588,35 @@ impl ProjectsQuery for SqliteStore {
         .try_into()
     }
 
+    async fn project_members(&self, id: ProjectId) -> Result<Vec<PersonRef>, RepoError> {
+        let id_text = id.to_string();
+        let exists = sqlx::query_scalar!("SELECT COUNT(*) FROM projects WHERE id = ?", id_text)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(unexpected)?;
+        if exists == 0 {
+            return Err(RepoError::NotFound);
+        }
+        let rows = sqlx::query!(
+            "SELECT pe.id, pe.display_name
+             FROM project_members m JOIN people pe ON pe.id = m.person_id
+             WHERE m.project_id = ?
+             ORDER BY pe.display_name, pe.id",
+            id_text
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(unexpected)?;
+        rows.into_iter()
+            .map(|r| {
+                Ok(PersonRef {
+                    id: PersonId::from_uuid(uuid(&r.id)?),
+                    display_name: r.display_name,
+                })
+            })
+            .collect()
+    }
+
     async fn project_codes_starting_with(
         &self,
         prefix: &str,

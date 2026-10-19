@@ -2,6 +2,7 @@
 
 mod frontend;
 mod health;
+mod members;
 mod people;
 mod problem;
 mod projects;
@@ -79,6 +80,7 @@ where
         .merge(people::routes())
         .merge(projects::routes())
         .merge(risks::routes())
+        .merge(members::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .with_state(state);
@@ -113,6 +115,9 @@ where
         risks::fetch,
         risks::update,
         risks::close,
+        members::list,
+        members::add,
+        members::remove,
         session::current,
         session::choose,
     )

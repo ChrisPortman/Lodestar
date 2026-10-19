@@ -326,6 +326,25 @@ impl ProjectsQuery for InMemoryStore {
             .ok_or(RepoError::NotFound)
     }
 
+    async fn project_members(&self, id: ProjectId) -> Result<Vec<PersonRef>, RepoError> {
+        let state = self.snapshot();
+        let project = state.projects.get(&id).ok_or(RepoError::NotFound)?;
+        let mut members: Vec<_> = project
+            .members()
+            .iter()
+            .map(|&id| PersonRef {
+                id,
+                display_name: state
+                    .people
+                    .get(&id)
+                    .map(|p| p.display_name().as_str().to_owned())
+                    .unwrap_or_default(),
+            })
+            .collect();
+        members.sort_by(|a, b| (&a.display_name, a.id).cmp(&(&b.display_name, b.id)));
+        Ok(members)
+    }
+
     async fn project_codes_starting_with(
         &self,
         prefix: &str,
