@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   PROTOTYPE: throwaway. Wayfinder ticket "Meeting view layout" (ChrisPortman/Lodestar#10).
-  Three structurally different layouts for /projects/:id, switchable with ?variant=A|B|C
+  Four layouts for /projects/:id (D is the revision asked for after the first round), switchable with ?variant=A|B|C|D
   or the floating bar (or the ← and → keys). The data is in memory only; reloading resets it.
   To run: open this file in a browser.
 -->
@@ -194,6 +194,76 @@
     </aside>
   </main>
 
+  <!-- ===================== VARIANT D: one column, explicit text save ===================== -->
+  <main v-if="variant==='D'" class="p-6 max-w-5xl mx-auto space-y-6">
+    <div class="flex">
+      <button @click="membersOpen=true" class="ml-auto border bg-white rounded px-3 py-1 text-sm">👥 Members ({{ members.length }})</button>
+    </div>
+
+    <section v-for="kind in ['action','blocker','risk']" :key="kind" class="bg-white rounded-lg border">
+      <div class="px-4 py-2 border-b flex items-center">
+        <h2 class="font-semibold text-lg">{{ label(kind) }}s <span class="text-slate-400">({{ open(kind).length }})</span></h2>
+        <button @click="addAndEdit(kind)" class="ml-auto text-sm text-blue-600">+ Add {{ label(kind).toLowerCase() }}</button>
+      </div>
+      <ul>
+        <li v-for="i in open(kind)" :key="i.ref" class="px-4 py-3 border-b last:border-0 flex gap-3 items-start" :class="needsAttention(i) && 'bg-amber-50'">
+          <span class="font-mono text-xs text-slate-400 mt-1 w-14 shrink-0">{{ i.ref }}</span>
+
+          <!-- Text: read mode vs explicit edit mode -->
+          <div class="flex-1 min-w-0">
+            <div v-if="editing !== i.ref" class="whitespace-pre-wrap break-words group">
+              {{ i.desc }}
+              <button @click="startEdit(i)" class="ml-1 text-xs text-blue-600 opacity-60 group-hover:opacity-100">✎ edit</button>
+            </div>
+            <div v-else>
+              <textarea v-model="draft" rows="4" class="w-full border rounded p-2 font-[inherit]" @keydown.ctrl.enter="saveEdit(i)" @keydown.esc="cancelEdit()"></textarea>
+              <div class="flex gap-2 mt-1 text-sm">
+                <button @click="saveEdit(i)" :disabled="!draft.trim()" class="bg-blue-600 text-white rounded px-3 py-1 disabled:opacity-40">Save</button>
+                <button @click="cancelEdit()" class="border rounded px-3 py-1">Cancel</button>
+                <span class="text-slate-400 self-center text-xs">Ctrl+Enter to save, Esc to cancel</span>
+              </div>
+            </div>
+            <div v-if="kind==='action' && blockedBy(i).length" class="text-xs text-red-600 mt-1">⛔ blocked by {{ blockedBy(i).join(', ') }}</div>
+            <div v-if="kind==='blocker'" class="text-xs text-slate-500 mt-1">blocks {{ i.blocks.join(', ') || 'nothing linked' }}</div>
+          </div>
+
+          <!-- Discrete fields: apply immediately -->
+          <div class="flex flex-wrap gap-2 items-center text-sm shrink-0">
+            <select v-if="kind!=='risk'" v-model="i.owner" class="border rounded px-1 py-0.5" :class="!i.owner && 'border-amber-500 text-amber-700'">
+              <option :value="null">⚠ unassigned</option>
+              <option v-for="m in members" :value="m.id">{{ m.name }}</option>
+            </select>
+            <input v-if="kind==='action'" type="date" v-model="i.due" class="border rounded px-1 py-0.5" :class="overdue(i) && 'text-red-600 border-red-400'">
+            <template v-if="kind==='risk'">
+              <label>L <select v-model.number="i.l" class="border rounded"><option v-for="n in 5">{{ n }}</option></select></label>
+              <label>I <select v-model.number="i.i" class="border rounded"><option v-for="n in 5">{{ n }}</option></select></label>
+              <span class="font-semibold w-8 text-right" :class="scoreClass(i)">{{ i.l*i.i }}</span>
+            </template>
+            <button @click="finalise(i)" class="border rounded px-2 py-0.5 hover:bg-green-50">{{ kind==='blocker' ? 'Clear' : 'Close' }}</button>
+          </div>
+        </li>
+      </ul>
+      <details class="px-4 py-2 text-sm text-slate-500 border-t">
+        <summary class="cursor-pointer">Closed ({{ closed(kind).length }})</summary>
+        <div v-for="i in closed(kind)" class="flex gap-2 py-1"><button @click="reopen(i)" class="text-blue-600">reopen</button><s class="whitespace-pre-wrap">{{ i.ref }} {{ i.desc }}</s></div>
+      </details>
+    </section>
+
+    <!-- Members slide-over -->
+    <div v-if="membersOpen" class="fixed inset-0 bg-black/30 z-40" @click.self="membersOpen=false">
+      <aside class="absolute right-0 top-0 h-full w-80 bg-white shadow-xl p-4 text-sm">
+        <div class="flex mb-3"><h2 class="font-semibold text-lg">Members</h2><button @click="membersOpen=false" class="ml-auto">✕</button></div>
+        <div v-for="m in members" class="py-2 border-b flex items-center gap-2">
+          {{ m.name }}
+          <span v-if="project.leaderId===m.id" class="text-xs bg-slate-100 rounded px-1">leader</span>
+          <span class="ml-auto text-slate-400">{{ countFor(m.id) }} open</span>
+          <button v-if="project.leaderId!==m.id" @click="project.leaderId=m.id" class="text-xs text-blue-600">make leader</button>
+        </div>
+        <button class="text-blue-600 mt-3">+ Add member</button>
+      </aside>
+    </div>
+  </main>
+
   <!-- State dump (prototype only) -->
   <details class="mx-6 text-xs text-slate-500"><summary>state</summary><pre>{{ JSON.stringify({project, items}, null, 1) }}</pre></details>
 
@@ -207,13 +277,14 @@
 
 <script>
 const { createApp } = Vue;
-const KEYS = ['A','B','C'];
+const KEYS = ['A','B','C','D'];
 createApp({
   data() {
     const v = new URLSearchParams(location.search).get('variant');
     return {
-      variant: KEYS.includes(v) ? v : 'A',
-      names: { A: 'Three columns', B: 'Agenda flow', C: 'One table + drawer' },
+      variant: KEYS.includes(v) ? v : 'D',
+      names: { A: 'Three columns', B: 'Agenda flow', C: 'One table + drawer', D: 'One column, explicit save' },
+      membersOpen: false, editing: null, draft: '',
       agenda: ['Unassigned','Blockers','Actions','Risks','Health'], step: 0,
       filter: 'all', showClosed: false, quick: '', sel: null,
       project: { health: 'Amber', healthComment: 'Content migration slipping', leaderId: null },
@@ -223,13 +294,13 @@ createApp({
         {kind:'action', ref:'A-0001', desc:'Send design brief to agency', owner:1, due:'2026-10-10', done:false},
         {kind:'action', ref:'A-0002', desc:'Confirm hosting budget with finance', owner:2, due:'2026-10-24', done:false},
         {kind:'action', ref:'A-0003', desc:'Inventory existing page content', owner:null, due:'2026-10-21', done:false},
-        {kind:'action', ref:'A-0004', desc:'Draft accessibility checklist', owner:3, due:null, done:false},
+        {kind:'action', ref:'A-0004', desc:'Draft accessibility checklist\n- WCAG 2.2 AA criteria\n- keyboard-only walkthrough\n- screen reader spot checks', owner:3, due:null, done:false},
         {kind:'action', ref:'A-0005', desc:'Book user testing sessions', owner:4, due:'2026-11-02', done:false},
         {kind:'action', ref:'A-0006', desc:'Kick-off meeting notes', owner:1, due:'2026-09-30', done:true},
-        {kind:'blocker', ref:'B-0001', desc:'CMS licence not yet approved', owner:2, blocks:['A-0003','A-0005'], done:false},
+        {kind:'blocker', ref:'B-0001', desc:'CMS licence not yet approved.\nProcurement says the vendor questionnaire is still with legal; expected back after the 28th.', owner:2, blocks:['A-0003','A-0005'], done:false},
         {kind:'blocker', ref:'B-0002', desc:'Waiting on brand guidelines from marketing', owner:null, blocks:['A-0001'], done:false},
         {kind:'risk', ref:'R-0001', desc:'Agency capacity over the holiday period', l:4, i:3, done:false},
-        {kind:'risk', ref:'R-0002', desc:'SEO ranking drop after migration', l:2, i:5, done:false},
+        {kind:'risk', ref:'R-0002', desc:'SEO ranking drop after migration\nMitigation idea: 301 map for every legacy URL, monitor Search Console for 4 weeks.', l:2, i:5, done:false},
         {kind:'risk', ref:'R-0003', desc:'Stakeholder churn', l:1, i:2, done:true},
       ],
     };
@@ -254,6 +325,10 @@ createApp({
     countFor(id) { return this.items.filter(i => !i.done && i.owner === id).length; },
     finalise(i) { i.done = true; },
     reopen(i) { i.done = false; },
+    startEdit(i) { this.editing = i.ref; this.draft = i.desc; },
+    saveEdit(i) { if (this.draft.trim()) { i.desc = this.draft.trim(); this.editing = null; } },
+    cancelEdit() { this.editing = null; },
+    addAndEdit(kind) { this.add(kind, ' '); const i = this.items[this.items.length - 1]; i.desc = ''; this.startEdit(i); },
     add(kind, desc) {
       const n = ++this.counters[kind];
       const ref = { action: 'A', blocker: 'B', risk: 'R' }[kind] + '-' + String(n).padStart(4, '0');
