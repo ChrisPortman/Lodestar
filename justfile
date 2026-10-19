@@ -43,7 +43,7 @@ clippy:
 backend-test:
     SQLX_OFFLINE=true cargo test --workspace
 
-# Create and migrate a scratch SQLite DB, then fail if .sqlx is stale.
+# Create and migrate a scratch SQLite DB, then fail if crates/datarepo/.sqlx is stale.
 sqlx-check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -51,7 +51,7 @@ sqlx-check:
     export DATABASE_URL="sqlite://$db"
     sqlx database create
     sqlx migrate run --source crates/datarepo/migrations/sqlite
-    cargo sqlx prepare --workspace --check -- --all-targets
+    cd crates/datarepo && cargo sqlx prepare --check -- --all-targets
 
 # Regenerate openapi/openapi.json and frontend/src/api/schema.d.ts.
 # Stub until the `lodestar openapi` command exists (API foundation ticket).

@@ -15,7 +15,7 @@ impl HealthProbe for Database {
 
 async fn healthz(reachable: bool) -> (StatusCode, serde_json::Value) {
     let response = lodestar_api::router(Database { reachable })
-        .oneshot(Request::get("/healthz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/api/v1/healthz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let status = response.status();
