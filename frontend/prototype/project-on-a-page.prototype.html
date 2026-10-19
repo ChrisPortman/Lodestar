@@ -1,0 +1,178 @@
+<!doctype html>
+<!--
+  PROTOTYPE: throwaway. Wayfinder ticket "Project on a Page print layout" (ChrisPortman/Lodestar#11).
+  Three print layouts for /projects/:id/report, switchable with ?variant=A|B|C, the floating bar, or the ← and → keys.
+  To run: open in a browser and use Print preview (Ctrl+P) to check the page breaks. The switcher bar is hidden when printing.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE: Project on a Page</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+<style>
+  [v-cloak]{display:none}
+  .sheet{background:#fff;margin:1.5rem auto;box-shadow:0 2px 12px rgba(0,0,0,.15);padding:14mm}
+  .portrait{width:210mm;min-height:297mm}
+  .landscape{width:297mm;min-height:210mm}
+  table{border-collapse:collapse;width:100%}
+  th,td{border-bottom:1px solid #e2e8f0;padding:3px 6px;text-align:left;vertical-align:top}
+  th{font-size:10px;text-transform:uppercase;color:#64748b}
+  tr{break-inside:avoid}
+  thead{display:table-header-group}
+  .keep{break-inside:avoid}
+  .pre{white-space:pre-wrap}
+  @media print{
+    body{background:#fff}
+    .sheet{box-shadow:none;margin:0;padding:0;width:auto;min-height:0}
+    .no-print{display:none!important}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+<style id="page-size"></style>
+</head>
+<body class="bg-slate-200 text-slate-800 text-[11px]">
+<div id="app" v-cloak>
+
+  <!-- ===================== A: portrait, stacked tables ===================== -->
+  <div v-if="variant==='A'" class="sheet portrait">
+    <header class="flex items-end border-b-2 border-slate-800 pb-2 mb-3">
+      <div>
+        <div class="text-slate-500">{{ p.code }} · Project on a Page</div>
+        <h1 class="text-2xl font-bold">{{ p.name }}</h1>
+        <div>Leader: {{ p.leader || '— none —' }}</div>
+      </div>
+      <div class="ml-auto text-right">
+        <div class="inline-block px-4 py-2 rounded font-bold text-lg" :class="rag(p.health)">{{ p.health }}</div>
+        <div class="text-slate-500 mt-1">Generated {{ generated }}</div>
+      </div>
+    </header>
+    <p v-if="p.comment" class="mb-4 italic">“{{ p.comment }}”</p>
+    <p v-if="p.description" class="mb-4 text-slate-600 pre">{{ p.description }}</p>
+
+    <h2 class="font-bold text-sm mt-4 mb-1">Open Actions ({{ actions.length }})</h2>
+    <table><thead><tr><th>Ref</th><th>Description</th><th>Assignee</th><th>Due</th><th>Blocked by</th></tr></thead>
+      <tbody><tr v-for="a in actions"><td class="font-mono">{{ a.ref }}</td><td class="pre">{{ a.desc }}</td><td :class="!a.owner&&'text-amber-700'">{{ a.owner || 'Unassigned' }}</td><td :class="overdue(a)&&'text-red-600 font-semibold'">{{ a.due || '—' }}</td><td>{{ blockedBy(a) }}</td></tr></tbody></table>
+
+    <h2 class="font-bold text-sm mt-5 mb-1">Open Blockers ({{ blockers.length }})</h2>
+    <table><thead><tr><th>Ref</th><th>Description</th><th>Accountable</th><th>Blocks</th></tr></thead>
+      <tbody><tr v-for="b in blockers"><td class="font-mono">{{ b.ref }}</td><td class="pre">{{ b.desc }}</td><td :class="!b.owner&&'text-amber-700'">{{ b.owner || 'Unassigned' }}</td><td>{{ b.blocks.join(', ') || '—' }}</td></tr></tbody></table>
+
+    <h2 class="font-bold text-sm mt-5 mb-1">Open Risks ({{ risks.length }}), highest score first</h2>
+    <table><thead><tr><th>Ref</th><th>Description</th><th>L</th><th>I</th><th>Score</th></tr></thead>
+      <tbody><tr v-for="r in risks"><td class="font-mono">{{ r.ref }}</td><td class="pre">{{ r.desc }}</td><td>{{ r.l }}</td><td>{{ r.i }}</td><td><span class="px-2 rounded font-semibold" :class="sev(r)">{{ r.l*r.i }}</span></td></tr></tbody></table>
+  </div>
+
+  <!-- ===================== B: landscape dashboard ===================== -->
+  <div v-if="variant==='B'" class="sheet landscape">
+    <header class="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center border-b pb-3 mb-3">
+      <div><div class="text-slate-500">{{ p.code }}</div><h1 class="text-xl font-bold">{{ p.name }}</h1><div class="text-slate-500">Leader: {{ p.leader || '— none —' }} · Generated {{ generated }}</div></div>
+      <div class="text-center px-4 py-2 rounded" :class="rag(p.health)"><div class="text-[10px] uppercase">Health</div><div class="text-xl font-bold">{{ p.health }}</div></div>
+      <div class="text-center px-3"><div class="text-2xl font-bold">{{ actions.length }}</div><div>open actions</div><div class="text-red-600">{{ actions.filter(overdue).length }} overdue</div></div>
+      <div class="text-center px-3"><div class="text-2xl font-bold">{{ blockers.length }}</div><div>open blockers</div><div class="text-amber-700">{{ unassignedCount }} unassigned items</div></div>
+      <div class="text-center px-3"><div class="text-2xl font-bold">{{ risks.filter(r=>r.l*r.i>=15).length }}</div><div>high risks</div><div class="text-slate-500">of {{ risks.length }} open</div></div>
+    </header>
+    <p v-if="p.comment" class="mb-3 italic">Health comment: “{{ p.comment }}”</p>
+    <div class="grid grid-cols-3 gap-4">
+      <section class="keep"><h2 class="font-bold mb-1">Actions</h2>
+        <table><tbody><tr v-for="a in actions"><td class="font-mono w-12">{{ a.ref }}</td><td class="pre">{{ a.desc }}<div class="text-slate-500">{{ a.owner || '⚠ unassigned' }} · <span :class="overdue(a)&&'text-red-600'">{{ a.due || 'no date' }}</span><span v-if="blockedBy(a)" class="text-red-600"> · ⛔ {{ blockedBy(a) }}</span></div></td></tr></tbody></table></section>
+      <section class="keep"><h2 class="font-bold mb-1">Blockers</h2>
+        <table><tbody><tr v-for="b in blockers"><td class="font-mono w-12">{{ b.ref }}</td><td class="pre">{{ b.desc }}<div class="text-slate-500">{{ b.owner || '⚠ unassigned' }} · blocks {{ b.blocks.join(', ') || '—' }}</div></td></tr></tbody></table></section>
+      <section class="keep"><h2 class="font-bold mb-1">Risks</h2>
+        <div class="grid grid-cols-5 gap-0.5 w-40 mb-2">
+          <template v-for="l in [5,4,3,2,1]"><div v-for="im in [1,2,3,4,5]" class="h-7 text-[9px] font-mono flex items-center justify-center" :class="cell(l*im)">{{ risks.filter(r=>r.l===l&&r.i===im).map(r=>r.ref.slice(2)).join(' ') }}</div></template>
+        </div>
+        <table><tbody><tr v-for="r in risks"><td class="font-mono w-12">{{ r.ref }}</td><td class="pre">{{ r.desc }}</td><td><span class="px-1 rounded" :class="sev(r)">{{ r.l*r.i }}</span></td></tr></tbody></table></section>
+    </div>
+  </div>
+
+  <!-- ===================== C: exceptions first, then full lists ===================== -->
+  <div v-if="variant==='C'" class="sheet portrait">
+    <header class="flex items-center gap-4 mb-4">
+      <div class="w-3 self-stretch rounded" :class="rag(p.health)"></div>
+      <div class="flex-1"><h1 class="text-2xl font-bold">{{ p.code }}: {{ p.name }}</h1>
+        <div>{{ p.health }}<span v-if="p.comment"> · {{ p.comment }}</span></div>
+        <div class="text-slate-500">Leader: {{ p.leader || '— none —' }} · Generated {{ generated }}</div></div>
+    </header>
+
+    <section class="keep border-2 border-red-300 rounded p-3 mb-4">
+      <h2 class="font-bold text-sm text-red-700 mb-2">Needs attention</h2>
+      <ul class="space-y-1">
+        <li v-for="b in blockers">⛔ <b class="font-mono">{{ b.ref }}</b> {{ firstLine(b.desc) }} <span class="text-slate-500">({{ b.owner || 'unassigned' }}; blocks {{ b.blocks.join(', ') || '—' }})</span></li>
+        <li v-for="a in actions.filter(overdue)">⏰ <b class="font-mono">{{ a.ref }}</b> {{ firstLine(a.desc) }} <span class="text-red-600">overdue {{ a.due }}</span></li>
+        <li v-for="i in [...actions,...blockers].filter(x=>!x.owner)">👤 <b class="font-mono">{{ i.ref }}</b> {{ firstLine(i.desc) }} <span class="text-amber-700">no owner</span></li>
+        <li v-for="r in risks.filter(r=>r.l*r.i>=12)">⚠ <b class="font-mono">{{ r.ref }}</b> {{ firstLine(r.desc) }} <span class="px-1 rounded" :class="sev(r)">score {{ r.l*r.i }}</span></li>
+      </ul>
+    </section>
+
+    <section v-for="g in [...new Set(actions.map(a=>a.owner||'Unassigned'))]" class="keep mb-3">
+      <h2 class="font-bold">Actions: {{ g }}</h2>
+      <table><tbody><tr v-for="a in actions.filter(a=>(a.owner||'Unassigned')===g)"><td class="font-mono w-14">{{ a.ref }}</td><td class="pre">{{ a.desc }}</td><td class="w-24" :class="overdue(a)&&'text-red-600'">{{ a.due || '—' }}</td></tr></tbody></table>
+    </section>
+    <section class="keep mb-3"><h2 class="font-bold">Risks</h2>
+      <table><tbody><tr v-for="r in risks"><td class="font-mono w-14">{{ r.ref }}</td><td class="pre">{{ r.desc }}</td><td class="w-24">L{{ r.l }} × I{{ r.i }} = <b>{{ r.l*r.i }}</b></td></tr></tbody></table></section>
+  </div>
+
+  <!-- Floating switcher (not printed) -->
+  <div class="no-print fixed bottom-4 left-1/2 -translate-x-1/2 bg-black text-white rounded-full shadow-xl px-4 py-2 flex items-center gap-4 text-sm z-50">
+    <button @click="cycle(-1)">◀</button><span>{{ variant }} ({{ names[variant] }})</span><button @click="cycle(1)">▶</button>
+    <button @click="print()" class="ml-2 bg-white text-black rounded-full px-3">Print</button>
+  </div>
+</div>
+
+<script>
+const KEYS = ['A','B','C'];
+Vue.createApp({
+  data() {
+    const v = new URLSearchParams(location.search).get('variant');
+    return {
+      variant: KEYS.includes(v) ? v : 'A',
+      names: { A: 'Portrait, stacked tables', B: 'Landscape dashboard', C: 'Exceptions first' },
+      generated: '2026-10-19 14:05',
+      p: { code: 'WEBR', name: 'Website Redesign', leader: 'Chris', health: 'Amber', comment: 'Content migration slipping; CMS licence is the critical path.', description: 'Replace the marketing site with a CMS-driven build.' },
+      actions: [
+        { ref: 'A-0001', desc: 'Send design brief to agency', owner: 'Chris', due: '2026-10-10' },
+        { ref: 'A-0002', desc: 'Confirm hosting budget with finance', owner: 'Sam', due: '2026-10-24' },
+        { ref: 'A-0003', desc: 'Inventory existing page content', owner: null, due: '2026-10-21' },
+        { ref: 'A-0004', desc: 'Draft accessibility checklist\n- WCAG 2.2 AA criteria\n- keyboard-only walkthrough\n- screen reader spot checks', owner: 'Priya', due: null },
+        { ref: 'A-0005', desc: 'Book user testing sessions', owner: 'Dan', due: '2026-11-02' },
+        { ref: 'A-0007', desc: 'Agree URL redirect map with SEO consultant', owner: 'Sam', due: '2026-10-15' },
+      ],
+      blockers: [
+        { ref: 'B-0001', desc: 'CMS licence not yet approved.\nProcurement says the vendor questionnaire is still with legal.', owner: 'Sam', blocks: ['A-0003', 'A-0005'] },
+        { ref: 'B-0002', desc: 'Waiting on brand guidelines from marketing', owner: null, blocks: ['A-0001'] },
+      ],
+      risks: [
+        { ref: 'R-0001', desc: 'Agency capacity over the holiday period', l: 4, i: 4 },
+        { ref: 'R-0002', desc: 'SEO ranking drop after migration\nMitigation idea: 301 map for every legacy URL.', l: 2, i: 5 },
+        { ref: 'R-0004', desc: 'Third-party form provider sunset', l: 3, i: 2 },
+      ].sort((a, b) => b.l * b.i - a.l * a.i),
+    };
+  },
+  computed: {
+    unassignedCount() { return [...this.actions, ...this.blockers].filter(x => !x.owner).length; },
+  },
+  watch: { variant: { immediate: true, handler(v) {
+    document.getElementById('page-size').textContent = `@page{size:A4 ${v === 'B' ? 'landscape' : 'portrait'};margin:12mm}`;
+  } } },
+  methods: {
+    overdue(a) { return a.due && a.due < '2026-10-19'; },
+    blockedBy(a) { return this.blockers.filter(b => b.blocks.includes(a.ref)).map(b => b.ref).join(', '); },
+    firstLine(s) { return s.split('\n')[0]; },
+    rag(h) { return { Red: 'bg-red-500 text-white', Amber: 'bg-amber-400', Green: 'bg-green-500 text-white' }[h]; },
+    sev(r) { const s = r.l * r.i; return s >= 15 ? 'bg-red-200' : s >= 8 ? 'bg-amber-200' : 'bg-green-200'; },
+    cell(s) { return s >= 15 ? 'bg-red-300' : s >= 8 ? 'bg-amber-200' : 'bg-green-200'; },
+    print() { window.print(); },
+    cycle(d) {
+      this.variant = KEYS[(KEYS.indexOf(this.variant) + d + KEYS.length) % KEYS.length];
+      const u = new URL(location); u.searchParams.set('variant', this.variant); history.replaceState(null, '', u);
+    },
+  },
+  mounted() {
+    addEventListener('keydown', e => { if (e.key === 'ArrowLeft') this.cycle(-1); if (e.key === 'ArrowRight') this.cycle(1); });
+  },
+}).mount('#app');
+</script>
+</body>
+</html>
