@@ -1,6 +1,9 @@
 //! SQLite adapter (ADR-0007): WAL, 5-second busy timeout, foreign keys on.
 //! Queries use sqlx's compile-time checked macros against `.sqlx/`.
 
+mod actions;
+mod risks;
+
 use std::collections::{BTreeSet, HashSet};
 use std::{str::FromStr, time::Duration};
 
@@ -11,9 +14,10 @@ use lodestar_core::history::{
 };
 use lodestar_core::person::{DisplayName, Person, PersonId, PersonView};
 use lodestar_core::ports::{
-    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
-    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
-    UnitOfWork,
+    ActionRepository, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository,
+    ProjectRepository,
+    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskRepository,
+    Transaction, UnitOfWork,
 };
 use lodestar_core::project::{
     Description, HealthRating, PersonRef, Project, ProjectCode, ProjectId, ProjectName,
@@ -105,6 +109,14 @@ impl Transaction for SqliteTx {
 
     fn references(&mut self) -> impl ReferenceCounter + Send + '_ {
         SqliteReferences(&mut self.0)
+    }
+
+    fn actions(&mut self) -> impl ActionRepository + Send + '_ {
+        actions::SqliteActions(&mut self.0)
+    }
+
+    fn risks(&mut self) -> impl RiskRepository + Send + '_ {
+        risks::SqliteRisks(&mut self.0)
     }
 
     async fn commit(self) -> Result<(), RepoError> {

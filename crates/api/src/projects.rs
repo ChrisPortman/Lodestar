@@ -44,7 +44,7 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-fn not_allowed(allow: &'static str) -> impl Fn() -> std::future::Ready<Problem> + Clone {
+pub(crate) fn not_allowed(allow: &'static str) -> impl Fn() -> std::future::Ready<Problem> + Clone {
     move || std::future::ready(Problem::method_not_allowed(allow))
 }
 

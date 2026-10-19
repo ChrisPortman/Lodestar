@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM actions\n             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "18631cf3f7c63d111c2815c491c4b8c654635b258abbd6f663b0bc7b187dea16"
+}

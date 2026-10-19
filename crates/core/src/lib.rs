@@ -6,6 +6,7 @@ pub mod history;
 pub mod person;
 pub mod ports;
 pub mod project;
+pub mod risk;
 
 #[cfg(feature = "test-support")]
 pub mod test_support;

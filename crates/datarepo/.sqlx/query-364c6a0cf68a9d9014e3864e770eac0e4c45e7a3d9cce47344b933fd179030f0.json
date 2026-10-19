@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT a.id, a.project_id, p.project_code, a.reference, a.description,\n                      a.assignee_id, pe.display_name AS \"assignee_name?\", a.due_date,\n                      a.closed, a.version\n               FROM actions a\n               JOIN projects p ON p.id = a.project_id\n               LEFT JOIN people pe ON pe.id = a.assignee_id\n               WHERE a.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "project_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "project_code",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "project_code"
+          }
+        }
+      },
+      {
+        "name": "reference",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "reference"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "assignee_id",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "assignee_id"
+          }
+        }
+      },
+      {
+        "name": "assignee_name?",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "due_date",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "due_date"
+          }
+        }
+      },
+      {
+        "name": "closed",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "closed"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "actions",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "364c6a0cf68a9d9014e3864e770eac0e4c45e7a3d9cce47344b933fd179030f0"
+}

@@ -2,6 +2,7 @@
 import { ref, toRef } from 'vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
 import MembersPanel from '../components/MembersPanel.vue'
+import RisksPanel from '../components/RisksPanel.vue'
 import { useProject } from '../projects'
 import { useSession } from '../session'
 
@@ -45,6 +46,10 @@ const showMembers = ref(false)
         <HealthRatingControl :project="project.data.value" />
       </header>
       <MembersPanel v-if="showMembers" :project="project.data.value" @close="showMembers = false" />
+      <div class="mt-6 grid gap-6">
+        <!-- Panels in FR-94 order: Actions, Blockers, then Risks last. -->
+        <RisksPanel :project="project.data.value" />
+      </div>
     </template>
   </section>
 </template>

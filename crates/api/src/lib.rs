@@ -7,6 +7,7 @@ mod people;
 mod problem;
 mod projects;
 mod request;
+mod risks;
 mod security;
 mod services;
 mod session;
@@ -17,7 +18,7 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
-    ports::{PeopleQuery, ProjectsQuery, UnitOfWork},
+    ports::{PeopleQuery, ProjectsQuery, RisksQuery, UnitOfWork},
 };
 use rust_embed::RustEmbed;
 use tower_http::compression::CompressionLayer;
@@ -45,6 +46,7 @@ pub struct Services<H, S> {
 pub(crate) struct AppState {
     pub people: Arc<dyn services::People>,
     pub projects: Arc<dyn services::Projects>,
+    pub risks: Arc<dyn services::Risks>,
     pub session_key: Key,
 }
 
@@ -52,7 +54,7 @@ pub(crate) struct AppState {
 pub fn router<H, S>(services: Services<H, S>) -> Router
 where
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + ProjectsQuery + Clone + 'static,
+    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + Clone + 'static,
 {
     router_with::<Frontend, H, S>(services)
 }
@@ -65,17 +67,19 @@ pub fn router_with<A, H, S>(services: Services<H, S>) -> Router
 where
     A: RustEmbed + Send + Sync + 'static,
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + ProjectsQuery + Clone + 'static,
+    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + Clone + 'static,
 {
     let state = AppState {
         people: Arc::new(services.store.clone()),
-        projects: Arc::new(services.store),
+        projects: Arc::new(services.store.clone()),
+        risks: Arc::new(services.store),
         session_key: Key::try_from(services.session_key.as_slice())
             .expect("session key must be at least 64 bytes"),
     };
     let v1 = Router::new()
         .merge(people::routes())
         .merge(projects::routes())
+        .merge(risks::routes())
         .merge(members::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
@@ -106,6 +110,11 @@ where
         projects::fetch,
         projects::update,
         projects::archive,
+        risks::list,
+        risks::create,
+        risks::fetch,
+        risks::update,
+        risks::close,
         members::list,
         members::add,
         members::remove,

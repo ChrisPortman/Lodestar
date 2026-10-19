@@ -1,9 +1,11 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import type { components } from '../api/schema'
+import { fakeRisks, type Risk } from './risks-backend'
 
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
+export type { Risk }
 type Schemas = components['schemas']
 
 export const api = (path: string) => `${location.origin}/api/v1${path}`
@@ -35,6 +37,7 @@ export function fakeBackend(
   initial: Person[],
   actingId: string | null = null,
   initialProjects: Project[] = [],
+  initialRisks: Risk[] = [],
 ) {
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
@@ -206,7 +209,9 @@ export function fakeBackend(
       return HttpResponse.json<Schemas['Session']>({ person })
     }),
   ]
-  return { handlers, people, projects, members, acting: () => acting }
+  const risks = fakeRisks(projects, initialRisks)
+  handlers.push(...risks.handlers)
+  return { handlers, people, projects, members, risks: risks.risks, acting: () => acting }
 }
 
 export const server = setupServer()

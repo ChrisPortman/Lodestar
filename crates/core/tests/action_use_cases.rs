@@ -209,7 +209,11 @@ async fn an_action_can_be_closed_and_reopened() {
     let again = set_action_closed(&w.store, w.ada.id(), action.id(), 2, true)
         .await
         .unwrap();
-    assert_eq!(again.version(), 2, "closing a closed action changes nothing");
+    assert_eq!(
+        again.version(),
+        2,
+        "closing a closed action changes nothing"
+    );
     let reopened = set_action_closed(&w.store, w.ada.id(), action.id(), 2, false)
         .await
         .unwrap();

@@ -9,9 +9,14 @@ use lodestar_core::{
         use_cases::{self, PersonError},
     },
     ports::{Page, PageRequest, PeopleQuery, PeopleSort, ProjectSort, ProjectsQuery, UnitOfWork},
+    ports::{RiskFilter, RiskSort, RisksQuery},
     project::{
         PersonRef, Project, ProjectCode, ProjectId, ProjectView, members,
         use_cases::{self as project_use_cases, NewProject, ProjectEdit, ProjectError},
+    },
+    risk::{
+        Risk, RiskEdit, RiskId, RiskView,
+        use_cases::{self as risk_use_cases, NewRisk, RiskError},
     },
 };
 
@@ -234,6 +239,94 @@ impl<S: UnitOfWork + ProjectsQuery> Projects for S {
             id,
             expected_version,
             archived,
+        ))
+    }
+}
+
+pub trait Risks: Send + Sync {
+    fn list(
+        &self,
+        page: PageRequest,
+        filter: RiskFilter,
+        sort: RiskSort,
+    ) -> BoxFuture<'_, Result<Page<RiskView>, RiskError>>;
+
+    fn get(&self, id: RiskId) -> BoxFuture<'_, Result<RiskView, RiskError>>;
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewRisk<'a>,
+    ) -> BoxFuture<'a, Result<Risk, RiskError>>;
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: RiskId,
+        expected_version: u32,
+        edit: RiskEdit<'a>,
+    ) -> BoxFuture<'a, Result<Risk, RiskError>>;
+
+    fn set_closed(
+        &self,
+        acting: PersonId,
+        id: RiskId,
+        expected_version: u32,
+        closed: bool,
+    ) -> BoxFuture<'_, Result<Risk, RiskError>>;
+}
+
+impl<S: UnitOfWork + RisksQuery> Risks for S {
+    fn list(
+        &self,
+        page: PageRequest,
+        filter: RiskFilter,
+        sort: RiskSort,
+    ) -> BoxFuture<'_, Result<Page<RiskView>, RiskError>> {
+        Box::pin(risk_use_cases::list_risks(self, page, filter, sort))
+    }
+
+    fn get(&self, id: RiskId) -> BoxFuture<'_, Result<RiskView, RiskError>> {
+        Box::pin(risk_use_cases::get_risk(self, id))
+    }
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewRisk<'a>,
+    ) -> BoxFuture<'a, Result<Risk, RiskError>> {
+        Box::pin(risk_use_cases::create_risk(self, acting, input))
+    }
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: RiskId,
+        expected_version: u32,
+        edit: RiskEdit<'a>,
+    ) -> BoxFuture<'a, Result<Risk, RiskError>> {
+        Box::pin(risk_use_cases::update_risk(
+            self,
+            acting,
+            id,
+            expected_version,
+            edit,
+        ))
+    }
+
+    fn set_closed(
+        &self,
+        acting: PersonId,
+        id: RiskId,
+        expected_version: u32,
+        closed: bool,
+    ) -> BoxFuture<'_, Result<Risk, RiskError>> {
+        Box::pin(risk_use_cases::set_closed(
+            self,
+            acting,
+            id,
+            expected_version,
+            closed,
         ))
     }
 }

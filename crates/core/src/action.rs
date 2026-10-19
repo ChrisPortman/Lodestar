@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::person::PersonId;
+use crate::ports::ReferenceKind;
 use crate::project::{Description, PersonRef, ProjectId};
 
 /// Identifies an [`Action`]. Always a UUIDv7 for new Actions (NFR-05).
@@ -39,12 +40,6 @@ impl std::fmt::Display for ActionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
-}
-
-/// A Reference label: the prefix and the number padded to at least 3 digits
-/// (FR-60), e.g. `A-001`, `A-1000`.
-pub fn reference_label(prefix: char, number: u32) -> String {
-    format!("{prefix}-{number:03}")
 }
 
 /// Every field of a stored Action, for [`Action::restore`].
@@ -162,7 +157,7 @@ impl Action {
     }
 
     pub fn reference_label(&self) -> String {
-        reference_label('A', self.reference)
+        ReferenceKind::Action.reference(self.reference)
     }
 
     pub fn description(&self) -> &Description {
@@ -199,17 +194,4 @@ pub struct ActionView {
     pub due_date: Option<NaiveDate>,
     pub closed: bool,
     pub version: u32,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::reference_label;
-
-    #[test]
-    fn references_are_padded_to_three_digits_and_then_grow() {
-        assert_eq!(reference_label('A', 1), "A-001");
-        assert_eq!(reference_label('A', 42), "A-042");
-        assert_eq!(reference_label('A', 999), "A-999");
-        assert_eq!(reference_label('A', 1000), "A-1000");
-    }
 }
