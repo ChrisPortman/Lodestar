@@ -186,7 +186,7 @@ async fn an_open_blocker_shows_on_the_actions_it_blocks() {
     let action = w.new_action_in(w.project.id(), "Deploy").await;
     let blocker = w.new_blocker("No env", None).await;
 
-    let linked = link_blocked_action(&w.store, w.ada.id(), blocker.id(), action.id())
+    let linked = link_blocked_action(&w.store, w.ada.id(), blocker.id(), 1, action.id())
         .await
         .unwrap();
     assert_eq!(linked.version(), 2);
@@ -195,7 +195,7 @@ async fn an_open_blocker_shows_on_the_actions_it_blocks() {
     assert_eq!(refs, ["A-001"]);
     assert_eq!(w.blocked_by(&action).await, ["B-001"]);
 
-    let again = link_blocked_action(&w.store, w.ada.id(), blocker.id(), action.id())
+    let again = link_blocked_action(&w.store, w.ada.id(), blocker.id(), 2, action.id())
         .await
         .unwrap();
     assert_eq!(again.version(), 2, "linking twice changes nothing");
@@ -217,10 +217,10 @@ async fn links_change_in_any_state_and_are_recorded() {
     set_blocker_cleared(&w.store, w.ada.id(), blocker.id(), 1, true)
         .await
         .unwrap();
-    link_blocked_action(&w.store, w.ada.id(), blocker.id(), action.id())
+    link_blocked_action(&w.store, w.ada.id(), blocker.id(), 2, action.id())
         .await
         .unwrap();
-    let unlinked = unlink_blocked_action(&w.store, w.bob.id(), blocker.id(), action.id())
+    let unlinked = unlink_blocked_action(&w.store, w.bob.id(), blocker.id(), 3, action.id())
         .await
         .unwrap();
     assert!(unlinked.blocked_actions().is_empty());
@@ -252,7 +252,7 @@ async fn a_blocker_cannot_block_an_action_in_another_project() {
     .unwrap();
     let elsewhere = w.new_action_in(other.id(), "Elsewhere").await;
     let blocker = w.new_blocker("No env", None).await;
-    let err = link_blocked_action(&w.store, w.ada.id(), blocker.id(), elsewhere.id())
+    let err = link_blocked_action(&w.store, w.ada.id(), blocker.id(), 1, elsewhere.id())
         .await
         .unwrap_err();
     assert_eq!(err, BlockerError::ActionInAnotherProject);
@@ -260,6 +260,7 @@ async fn a_blocker_cannot_block_an_action_in_another_project() {
         &w.store,
         w.ada.id(),
         blocker.id(),
+        1,
         lodestar_core::action::ActionId::new(),
     )
     .await
@@ -281,7 +282,7 @@ async fn blockers_in_an_archived_project_cannot_be_changed() {
         .await
         .unwrap_err();
     assert_eq!(err, BlockerError::Archived);
-    let err = link_blocked_action(&w.store, w.ada.id(), blocker.id(), action.id())
+    let err = link_blocked_action(&w.store, w.ada.id(), blocker.id(), 1, action.id())
         .await
         .unwrap_err();
     assert_eq!(err, BlockerError::Archived);

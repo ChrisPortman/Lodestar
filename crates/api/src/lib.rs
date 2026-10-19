@@ -1,6 +1,7 @@
 //! HTTP layer: axum handlers and the embedded frontend.
 
 mod actions;
+mod blockers;
 mod frontend;
 mod health;
 mod members;
@@ -19,7 +20,7 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
-    ports::{ActionsQuery, PeopleQuery, ProjectsQuery, RisksQuery, UnitOfWork},
+    ports::{ActionsQuery, BlockersQuery, PeopleQuery, ProjectsQuery, RisksQuery, UnitOfWork},
 };
 use rust_embed::RustEmbed;
 use tower_http::compression::CompressionLayer;
@@ -49,6 +50,7 @@ pub(crate) struct AppState {
     pub projects: Arc<dyn services::Projects>,
     pub risks: Arc<dyn services::Risks>,
     pub actions: Arc<dyn services::Actions>,
+    pub blockers: Arc<dyn services::Blockers>,
     pub session_key: Key,
 }
 
@@ -56,7 +58,14 @@ pub(crate) struct AppState {
 pub fn router<H, S>(services: Services<H, S>) -> Router
 where
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + Clone + 'static,
+    S: UnitOfWork
+        + PeopleQuery
+        + ProjectsQuery
+        + RisksQuery
+        + ActionsQuery
+        + BlockersQuery
+        + Clone
+        + 'static,
 {
     router_with::<Frontend, H, S>(services)
 }
@@ -69,13 +78,21 @@ pub fn router_with<A, H, S>(services: Services<H, S>) -> Router
 where
     A: RustEmbed + Send + Sync + 'static,
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + Clone + 'static,
+    S: UnitOfWork
+        + PeopleQuery
+        + ProjectsQuery
+        + RisksQuery
+        + ActionsQuery
+        + BlockersQuery
+        + Clone
+        + 'static,
 {
     let state = AppState {
         people: Arc::new(services.store.clone()),
         projects: Arc::new(services.store.clone()),
         risks: Arc::new(services.store.clone()),
-        actions: Arc::new(services.store),
+        actions: Arc::new(services.store.clone()),
+        blockers: Arc::new(services.store),
         session_key: Key::try_from(services.session_key.as_slice())
             .expect("session key must be at least 64 bytes"),
     };
@@ -84,6 +101,7 @@ where
         .merge(projects::routes())
         .merge(risks::routes())
         .merge(actions::routes())
+        .merge(blockers::routes())
         .merge(members::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
@@ -124,6 +142,13 @@ where
         actions::fetch,
         actions::update,
         actions::close,
+        blockers::list,
+        blockers::create,
+        blockers::fetch,
+        blockers::update,
+        blockers::clear,
+        blockers::link,
+        blockers::unlink,
         members::list,
         members::add,
         members::remove,

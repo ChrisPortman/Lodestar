@@ -8,8 +8,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use lodestar_core::{
-    action::use_cases::ActionError, person::use_cases::PersonError, ports::RepoError,
-    project::use_cases::ProjectError, risk::use_cases::RiskError,
+    action::use_cases::ActionError, blocker::use_cases::BlockerError,
+    person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
+    risk::use_cases::RiskError,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -165,6 +166,20 @@ impl From<PathRejection> for Problem {
 impl From<QueryRejection> for Problem {
     fn from(rejection: QueryRejection) -> Self {
         Self::invalid(rejection.body_text())
+    }
+}
+
+impl From<BlockerError> for Problem {
+    fn from(error: BlockerError) -> Self {
+        match error {
+            BlockerError::InvalidDescription(_)
+            | BlockerError::AccountableNotAMember
+            | BlockerError::UnknownProject
+            | BlockerError::UnknownAction
+            | BlockerError::ActionInAnotherProject => Self::invalid(error.to_string()),
+            BlockerError::Archived => Self::new(StatusCode::CONFLICT).detail(error.to_string()),
+            BlockerError::Repo(e) => e.into(),
+        }
     }
 }
 

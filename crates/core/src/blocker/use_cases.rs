@@ -161,11 +161,15 @@ pub async fn link_blocked_action<U: UnitOfWork>(
     uow: &U,
     acting: PersonId,
     id: BlockerId,
+    expected_version: u32,
     action: ActionId,
 ) -> Result<Blocker, BlockerError> {
     let mut tx = uow.begin().await?;
     let before = tx.blockers().load(id).await?;
     writable_project(&mut tx, before.project_id()).await?;
+    if before.version() != expected_version {
+        return Err(RepoError::Conflict.into());
+    }
     let target = match tx.actions().load(action).await {
         Err(RepoError::NotFound) => return Err(BlockerError::UnknownAction),
         other => other?,
@@ -190,11 +194,15 @@ pub async fn unlink_blocked_action<U: UnitOfWork>(
     uow: &U,
     acting: PersonId,
     id: BlockerId,
+    expected_version: u32,
     action: ActionId,
 ) -> Result<Blocker, BlockerError> {
     let mut tx = uow.begin().await?;
     let before = tx.blockers().load(id).await?;
     writable_project(&mut tx, before.project_id()).await?;
+    if before.version() != expected_version {
+        return Err(RepoError::Conflict.into());
+    }
     if !before.blocked_actions().contains(&action) {
         return Ok(before);
     }

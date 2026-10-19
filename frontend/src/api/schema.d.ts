@@ -50,6 +50,94 @@ export interface paths {
     patch: operations['close_action']
     trace?: never
   }
+  '/api/v1/blockers': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Lists Blockers by Project Code, then Reference. Cleared Blockers are left
+     *     out unless `include_cleared=true`.
+     */
+    get: operations['list_blockers']
+    put?: never
+    /** Creates an open Blocker with the next Reference in its Project. */
+    post: operations['create_blocker']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/blockers/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Fetches a Blocker, open or cleared. */
+    get: operations['get_blocker']
+    /**
+     * Replaces a Blocker's description and accountable Member. Needs a session
+     *     and `If-Match`.
+     */
+    put: operations['update_blocker']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Clears or reopens a Blocker, with `{"cleared": …}` as
+     *     `application/merge-patch+json`. Needs a session and `If-Match`.
+     */
+    patch: operations['clear_blocker']
+    trace?: never
+  }
+  '/api/v1/blockers/{id}/blocked_actions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Links the Blocker to an Action in the same Project that it blocks, in
+     *     any state. Linking an already linked Action changes nothing. Needs a
+     *     session and the Blocker's `If-Match`.
+     */
+    post: operations['link_blocked_action']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/blockers/{id}/blocked_actions/{action_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Removes the Blocker's link to an Action, in any state. Unlinking an
+     *     Action that is not linked changes nothing. Needs a session and the
+     *     Blocker's `If-Match`.
+     */
+    delete: operations['unlink_blocked_action']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/people': {
     parameters: {
       query?: never
@@ -269,6 +357,8 @@ export interface components {
      */
     Action: {
       assignee?: components['schemas']['PersonRef'] | null
+      /** @description The open Blockers blocking this Action, ordered by Reference. */
+      blocked_by: components['schemas']['ItemRef'][]
       /** @description Changed only with `PATCH`. */
       readonly closed: boolean
       /** @description 1–4000 characters once trimmed; may span lines. */
@@ -308,6 +398,51 @@ export interface components {
     ActionPatch: {
       closed: boolean
     }
+    /**
+     * @description A Blocker. Also the request body for `POST` and `PUT`: read-only fields
+     *     may be sent to `PUT` only if they match what is stored.
+     */
+    Blocker: {
+      accountable?: components['schemas']['PersonRef'] | null
+      /**
+       * @description The Actions this Blocker blocks, ordered by Reference. Changed only
+       *     through `/blockers/{id}/blocked_actions`.
+       */
+      blocked_actions: components['schemas']['ItemRef'][]
+      /** @description Changed only with `PATCH`. */
+      readonly cleared: boolean
+      /** @description 1–4000 characters once trimmed; may span lines. */
+      description: string
+      /** Format: uuid */
+      readonly id: string
+      readonly project_code: string
+      /**
+       * Format: uuid
+       * @description Required on `POST`; never changes.
+       */
+      project_id: string
+      /** @description `B-001`, … numbered within the Project. A label, not an identifier. */
+      readonly reference: string
+      /** Format: int32 */
+      readonly version: number
+    }
+    /** @description A page of Blockers. */
+    BlockerPage: {
+      items: components['schemas']['Blocker'][]
+      /** Format: int32 */
+      limit: number
+      /** Format: int32 */
+      offset: number
+      /**
+       * Format: int64
+       * @description Matching Blockers across all pages.
+       */
+      total: number
+    }
+    /** @description The only change `PATCH` makes (ADR-0006). */
+    BlockerPatch: {
+      cleared: boolean
+    }
     /** @description A suggested Project Code. */
     CodeSuggestion: {
       /** @description `null` when the name has too few letters to suggest one. */
@@ -319,9 +454,21 @@ export interface components {
       comment?: string | null
       rating: components['schemas']['Rag']
     }
+    /** @description Another item, by ID and Reference. */
+    ItemRef: {
+      /** Format: uuid */
+      id: string
+      /** @description e.g. `A-001`. */
+      reference: string
+    }
     /** @description A Project's Members, ordered by display name. */
     MemberList: {
       items: components['schemas']['PersonRef'][]
+    }
+    /** @description The Action a Blocker blocks. */
+    NewBlockedAction: {
+      /** Format: uuid */
+      action_id: string
     }
     /** @description The Person to add as a Member. */
     NewMember: {
@@ -743,6 +890,440 @@ export interface operations {
       }
       /** @description Invalid patch */
       422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  list_blockers: {
+    parameters: {
+      query?: {
+        /** @description Only this Project's Blockers. */
+        project_id?: string
+        /** @description Page size, 1–1000. */
+        limit?: number
+        offset?: number
+        /** @description Include cleared Blockers. */
+        include_cleared?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BlockerPage']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  create_blocker: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Blocker']
+      }
+    }
+    responses: {
+      201: {
+        headers: {
+          etag?: string
+          location?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Blocker']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Blocker */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  get_blocker: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Blocker']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  update_blocker: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Blocker']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Blocker']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Blocker */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  clear_blocker: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/merge-patch+json': components['schemas']['BlockerPatch']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Blocker']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid patch */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  link_blocked_action: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the Blocker version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NewBlockedAction']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Blocker']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description No such Action, or in another Project */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  unlink_blocked_action: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the Blocker version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+        action_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Blocker']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
         headers: {
           [name: string]: unknown
         }

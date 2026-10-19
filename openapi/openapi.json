@@ -427,6 +427,648 @@
         }
       }
     },
+    "/api/v1/blockers": {
+      "get": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Lists Blockers by Project Code, then Reference. Cleared Blockers are left\nout unless `include_cleared=true`.",
+        "operationId": "list_blockers",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "Only this Project's Blockers.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1–1000.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50,
+              "maximum": 1000,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "include_cleared",
+            "in": "query",
+            "description": "Include cleared Blockers.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockerPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Creates an open Blocker with the next Reference in its Project.",
+        "operationId": "create_blocker",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Blocker"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "headers": {
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The Project is archived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid Blocker",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blockers/{id}": {
+      "get": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Fetches a Blocker, open or cleared.",
+        "operationId": "get_blocker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "headers": {
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocker"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Replaces a Blocker's description and accountable Member. Needs a session\nand `If-Match`.",
+        "operationId": "update_blocker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "description": "ETag of the version being changed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Blocker"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "headers": {
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The Project is archived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Out of date",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid Blocker",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Clears or reopens a Blocker, with `{\"cleared\": …}` as\n`application/merge-patch+json`. Needs a session and `If-Match`.",
+        "operationId": "clear_blocker",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "description": "ETag of the version being changed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockerPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "headers": {
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The Project is archived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Out of date",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid patch",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blockers/{id}/blocked_actions": {
+      "post": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Links the Blocker to an Action in the same Project that it blocks, in\nany state. Linking an already linked Action changes nothing. Needs a\nsession and the Blocker's `If-Match`.",
+        "operationId": "link_blocked_action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "description": "ETag of the Blocker version being changed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBlockedAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "headers": {
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The Project is archived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Out of date",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No such Action, or in another Project",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blockers/{id}/blocked_actions/{action_id}": {
+      "delete": {
+        "tags": [
+          "blockers"
+        ],
+        "summary": "Removes the Blocker's link to an Action, in any state. Unlinking an\nAction that is not linked changes nothing. Needs a session and the\nBlocker's `If-Match`.",
+        "operationId": "unlink_blocked_action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "description": "ETag of the Blocker version being changed",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "headers": {
+              "etag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blocker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The Project is archived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Out of date",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "If-Match missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/people": {
       "get": {
         "tags": [
@@ -1939,6 +2581,7 @@
           "reference",
           "description",
           "closed",
+          "blocked_by",
           "version"
         ],
         "properties": {
@@ -1952,6 +2595,14 @@
                 "type": "null"
               }
             ]
+          },
+          "blocked_by": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemRef",
+              "readOnly": true
+            },
+            "description": "The open Blockers blocking this Action, ordered by Reference."
           },
           "closed": {
             "type": "boolean",
@@ -2046,6 +2697,124 @@
         },
         "additionalProperties": false
       },
+      "Blocker": {
+        "type": "object",
+        "description": "A Blocker. Also the request body for `POST` and `PUT`: read-only fields\nmay be sent to `PUT` only if they match what is stored.",
+        "required": [
+          "id",
+          "project_id",
+          "project_code",
+          "reference",
+          "description",
+          "cleared",
+          "blocked_actions",
+          "version"
+        ],
+        "properties": {
+          "accountable": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef",
+                "description": "The accountable Member, or `null`. Only `id` is read. Required on `PUT`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemRef",
+              "readOnly": true
+            },
+            "description": "The Actions this Blocker blocks, ordered by Reference. Changed only\nthrough `/blockers/{id}/blocked_actions`."
+          },
+          "cleared": {
+            "type": "boolean",
+            "description": "Changed only with `PATCH`.",
+            "readOnly": true
+          },
+          "description": {
+            "type": "string",
+            "description": "1–4000 characters once trimmed; may span lines.",
+            "maxLength": 4000,
+            "minLength": 1
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "project_code": {
+            "type": "string",
+            "readOnly": true
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required on `POST`; never changes."
+          },
+          "reference": {
+            "type": "string",
+            "description": "`B-001`, … numbered within the Project. A label, not an identifier.",
+            "readOnly": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true,
+            "minimum": 1
+          }
+        }
+      },
+      "BlockerPage": {
+        "type": "object",
+        "description": "A page of Blockers.",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Blocker"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Matching Blockers across all pages.",
+            "minimum": 0
+          }
+        }
+      },
+      "BlockerPatch": {
+        "type": "object",
+        "description": "The only change `PATCH` makes (ADR-0006).",
+        "required": [
+          "cleared"
+        ],
+        "properties": {
+          "cleared": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "CodeSuggestion": {
         "type": "object",
         "description": "A suggested Project Code.",
@@ -2081,6 +2850,24 @@
         },
         "additionalProperties": false
       },
+      "ItemRef": {
+        "type": "object",
+        "description": "Another item, by ID and Reference.",
+        "required": [
+          "id",
+          "reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string",
+            "description": "e.g. `A-001`."
+          }
+        }
+      },
       "MemberList": {
         "type": "object",
         "description": "A Project's Members, ordered by display name.",
@@ -2095,6 +2882,20 @@
             }
           }
         }
+      },
+      "NewBlockedAction": {
+        "type": "object",
+        "description": "The Action a Blocker blocks.",
+        "required": [
+          "action_id"
+        ],
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
       },
       "NewMember": {
         "type": "object",

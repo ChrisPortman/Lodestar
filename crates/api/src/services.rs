@@ -25,6 +25,16 @@ use lodestar_core::action::{
     use_cases::{self as action_use_cases, ActionEdit, ActionError, ActionFilter, NewAction},
 };
 use lodestar_core::ports::ActionsQuery;
+use lodestar_core::{
+    action::ActionId as BlockedActionId,
+    blocker::{
+        Blocker, BlockerId, BlockerView,
+        use_cases::{
+            self as blocker_use_cases, BlockerEdit, BlockerError, BlockerFilter, NewBlocker,
+        },
+    },
+    ports::BlockersQuery,
+};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -419,6 +429,140 @@ impl<S: UnitOfWork + ActionsQuery> Actions for S {
             id,
             expected_version,
             closed,
+        ))
+    }
+}
+
+pub trait Blockers: Send + Sync {
+    fn list(
+        &self,
+        filter: BlockerFilter,
+        page: PageRequest,
+    ) -> BoxFuture<'_, Result<Page<BlockerView>, BlockerError>>;
+
+    fn get(&self, id: BlockerId) -> BoxFuture<'_, Result<BlockerView, BlockerError>>;
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewBlocker<'a>,
+    ) -> BoxFuture<'a, Result<Blocker, BlockerError>>;
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        edit: BlockerEdit<'a>,
+    ) -> BoxFuture<'a, Result<Blocker, BlockerError>>;
+
+    fn set_cleared(
+        &self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        cleared: bool,
+    ) -> BoxFuture<'_, Result<Blocker, BlockerError>>;
+
+    fn link(
+        &self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        action: BlockedActionId,
+    ) -> BoxFuture<'_, Result<Blocker, BlockerError>>;
+
+    fn unlink(
+        &self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        action: BlockedActionId,
+    ) -> BoxFuture<'_, Result<Blocker, BlockerError>>;
+}
+
+impl<S: UnitOfWork + BlockersQuery> Blockers for S {
+    fn list(
+        &self,
+        filter: BlockerFilter,
+        page: PageRequest,
+    ) -> BoxFuture<'_, Result<Page<BlockerView>, BlockerError>> {
+        Box::pin(blocker_use_cases::list_blockers(self, filter, page))
+    }
+
+    fn get(&self, id: BlockerId) -> BoxFuture<'_, Result<BlockerView, BlockerError>> {
+        Box::pin(blocker_use_cases::get_blocker(self, id))
+    }
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewBlocker<'a>,
+    ) -> BoxFuture<'a, Result<Blocker, BlockerError>> {
+        Box::pin(blocker_use_cases::create_blocker(self, acting, input))
+    }
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        edit: BlockerEdit<'a>,
+    ) -> BoxFuture<'a, Result<Blocker, BlockerError>> {
+        Box::pin(blocker_use_cases::update_blocker(
+            self,
+            acting,
+            id,
+            expected_version,
+            edit,
+        ))
+    }
+
+    fn set_cleared(
+        &self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        cleared: bool,
+    ) -> BoxFuture<'_, Result<Blocker, BlockerError>> {
+        Box::pin(blocker_use_cases::set_blocker_cleared(
+            self,
+            acting,
+            id,
+            expected_version,
+            cleared,
+        ))
+    }
+
+    fn link(
+        &self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        action: BlockedActionId,
+    ) -> BoxFuture<'_, Result<Blocker, BlockerError>> {
+        Box::pin(blocker_use_cases::link_blocked_action(
+            self,
+            acting,
+            id,
+            expected_version,
+            action,
+        ))
+    }
+
+    fn unlink(
+        &self,
+        acting: PersonId,
+        id: BlockerId,
+        expected_version: u32,
+        action: BlockedActionId,
+    ) -> BoxFuture<'_, Result<Blocker, BlockerError>> {
+        Box::pin(blocker_use_cases::unlink_blocked_action(
+            self,
+            acting,
+            id,
+            expected_version,
+            action,
         ))
     }
 }

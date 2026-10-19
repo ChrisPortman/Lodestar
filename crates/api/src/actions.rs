@@ -24,6 +24,7 @@ use uuid::Uuid;
 
 use crate::{
     AppState,
+    blockers::ItemRefBody,
     people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
     projects::{PersonRefBody, not_allowed, present},
@@ -71,6 +72,9 @@ pub struct ActionBody {
     /// Changed only with `PATCH`.
     #[schema(read_only)]
     pub closed: bool,
+    /// The open Blockers blocking this Action, ordered by Reference.
+    #[schema(read_only)]
+    pub blocked_by: Vec<ItemRefBody>,
     #[schema(read_only, minimum = 1)]
     pub version: u32,
 }
@@ -89,6 +93,7 @@ impl From<ActionView> for ActionBody {
             }),
             due_date: view.due_date,
             closed: view.closed,
+            blocked_by: view.blocked_by.into_iter().map(ItemRefBody::from).collect(),
             version: view.version,
         }
     }
@@ -108,6 +113,7 @@ struct ActionInput {
     #[serde(default, deserialize_with = "present")]
     due_date: Option<Option<NaiveDate>>,
     closed: Option<bool>,
+    blocked_by: Option<serde_json::Value>,
     version: Option<u32>,
 }
 
@@ -222,10 +228,11 @@ async fn create(
         || input.project_code.is_some()
         || input.reference.is_some()
         || input.closed.is_some()
+        || input.blocked_by.is_some()
         || input.version.is_some()
     {
         return Err(Problem::invalid(
-            "id, project_code, reference, closed and version are set by the server",
+            "id, project_code, reference, closed, blocked_by and version are set by the server",
         ));
     }
     let Some(project_id) = input.project_id else {
