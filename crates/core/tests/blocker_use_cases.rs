@@ -361,6 +361,7 @@ async fn open_blockers_are_listed_by_reference_and_cleared_ones_on_request() {
                 BlockerFilter {
                     project_id,
                     include_cleared,
+                    ..BlockerFilter::default()
                 },
                 PageRequest::first(10),
             )

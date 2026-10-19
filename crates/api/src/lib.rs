@@ -2,6 +2,7 @@
 
 mod actions;
 mod blockers;
+mod filters;
 mod frontend;
 mod health;
 mod members;

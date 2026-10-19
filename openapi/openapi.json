@@ -51,11 +51,45 @@
           {
             "name": "include_closed",
             "in": "query",
-            "description": "Include closed Actions.",
+            "description": "Include closed Actions. Ignored when `state` is given.",
             "required": false,
             "schema": {
               "type": "boolean",
               "default": false
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Open (the default), closed or all Actions.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Which Actions or Risks to list by state.",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "assignee",
+            "in": "query",
+            "description": "Only Actions assigned to this Person ID, or `unassigned`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "due_by",
+            "in": "query",
+            "description": "Only Actions due on or before this date, `YYYY-MM-DD`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
             }
           }
         ],
@@ -472,11 +506,35 @@
           {
             "name": "include_cleared",
             "in": "query",
-            "description": "Include cleared Blockers.",
+            "description": "Include cleared Blockers. Ignored when `state` is given.",
             "required": false,
             "schema": {
               "type": "boolean",
               "default": false
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Open (the default), cleared or all Blockers.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Which Blockers to list by state.",
+              "enum": [
+                "open",
+                "cleared",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "accountable",
+            "in": "query",
+            "description": "Only Blockers this Person ID is accountable for, or `unassigned`.",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -2116,11 +2174,26 @@
           {
             "name": "include_closed",
             "in": "query",
-            "description": "Include closed Risks.",
+            "description": "Include closed Risks. Ignored when `state` is given.",
             "required": false,
             "schema": {
               "type": "boolean",
               "default": false
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Open (the default), closed or all Risks.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Which Actions or Risks to list by state.",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ]
             }
           }
         ],

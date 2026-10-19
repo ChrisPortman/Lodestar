@@ -291,6 +291,79 @@ async fn actions_in_an_archived_project_cannot_be_changed() {
     assert_eq!(reply.status, StatusCode::CONFLICT);
 }
 
+fn references(reply: &Reply) -> Vec<String> {
+    reply.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["reference"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[tokio::test]
+async fn actions_can_be_filtered_by_assignee_or_unassigned() {
+    let w = world().await;
+    w.new_action("Bob's", Some(&w.bob)).await;
+    w.new_action("Nobody's", None).await;
+
+    let base = format!("/api/v1/actions?project_id={}", w.project);
+    let bobs = w.get(&format!("{base}&assignee={}", w.bob)).await;
+    assert_eq!(bobs.status, StatusCode::OK, "{:?}", bobs.body);
+    assert_eq!(references(&bobs), ["A-001"]);
+    assert_eq!(bobs.body["total"], 1);
+    let unassigned = w.get(&format!("{base}&assignee=unassigned")).await;
+    assert_eq!(references(&unassigned), ["A-002"]);
+    assert_eq!(unassigned.body["total"], 1);
+    let bad = w.get(&format!("{base}&assignee=nobody")).await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn actions_can_be_filtered_by_state() {
+    let w = world().await;
+    let first = w.new_action("One", None).await;
+    w.new_action("Two", None).await;
+    w.patch(first.body["id"].as_str().unwrap(), "\"1\"", true)
+        .await;
+
+    let base = format!("/api/v1/actions?project_id={}", w.project);
+    assert_eq!(
+        references(&w.get(&format!("{base}&state=closed")).await),
+        ["A-001"]
+    );
+    assert_eq!(
+        references(&w.get(&format!("{base}&state=open")).await),
+        ["A-002"]
+    );
+    let all = w.get(&format!("{base}&state=all")).await;
+    assert_eq!(references(&all), ["A-001", "A-002"]);
+    assert_eq!(all.body["total"], 2);
+}
+
+#[tokio::test]
+async fn actions_can_be_filtered_to_those_due_by_a_date() {
+    let w = world().await;
+    for (description, due) in [("Early", "2026-03-01"), ("Late", "2026-05-01")] {
+        let reply = w
+            .create(json!({
+                "project_id": w.project,
+                "description": description,
+                "due_date": due,
+            }))
+            .await;
+        assert_eq!(reply.status, StatusCode::CREATED);
+    }
+    w.new_action("Whenever", None).await;
+
+    let base = format!("/api/v1/actions?project_id={}", w.project);
+    let due = w.get(&format!("{base}&due_by=2026-03-01")).await;
+    assert_eq!(due.status, StatusCode::OK, "{:?}", due.body);
+    assert_eq!(references(&due), ["A-001"]);
+    assert_eq!(due.body["total"], 1);
+    let bad = w.get(&format!("{base}&due_by=soon")).await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 #[tokio::test]
 async fn writing_needs_a_session() {
     let w = world().await;

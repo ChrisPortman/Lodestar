@@ -169,7 +169,8 @@ impl RisksQuery for SqliteStore {
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
         let project = filter.project_id.map(|p| p.to_string());
-        let include_closed = filter.include_closed;
+        let include_closed = filter.include_closed || filter.closed_only;
+        let closed_only = filter.closed_only;
         let by_reference = sort == RiskSort::Reference;
         let by_score = sort == RiskSort::Score;
         let rows = sqlx::query_as!(
@@ -178,6 +179,7 @@ impl RisksQuery for SqliteStore {
                     r.likelihood, r.impact, r.closed, r.version
              FROM risks r JOIN projects p ON p.id = r.project_id
              WHERE (?1 IS NULL OR r.project_id = ?1) AND (?2 OR r.closed = 0)
+               AND (NOT ?7 OR r.closed = 1)
              ORDER BY CASE WHEN ?3 THEN r.likelihood * r.impact END DESC,
                       CASE WHEN ?4 THEN r.project_id END,
                       CASE WHEN ?4 THEN r.number END,
@@ -188,16 +190,19 @@ impl RisksQuery for SqliteStore {
             by_score,
             by_reference,
             limit,
-            offset
+            offset,
+            closed_only
         )
         .fetch_all(&self.pool)
         .await
         .map_err(unexpected)?;
         let total = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM risks
-             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)",
+             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)
+               AND (NOT ?3 OR closed = 1)",
             project,
-            include_closed
+            include_closed,
+            closed_only
         )
         .fetch_one(&self.pool)
         .await

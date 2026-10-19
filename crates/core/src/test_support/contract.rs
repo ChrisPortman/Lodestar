@@ -541,6 +541,7 @@ pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
     let in_web = |include_closed| RiskFilter {
         project_id: Some(web.id()),
         include_closed,
+        ..RiskFilter::default()
     };
     let all = PageRequest::first(10);
     let names = |page: crate::ports::Page<crate::risk::RiskView>| -> (u64, Vec<String>) {
@@ -573,6 +574,7 @@ pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
     let everywhere = RiskFilter {
         project_id: None,
         include_closed: true,
+        ..RiskFilter::default()
     };
     let everything = store.list_risks(all, everywhere, RiskSort::Id).await;
     assert_eq!(everything.unwrap().total, 5);
@@ -757,6 +759,7 @@ pub async fn actions_are_listed_by_project_code_and_reference(store: impl Store)
             ActionFilter {
                 project_id: Some(web),
                 include_closed: true,
+                ..ActionFilter::default()
             },
             PageRequest {
                 offset: 1,
@@ -936,6 +939,7 @@ pub async fn blockers_are_listed_by_project_code_and_reference(store: impl Store
             BlockerFilter {
                 project_id: Some(web),
                 include_cleared: true,
+                ..BlockerFilter::default()
             },
             PageRequest {
                 offset: 1,

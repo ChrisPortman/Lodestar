@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM actions\n             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)\n               AND (NOT ?3 OR closed = 1) AND (NOT ?4 OR assignee_id IS NULL)\n               AND (?5 IS NULL OR assignee_id = ?5) AND (?6 IS NULL OR due_date <= ?6)",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e4d0445fbd745766b877bbe7483f3f2b3ee883ffe00fd18d8f788245e7c56f6b"
+}

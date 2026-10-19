@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT COUNT(*) FROM blockers\n             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR cleared = 0)",
+  "query": "SELECT COUNT(*) FROM risks\n             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR closed = 0)\n               AND (NOT ?3 OR closed = 1)",
   "describe": {
     "columns": [
       {
@@ -11,11 +11,11 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 3
     },
     "nullable": [
       false
     ]
   },
-  "hash": "19e338e40d00a36d34b3f4ab6a966185a15ea43853e033d74ccc04ce3a214371"
+  "hash": "faf44eb1a8ca77067042839408d0b3b5c681997ea26b515f85d2b864c4a601b9"
 }

@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 use std::future::Future;
 
+use chrono::NaiveDate;
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
@@ -265,6 +266,8 @@ pub struct RiskFilter {
     /// Only this Project's Risks; every Project's when `None`.
     pub project_id: Option<ProjectId>,
     pub include_closed: bool,
+    /// Only closed Risks. Implies `include_closed`.
+    pub closed_only: bool,
 }
 
 /// Read-only views of Risks.
@@ -289,6 +292,26 @@ pub trait HistoryQuery: Send + Sync {
     ) -> impl Future<Output = Result<Page<HistoryEntry>, RepoError>> + Send;
 }
 
+/// Who an Action or Blocker must be assigned to, to be listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssigneeFilter {
+    /// Assigned to no one.
+    Unassigned,
+    /// Assigned to this Person.
+    Person(PersonId),
+}
+
+impl AssigneeFilter {
+    /// Whether an item assigned to `assignee` passes this filter.
+    #[must_use]
+    pub fn matches(self, assignee: Option<PersonId>) -> bool {
+        match self {
+            Self::Unassigned => assignee.is_none(),
+            Self::Person(id) => assignee == Some(id),
+        }
+    }
+}
+
 /// Which Actions to list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ActionFilter {
@@ -296,6 +319,12 @@ pub struct ActionFilter {
     pub project_id: Option<ProjectId>,
     /// Include closed Actions as well as open ones.
     pub include_closed: bool,
+    /// Only closed Actions. Implies `include_closed`.
+    pub closed_only: bool,
+    /// Only Actions with this assignee.
+    pub assignee: Option<AssigneeFilter>,
+    /// Only Actions due on or before this date.
+    pub due_by: Option<NaiveDate>,
 }
 
 /// Read-only views of Actions, ordered by Project Code then Reference.
@@ -319,6 +348,10 @@ pub struct BlockerFilter {
     pub project_id: Option<ProjectId>,
     /// Include cleared Blockers as well as open ones.
     pub include_cleared: bool,
+    /// Only cleared Blockers. Implies `include_cleared`.
+    pub cleared_only: bool,
+    /// Only Blockers with this accountable Person.
+    pub accountable: Option<AssigneeFilter>,
 }
 
 /// Read-only views of Blockers, ordered by Project Code then Reference.

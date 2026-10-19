@@ -8,7 +8,8 @@ use lodestar_core::blocker::{Blocker, BlockerId, BlockerParts, BlockerView};
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
-    BlockerFilter, BlockerRepository, BlockersQuery, Page, PageRequest, ReferenceKind, RepoError,
+    AssigneeFilter, BlockerFilter, BlockerRepository, BlockersQuery, Page, PageRequest,
+    ReferenceKind, RepoError,
 };
 use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
 use sqlx::{Sqlite, SqliteExecutor};
@@ -330,7 +331,13 @@ impl BlockersQuery for SqliteStore {
         page: PageRequest,
     ) -> Result<Page<BlockerView>, RepoError> {
         let project = filter.project_id.map(|p| p.to_string());
-        let include_cleared = filter.include_cleared;
+        let include_cleared = filter.include_cleared || filter.cleared_only;
+        let cleared_only = filter.cleared_only;
+        let unassigned = filter.accountable == Some(AssigneeFilter::Unassigned);
+        let accountable = match filter.accountable {
+            Some(AssigneeFilter::Person(id)) => Some(id.to_string()),
+            _ => None,
+        };
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
         let rows = sqlx::query_as!(
@@ -342,9 +349,14 @@ impl BlockersQuery for SqliteStore {
                JOIN projects p ON p.id = b.project_id
                LEFT JOIN people pe ON pe.id = b.accountable_id
                WHERE (?1 IS NULL OR b.project_id = ?1) AND (?2 OR b.cleared = 0)
-               ORDER BY p.project_code, b.reference, b.id LIMIT ?3 OFFSET ?4"#,
+                 AND (NOT ?3 OR b.cleared = 1) AND (NOT ?4 OR b.accountable_id IS NULL)
+                 AND (?5 IS NULL OR b.accountable_id = ?5)
+               ORDER BY p.project_code, b.reference, b.id LIMIT ?6 OFFSET ?7"#,
             project,
             include_cleared,
+            cleared_only,
+            unassigned,
+            accountable,
             limit,
             offset
         )
@@ -353,9 +365,14 @@ impl BlockersQuery for SqliteStore {
         .map_err(unexpected)?;
         let total = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM blockers
-             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR cleared = 0)",
+             WHERE (?1 IS NULL OR project_id = ?1) AND (?2 OR cleared = 0)
+               AND (NOT ?3 OR cleared = 1) AND (NOT ?4 OR accountable_id IS NULL)
+               AND (?5 IS NULL OR accountable_id = ?5)",
             project,
-            include_cleared
+            include_cleared,
+            cleared_only,
+            unassigned,
+            accountable
         )
         .fetch_one(&self.pool)
         .await
