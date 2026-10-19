@@ -1,9 +1,11 @@
 <script setup lang="ts">
-const name = 'Lodestar'
+import { RouterView } from 'vue-router'
+import AppHeader from './components/AppHeader.vue'
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl p-8">
-    <h1 class="text-3xl font-semibold">{{ name }}</h1>
+  <AppHeader />
+  <main class="mx-auto max-w-5xl p-4 sm:p-8">
+    <RouterView />
   </main>
 </template>
