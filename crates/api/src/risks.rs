@@ -11,33 +11,36 @@ use axum::{
 use lodestar_core::{
     ports::{PageRequest, RiskFilter, RiskSort},
     project::ProjectId,
-    risk::{RiskEdit, RiskId, RiskView, use_cases::NewRisk},
+    risk::{
+        RiskEdit, RiskId, RiskView,
+        use_cases::{NewRisk, create_risk, get_risk, list_risks, set_closed, update_risk},
+    },
 };
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    AppState, Store,
     filters::StateParam,
-    people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
-    projects::not_allowed,
-    request::{JsonBody, Path, Query, etag, if_match},
+    request::{JsonBody, Path, Query, etag, if_match, not_allowed, page_request},
     session::Acting,
 };
 
-pub fn routes() -> Router<AppState> {
+pub fn routes<S: Store>() -> Router<AppState<S>> {
     Router::new()
         .route(
             "/risks",
-            get(list).post(create).delete(not_allowed("GET,HEAD,POST")),
+            get(list::<S>)
+                .post(create::<S>)
+                .delete(not_allowed("GET,HEAD,POST")),
         )
         .route(
             "/risks/{id}",
-            get(fetch)
-                .put(update)
-                .patch(close)
+            get(fetch::<S>)
+                .put(update::<S>)
+                .patch(close::<S>)
                 .delete(not_allowed("GET,HEAD,PUT,PATCH")),
         )
 }
@@ -182,17 +185,11 @@ pub struct ListParams {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn list(
-    State(state): State<AppState>,
+async fn list<S: Store>(
+    State(state): State<AppState<S>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<RiskPage>, Problem> {
-    let limit = params.limit.unwrap_or(DEFAULT_LIMIT);
-    if !(1..=MAX_LIMIT).contains(&limit) {
-        return Err(Problem::invalid(format!(
-            "limit must be between 1 and {MAX_LIMIT}"
-        )));
-    }
-    let offset = params.offset.unwrap_or(0);
+    let PageRequest { offset, limit } = page_request(params.limit, params.offset)?;
     let sort = match params.sort.unwrap_or_default() {
         RiskSortParam::Id => RiskSort::Id,
         RiskSortParam::Reference => RiskSort::Reference,
@@ -204,10 +201,7 @@ async fn list(
         include_closed,
         closed_only,
     };
-    let page = state
-        .risks
-        .list(PageRequest { offset, limit }, filter, sort)
-        .await?;
+    let page = list_risks(&state.store, PageRequest { offset, limit }, filter, sort).await?;
     Ok(Json(RiskPage {
         items: page.items.into_iter().map(RiskBody::from).collect(),
         total: page.total,
@@ -230,8 +224,8 @@ async fn list(
         (status = 422, description = "Invalid Risk", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn create(
-    State(state): State<AppState>,
+async fn create<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     JsonBody(input): JsonBody<RiskInput>,
 ) -> Result<Response, Problem> {
@@ -250,19 +244,18 @@ async fn create(
         return Err(Problem::invalid("project_id is required"));
     };
     let edit = input.edit();
-    let risk = state
-        .risks
-        .create(
-            acting,
-            NewRisk {
-                project_id: ProjectId::from_uuid(project_id),
-                description: edit.description,
-                likelihood: edit.likelihood,
-                impact: edit.impact,
-            },
-        )
-        .await?;
-    let body = RiskBody::from(state.risks.get(risk.id()).await?);
+    let risk = create_risk(
+        &state.store,
+        acting,
+        NewRisk {
+            project_id: ProjectId::from_uuid(project_id),
+            description: edit.description,
+            likelihood: edit.likelihood,
+            impact: edit.impact,
+        },
+    )
+    .await?;
+    let body = RiskBody::from(get_risk(&state.store, risk.id()).await?);
     let location = format!("/api/v1/risks/{}", body.id);
     Ok((
         [(header::LOCATION, location)],
@@ -283,8 +276,11 @@ async fn create(
         (status = 404, body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Response, Problem> {
-    let view = state.risks.get(RiskId::from_uuid(id)).await?;
+async fn fetch<S: Store>(
+    State(state): State<AppState<S>>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    let view = get_risk(&state.store, RiskId::from_uuid(id)).await?;
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
@@ -307,8 +303,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn update(
-    State(state): State<AppState>,
+async fn update<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -322,7 +318,7 @@ async fn update(
         return Err(Problem::invalid("id does not match the URL"));
     }
     let id = RiskId::from_uuid(id);
-    let stored = state.risks.get(id).await?;
+    let stored = get_risk(&state.store, id).await?;
     let mismatch = input
         .project_id
         .is_some_and(|p| p != stored.project_id.as_uuid())
@@ -341,11 +337,11 @@ async fn update(
         ));
     }
     // A stale score is ignored rather than rejected: it follows from the ratings.
-    state
-        .risks
-        .update(acting, id, expected, input.edit())
-        .await?;
-    Ok(with_etag(StatusCode::OK, state.risks.get(id).await?.into()))
+    update_risk(&state.store, acting, id, expected, input.edit()).await?;
+    Ok(with_etag(
+        StatusCode::OK,
+        get_risk(&state.store, id).await?.into(),
+    ))
 }
 
 /// Closes or reopens a Risk, with `{"closed": …}` as
@@ -367,8 +363,8 @@ async fn update(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn close(
-    State(state): State<AppState>,
+async fn close<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -376,9 +372,9 @@ async fn close(
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = RiskId::from_uuid(id);
-    state
-        .risks
-        .set_closed(acting, id, expected, patch.closed)
-        .await?;
-    Ok(with_etag(StatusCode::OK, state.risks.get(id).await?.into()))
+    set_closed(&state.store, acting, id, expected, patch.closed).await?;
+    Ok(with_etag(
+        StatusCode::OK,
+        get_risk(&state.store, id).await?.into(),
+    ))
 }

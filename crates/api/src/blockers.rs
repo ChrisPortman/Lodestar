@@ -12,59 +12,48 @@ use lodestar_core::{
     action::ActionId,
     blocker::{
         BlockerId, BlockerView,
-        use_cases::{BlockerEdit, NewBlocker},
+        use_cases::{
+            BlockerEdit, NewBlocker, create_blocker, get_blocker, link_blocked_action,
+            list_blockers, set_blocker_cleared, unlink_blocked_action, update_blocker,
+        },
     },
     person::PersonId,
     ports::{BlockerFilter, PageRequest},
-    project::{ItemRef, ProjectId},
+    project::ProjectId,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    AppState, Store,
     filters::{self, BlockerStateParam},
-    people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
-    projects::{PersonRefBody, not_allowed, present},
-    request::{JsonBody, Path, Query, etag, if_match},
+    refs::{ItemRefBody, PersonRefBody},
+    request::{JsonBody, Path, Query, etag, if_match, not_allowed, page_request, present},
     session::Acting,
 };
 
-pub fn routes() -> Router<AppState> {
+pub fn routes<S: Store>() -> Router<AppState<S>> {
     Router::new()
         .route(
             "/blockers",
-            get(list).post(create).delete(not_allowed("GET,HEAD,POST")),
+            get(list::<S>)
+                .post(create::<S>)
+                .delete(not_allowed("GET,HEAD,POST")),
         )
         .route(
             "/blockers/{id}",
-            get(fetch)
-                .put(update)
-                .patch(clear)
+            get(fetch::<S>)
+                .put(update::<S>)
+                .patch(clear::<S>)
                 .delete(not_allowed("GET,HEAD,PUT,PATCH")),
         )
-        .route("/blockers/{id}/blocked_actions", post(link))
-        .route("/blockers/{id}/blocked_actions/{action_id}", delete(unlink))
-}
-
-/// Another item, by ID and Reference.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-#[schema(as = ItemRef)]
-pub struct ItemRefBody {
-    pub id: Uuid,
-    /// e.g. `A-001`.
-    pub reference: String,
-}
-
-impl From<ItemRef> for ItemRefBody {
-    fn from(item: ItemRef) -> Self {
-        Self {
-            id: item.id,
-            reference: item.reference,
-        }
-    }
+        .route("/blockers/{id}/blocked_actions", post(link::<S>))
+        .route(
+            "/blockers/{id}/blocked_actions/{action_id}",
+            delete(unlink::<S>),
+        )
 }
 
 /// A Blocker. Also the request body for `POST` and `PUT`: read-only fields
@@ -105,10 +94,7 @@ impl From<BlockerView> for BlockerBody {
             project_code: view.project_code,
             reference: view.reference,
             description: view.description,
-            accountable: view.accountable.map(|a| PersonRefBody {
-                id: a.id.as_uuid(),
-                display_name: a.display_name,
-            }),
+            accountable: view.accountable.map(PersonRefBody::from),
             cleared: view.cleared,
             blocked_actions: view
                 .blocked_actions
@@ -214,17 +200,11 @@ pub struct ListParams {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn list(
-    State(state): State<AppState>,
+async fn list<S: Store>(
+    State(state): State<AppState<S>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<BlockerPage>, Problem> {
-    let limit = params.limit.unwrap_or(DEFAULT_LIMIT);
-    if !(1..=MAX_LIMIT).contains(&limit) {
-        return Err(Problem::invalid(format!(
-            "limit must be between 1 and {MAX_LIMIT}"
-        )));
-    }
-    let offset = params.offset.unwrap_or(0);
+    let PageRequest { offset, limit } = page_request(params.limit, params.offset)?;
     let (include_cleared, cleared_only) =
         BlockerStateParam::flags(params.state, params.include_cleared);
     let filter = BlockerFilter {
@@ -233,10 +213,7 @@ async fn list(
         cleared_only,
         accountable: filters::assignee(params.accountable.as_deref(), "accountable")?,
     };
-    let page = state
-        .blockers
-        .list(filter, PageRequest { offset, limit })
-        .await?;
+    let page = list_blockers(&state.store, filter, PageRequest { offset, limit }).await?;
     Ok(Json(BlockerPage {
         items: page.items.into_iter().map(BlockerBody::from).collect(),
         total: page.total,
@@ -259,8 +236,8 @@ async fn list(
         (status = 422, description = "Invalid Blocker", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn create(
-    State(state): State<AppState>,
+async fn create<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     JsonBody(input): JsonBody<BlockerInput>,
 ) -> Result<Response, Problem> {
@@ -278,18 +255,17 @@ async fn create(
     let Some(project_id) = input.project_id else {
         return Err(Problem::invalid("project_id is required"));
     };
-    let blocker = state
-        .blockers
-        .create(
-            acting,
-            NewBlocker {
-                project_id: ProjectId::from_uuid(project_id),
-                description: &input.description,
-                accountable: accountable(input.accountable.flatten().as_ref()),
-            },
-        )
-        .await?;
-    let body = BlockerBody::from(state.blockers.get(blocker.id()).await?);
+    let blocker = create_blocker(
+        &state.store,
+        acting,
+        NewBlocker {
+            project_id: ProjectId::from_uuid(project_id),
+            description: &input.description,
+            accountable: accountable(input.accountable.flatten().as_ref()),
+        },
+    )
+    .await?;
+    let body = BlockerBody::from(get_blocker(&state.store, blocker.id()).await?);
     let location = format!("/api/v1/blockers/{}", body.id);
     Ok((
         [(header::LOCATION, location)],
@@ -310,8 +286,11 @@ async fn create(
         (status = 404, body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Response, Problem> {
-    let view = state.blockers.get(BlockerId::from_uuid(id)).await?;
+async fn fetch<S: Store>(
+    State(state): State<AppState<S>>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    let view = get_blocker(&state.store, BlockerId::from_uuid(id)).await?;
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
@@ -334,8 +313,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn update(
-    State(state): State<AppState>,
+async fn update<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -352,7 +331,7 @@ async fn update(
         return Err(Problem::invalid("accountable is required (null unassigns)"));
     };
     let id = BlockerId::from_uuid(id);
-    let stored = state.blockers.get(id).await?;
+    let stored = get_blocker(&state.store, id).await?;
     if stored.version != expected {
         return Err(Problem::stale());
     }
@@ -378,21 +357,20 @@ async fn update(
             "project_id, project_code, reference, cleared and blocked_actions cannot be changed with PUT",
         ));
     }
-    state
-        .blockers
-        .update(
-            acting,
-            id,
-            expected,
-            BlockerEdit {
-                description: &input.description,
-                accountable: accountable(accountable_input.as_ref()),
-            },
-        )
-        .await?;
+    update_blocker(
+        &state.store,
+        acting,
+        id,
+        expected,
+        BlockerEdit {
+            description: &input.description,
+            accountable: accountable(accountable_input.as_ref()),
+        },
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.blockers.get(id).await?.into(),
+        get_blocker(&state.store, id).await?.into(),
     ))
 }
 
@@ -415,8 +393,8 @@ async fn update(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn clear(
-    State(state): State<AppState>,
+async fn clear<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -424,13 +402,10 @@ async fn clear(
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = BlockerId::from_uuid(id);
-    state
-        .blockers
-        .set_cleared(acting, id, expected, patch.cleared)
-        .await?;
+    set_blocker_cleared(&state.store, acting, id, expected, patch.cleared).await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.blockers.get(id).await?.into(),
+        get_blocker(&state.store, id).await?.into(),
     ))
 }
 
@@ -454,8 +429,8 @@ async fn clear(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn link(
-    State(state): State<AppState>,
+async fn link<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -463,13 +438,17 @@ async fn link(
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = BlockerId::from_uuid(id);
-    state
-        .blockers
-        .link(acting, id, expected, ActionId::from_uuid(input.action_id))
-        .await?;
+    link_blocked_action(
+        &state.store,
+        acting,
+        id,
+        expected,
+        ActionId::from_uuid(input.action_id),
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.blockers.get(id).await?.into(),
+        get_blocker(&state.store, id).await?.into(),
     ))
 }
 
@@ -491,20 +470,24 @@ async fn link(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn unlink(
-    State(state): State<AppState>,
+async fn unlink<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path((id, action_id)): Path<(Uuid, Uuid)>,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = BlockerId::from_uuid(id);
-    state
-        .blockers
-        .unlink(acting, id, expected, ActionId::from_uuid(action_id))
-        .await?;
+    unlink_blocked_action(
+        &state.store,
+        acting,
+        id,
+        expected,
+        ActionId::from_uuid(action_id),
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.blockers.get(id).await?.into(),
+        get_blocker(&state.store, id).await?.into(),
     ))
 }

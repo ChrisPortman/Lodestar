@@ -9,23 +9,31 @@ use axum::{
     response::Response,
     routing::{delete, get},
 };
-use lodestar_core::{person::PersonId, project::ProjectId};
+use lodestar_core::{
+    person::PersonId,
+    project::{
+        ProjectId,
+        members::{add_member, project_members, remove_member},
+        use_cases::get_project,
+    },
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    AppState, Store,
     problem::Problem,
-    projects::{PersonRefBody, ProjectBody, with_etag},
+    projects::{ProjectBody, with_etag},
+    refs::PersonRefBody,
     request::{JsonBody, Path, if_match},
     session::Acting,
 };
 
-pub fn routes() -> Router<AppState> {
+pub fn routes<S: Store>() -> Router<AppState<S>> {
     Router::new()
-        .route("/projects/{id}/members", get(list).post(add))
-        .route("/projects/{id}/members/{person_id}", delete(remove))
+        .route("/projects/{id}/members", get(list::<S>).post(add::<S>))
+        .route("/projects/{id}/members/{person_id}", delete(remove::<S>))
 }
 
 /// A Project's Members, ordered by display name.
@@ -53,19 +61,13 @@ pub struct NewMember {
         (status = 404, body = Problem, content_type = "application/problem+json"),
     )
 )]
-pub(crate) async fn list(
-    State(state): State<AppState>,
+pub(crate) async fn list<S: Store>(
+    State(state): State<AppState<S>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MemberList>, Problem> {
-    let members = state.projects.members(ProjectId::from_uuid(id)).await?;
+    let members = project_members(&state.store, ProjectId::from_uuid(id)).await?;
     Ok(Json(MemberList {
-        items: members
-            .into_iter()
-            .map(|m| PersonRefBody {
-                id: m.id.as_uuid(),
-                display_name: m.display_name,
-            })
-            .collect(),
+        items: members.into_iter().map(PersonRefBody::from).collect(),
     }))
 }
 
@@ -89,8 +91,8 @@ pub(crate) async fn list(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-pub(crate) async fn add(
-    State(state): State<AppState>,
+pub(crate) async fn add<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -98,13 +100,17 @@ pub(crate) async fn add(
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = ProjectId::from_uuid(id);
-    state
-        .projects
-        .add_member(acting, id, expected, PersonId::from_uuid(input.person_id))
-        .await?;
+    add_member(
+        &state.store,
+        acting,
+        id,
+        expected,
+        PersonId::from_uuid(input.person_id),
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.projects.get(id).await?.into(),
+        get_project(&state.store, id).await?.into(),
     ))
 }
 
@@ -126,20 +132,24 @@ pub(crate) async fn add(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-pub(crate) async fn remove(
-    State(state): State<AppState>,
+pub(crate) async fn remove<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path((id, person_id)): Path<(Uuid, Uuid)>,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = ProjectId::from_uuid(id);
-    state
-        .projects
-        .remove_member(acting, id, expected, PersonId::from_uuid(person_id))
-        .await?;
+    remove_member(
+        &state.store,
+        acting,
+        id,
+        expected,
+        PersonId::from_uuid(person_id),
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.projects.get(id).await?.into(),
+        get_project(&state.store, id).await?.into(),
     ))
 }

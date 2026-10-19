@@ -10,13 +10,11 @@ mod members;
 mod people;
 mod problem;
 mod projects;
+mod refs;
 mod request;
 mod risks;
 mod security;
-mod services;
 mod session;
-
-use std::sync::Arc;
 
 use axum::{Json, Router, http::StatusCode, routing::get};
 use axum_extra::extract::cookie::Key;
@@ -49,22 +47,22 @@ pub struct Services<H, S> {
     pub session_key: Vec<u8>,
 }
 
-#[derive(Clone)]
-pub(crate) struct AppState {
-    pub people: Arc<dyn services::People>,
-    pub projects: Arc<dyn services::Projects>,
-    pub risks: Arc<dyn services::Risks>,
-    pub actions: Arc<dyn services::Actions>,
-    pub blockers: Arc<dyn services::Blockers>,
-    pub history: Arc<dyn export::ProjectHistory>,
-    pub session_key: Key,
+/// Everything the API's use cases need, resolved at compile time (ADR-0007).
+pub trait Store:
+    UnitOfWork
+    + PeopleQuery
+    + ProjectsQuery
+    + RisksQuery
+    + ActionsQuery
+    + BlockersQuery
+    + HistoryQuery
+    + Clone
+    + 'static
+{
 }
 
-/// The application router, serving the embedded frontend.
-pub fn router<H, S>(services: Services<H, S>) -> Router
-where
-    H: HealthProbe,
-    S: UnitOfWork
+impl<T> Store for T where
+    T: UnitOfWork
         + PeopleQuery
         + ProjectsQuery
         + RisksQuery
@@ -72,7 +70,23 @@ where
         + BlockersQuery
         + HistoryQuery
         + Clone
-        + 'static,
+        + 'static
+{
+}
+
+/// The router's state: the store handlers pass to use cases, and the key
+/// that signs session cookies.
+#[derive(Clone)]
+pub(crate) struct AppState<S> {
+    pub store: S,
+    pub session_key: Key,
+}
+
+/// The application router, serving the embedded frontend.
+pub fn router<H, S>(services: Services<H, S>) -> Router
+where
+    H: HealthProbe,
+    S: Store,
 {
     router_with::<Frontend, H, S>(services)
 }
@@ -85,35 +99,22 @@ pub fn router_with<A, H, S>(services: Services<H, S>) -> Router
 where
     A: RustEmbed + Send + Sync + 'static,
     H: HealthProbe,
-    S: UnitOfWork
-        + PeopleQuery
-        + ProjectsQuery
-        + RisksQuery
-        + ActionsQuery
-        + BlockersQuery
-        + HistoryQuery
-        + Clone
-        + 'static,
+    S: Store,
 {
     let state = AppState {
-        people: Arc::new(services.store.clone()),
-        projects: Arc::new(services.store.clone()),
-        risks: Arc::new(services.store.clone()),
-        actions: Arc::new(services.store.clone()),
-        blockers: Arc::new(services.store.clone()),
-        history: Arc::new(services.store),
+        store: services.store,
         session_key: Key::try_from(services.session_key.as_slice())
             .expect("session key must be at least 64 bytes"),
     };
     let v1 = Router::new()
-        .merge(people::routes())
-        .merge(projects::routes())
-        .merge(risks::routes())
-        .merge(actions::routes())
-        .merge(blockers::routes())
-        .merge(members::routes())
-        .merge(export::routes())
-        .merge(session::routes())
+        .merge(people::routes::<S>())
+        .merge(projects::routes::<S>())
+        .merge(risks::routes::<S>())
+        .merge(actions::routes::<S>())
+        .merge(blockers::routes::<S>())
+        .merge(members::routes::<S>())
+        .merge(export::routes::<S>())
+        .merge(session::routes::<S>())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .with_state(state);
     let api = Router::new()

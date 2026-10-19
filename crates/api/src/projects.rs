@@ -13,47 +13,40 @@ use lodestar_core::{
     ports::{PageRequest, ProjectSort},
     project::{
         HealthRating, ProjectId, ProjectView, Rag,
-        use_cases::{HealthRatingInput, NewProject, ProjectEdit},
+        use_cases::{
+            HealthRatingInput, NewProject, ProjectEdit, create_project, get_project, list_projects,
+            set_archived, suggest_project_code, update_project,
+        },
     },
 };
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    AppState,
-    people::{DEFAULT_LIMIT, MAX_LIMIT},
+    AppState, Store,
     problem::Problem,
-    request::{JsonBody, Path, Query, etag, if_match},
+    refs::PersonRefBody,
+    request::{JsonBody, Path, Query, etag, if_match, not_allowed, page_request, present},
     session::Acting,
 };
 
-pub fn routes() -> Router<AppState> {
+pub fn routes<S: Store>() -> Router<AppState<S>> {
     Router::new()
         .route(
             "/projects",
-            get(list).post(create).delete(not_allowed("GET,HEAD,POST")),
+            get(list::<S>)
+                .post(create::<S>)
+                .delete(not_allowed("GET,HEAD,POST")),
         )
-        .route("/projects/code_suggestion", get(suggest_code))
+        .route("/projects/code_suggestion", get(suggest_code::<S>))
         .route(
             "/projects/{id}",
-            get(fetch)
-                .put(update)
-                .patch(archive)
+            get(fetch::<S>)
+                .put(update::<S>)
+                .patch(archive::<S>)
                 .delete(not_allowed("GET,HEAD,PUT,PATCH")),
         )
-}
-
-pub(crate) fn not_allowed(allow: &'static str) -> impl Fn() -> std::future::Ready<Problem> + Clone {
-    move || std::future::ready(Problem::method_not_allowed(allow))
-}
-
-/// A Person as shown on something that refers to them.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-#[schema(as = PersonRef)]
-pub struct PersonRefBody {
-    pub id: Uuid,
-    pub display_name: String,
 }
 
 /// Red, Amber or Green.
@@ -144,21 +137,11 @@ impl From<ProjectView> for ProjectBody {
             description: view.description,
             project_code: view.project_code,
             archived: view.archived,
-            project_leader: view.project_leader.map(|l| PersonRefBody {
-                id: l.id.as_uuid(),
-                display_name: l.display_name,
-            }),
+            project_leader: view.project_leader.map(PersonRefBody::from),
             health_rating: view.health_rating.map(HealthRatingBody::from),
             version: view.version,
         }
     }
-}
-
-/// Distinguishes a field sent as `null` (`Some(None)`) from a missing one (`None`).
-pub(crate) fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
-    d: D,
-) -> Result<Option<Option<T>>, D::Error> {
-    Option::deserialize(d).map(Some)
 }
 
 /// What a client may send for a Project; documented as [`ProjectBody`].
@@ -249,29 +232,22 @@ pub struct ListParams {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn list(
-    State(state): State<AppState>,
+async fn list<S: Store>(
+    State(state): State<AppState<S>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<ProjectPage>, Problem> {
-    let limit = params.limit.unwrap_or(DEFAULT_LIMIT);
-    if !(1..=MAX_LIMIT).contains(&limit) {
-        return Err(Problem::invalid(format!(
-            "limit must be between 1 and {MAX_LIMIT}"
-        )));
-    }
-    let offset = params.offset.unwrap_or(0);
+    let PageRequest { offset, limit } = page_request(params.limit, params.offset)?;
     let sort = match params.sort.unwrap_or_default() {
         ProjectSortParam::Id => ProjectSort::Id,
         ProjectSortParam::Name => ProjectSort::Name,
     };
-    let page = state
-        .projects
-        .list(
-            PageRequest { offset, limit },
-            params.include_archived.unwrap_or(false),
-            sort,
-        )
-        .await?;
+    let page = list_projects(
+        &state.store,
+        PageRequest { offset, limit },
+        params.include_archived.unwrap_or(false),
+        sort,
+    )
+    .await?;
     Ok(Json(ProjectPage {
         items: page.items.into_iter().map(ProjectBody::from).collect(),
         total: page.total,
@@ -306,11 +282,11 @@ pub struct CodeSuggestion {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn suggest_code(
-    State(state): State<AppState>,
+async fn suggest_code<S: Store>(
+    State(state): State<AppState<S>>,
     Query(params): Query<SuggestionParams>,
 ) -> Result<Json<CodeSuggestion>, Problem> {
-    let code = state.projects.suggest_code(&params.name).await?;
+    let code = suggest_project_code(&state.store, &params.name).await?;
     Ok(Json(CodeSuggestion {
         project_code: code.map(String::from),
     }))
@@ -330,8 +306,8 @@ async fn suggest_code(
         (status = 422, description = "Invalid Project", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn create(
-    State(state): State<AppState>,
+async fn create<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     JsonBody(input): JsonBody<ProjectInput>,
 ) -> Result<Response, Problem> {
@@ -348,18 +324,17 @@ async fn create(
     let Some(code) = input.project_code.as_deref() else {
         return Err(Problem::invalid("project_code is required"));
     };
-    let project = state
-        .projects
-        .create(
-            acting,
-            NewProject {
-                name: &input.name,
-                description: input.description.flatten().as_deref(),
-                project_code: code,
-            },
-        )
-        .await?;
-    let body = ProjectBody::from(state.projects.get(project.id()).await?);
+    let project = create_project(
+        &state.store,
+        acting,
+        NewProject {
+            name: &input.name,
+            description: input.description.flatten().as_deref(),
+            project_code: code,
+        },
+    )
+    .await?;
+    let body = ProjectBody::from(get_project(&state.store, project.id()).await?);
     let location = format!("/api/v1/projects/{}", body.id);
     Ok((
         [(header::LOCATION, location)],
@@ -380,8 +355,11 @@ async fn create(
         (status = 404, body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Response, Problem> {
-    let view = state.projects.get(ProjectId::from_uuid(id)).await?;
+async fn fetch<S: Store>(
+    State(state): State<AppState<S>>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    let view = get_project(&state.store, ProjectId::from_uuid(id)).await?;
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
@@ -404,8 +382,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn update(
-    State(state): State<AppState>,
+async fn update<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -432,7 +410,7 @@ async fn update(
         ));
     };
     let id = ProjectId::from_uuid(id);
-    let stored = state.projects.get(id).await?;
+    let stored = get_project(&state.store, id).await?;
     if input
         .project_code
         .is_some_and(|code| code != stored.project_code)
@@ -442,26 +420,25 @@ async fn update(
     if input.archived.is_some_and(|a| a != stored.archived) {
         return Err(Problem::invalid("archived is changed only with PATCH"));
     }
-    state
-        .projects
-        .update(
-            acting,
-            id,
-            expected,
-            ProjectEdit {
-                name: &input.name,
-                description: description.as_deref(),
-                health_rating: health_rating.as_ref().map(|h| HealthRatingInput {
-                    rating: h.rating.into(),
-                    comment: h.comment.as_deref(),
-                }),
-                project_leader: leader.map(|l| PersonId::from_uuid(l.id)),
-            },
-        )
-        .await?;
+    update_project(
+        &state.store,
+        acting,
+        id,
+        expected,
+        ProjectEdit {
+            name: &input.name,
+            description: description.as_deref(),
+            health_rating: health_rating.as_ref().map(|h| HealthRatingInput {
+                rating: h.rating.into(),
+                comment: h.comment.as_deref(),
+            }),
+            project_leader: leader.map(|l| PersonId::from_uuid(l.id)),
+        },
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.projects.get(id).await?.into(),
+        get_project(&state.store, id).await?.into(),
     ))
 }
 
@@ -483,8 +460,8 @@ async fn update(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn archive(
-    State(state): State<AppState>,
+async fn archive<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -492,12 +469,9 @@ async fn archive(
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = ProjectId::from_uuid(id);
-    state
-        .projects
-        .set_archived(acting, id, expected, patch.archived)
-        .await?;
+    set_archived(&state.store, acting, id, expected, patch.archived).await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.projects.get(id).await?.into(),
+        get_project(&state.store, id).await?.into(),
     ))
 }

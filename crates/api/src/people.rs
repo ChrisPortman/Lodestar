@@ -8,7 +8,10 @@ use axum::{
     routing::get,
 };
 use lodestar_core::{
-    person::{Person, PersonId, PersonView},
+    person::{
+        Person, PersonId, PersonView,
+        use_cases::{create_person, get_person, list_people, rename_person},
+    },
     ports::{PageRequest, PeopleSort},
 };
 use serde::{Deserialize, Serialize};
@@ -16,29 +19,26 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    AppState, Store,
     problem::Problem,
-    request::{JsonBody, Path, Query, etag, if_match},
+    request::{JsonBody, Path, Query, etag, if_match, not_allowed, page_request},
     session::{Acting, MaybeActing, cookie_for},
 };
 
-pub const DEFAULT_LIMIT: u32 = 50;
-pub const MAX_LIMIT: u32 = 1000;
-
-pub fn routes() -> Router<AppState> {
+pub fn routes<S: Store>() -> Router<AppState<S>> {
     Router::new()
         .route(
             "/people",
-            get(list).post(create).delete(not_allowed("GET,HEAD,POST")),
+            get(list::<S>)
+                .post(create::<S>)
+                .delete(not_allowed("GET,HEAD,POST")),
         )
         .route(
             "/people/{id}",
-            get(fetch).put(update).delete(not_allowed("GET,HEAD,PUT")),
+            get(fetch::<S>)
+                .put(update::<S>)
+                .delete(not_allowed("GET,HEAD,PUT")),
         )
-}
-
-fn not_allowed(allow: &'static str) -> impl Fn() -> std::future::Ready<Problem> + Clone {
-    move || std::future::ready(Problem::method_not_allowed(allow))
 }
 
 /// A Person. Also the request body for `POST` and `PUT`: read-only fields may
@@ -132,25 +132,16 @@ pub struct ListParams {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn list(
-    State(state): State<AppState>,
+async fn list<S: Store>(
+    State(state): State<AppState<S>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<PersonPage>, Problem> {
-    let limit = params.limit.unwrap_or(DEFAULT_LIMIT);
-    if !(1..=MAX_LIMIT).contains(&limit) {
-        return Err(Problem::invalid(format!(
-            "limit must be between 1 and {MAX_LIMIT}"
-        )));
-    }
-    let offset = params.offset.unwrap_or(0);
+    let PageRequest { offset, limit } = page_request(params.limit, params.offset)?;
     let sort = match params.sort.unwrap_or_default() {
         PersonSort::Id => PeopleSort::Id,
         PersonSort::DisplayName => PeopleSort::DisplayName,
     };
-    let page = state
-        .people
-        .list(PageRequest { offset, limit }, sort)
-        .await?;
+    let page = list_people(&state.store, PageRequest { offset, limit }, sort).await?;
     Ok(Json(PersonPage {
         items: page.items.into_iter().map(PersonBody::from).collect(),
         total: page.total,
@@ -175,8 +166,8 @@ async fn list(
         (status = 422, description = "Invalid Person", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn create(
-    State(state): State<AppState>,
+async fn create<S: Store>(
+    State(state): State<AppState<S>>,
     MaybeActing(acting): MaybeActing,
     JsonBody(input): JsonBody<PersonInput>,
 ) -> Result<Response, Problem> {
@@ -185,7 +176,7 @@ async fn create(
             "id and version are assigned by the server",
         ));
     }
-    let person = state.people.create(acting, &input.display_name).await?;
+    let person = create_person(&state.store, acting, &input.display_name).await?;
     let location = format!("/api/v1/people/{}", person.id());
     let response = with_etag(StatusCode::CREATED, PersonBody::from(&person));
     let response = ([(header::LOCATION, location)], response);
@@ -207,8 +198,11 @@ async fn create(
         (status = 404, body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Response, Problem> {
-    let view = state.people.get(PersonId::from_uuid(id)).await?;
+async fn fetch<S: Store>(
+    State(state): State<AppState<S>>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    let view = get_person(&state.store, PersonId::from_uuid(id)).await?;
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
@@ -229,8 +223,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn update(
-    State(state): State<AppState>,
+async fn update<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -243,14 +237,13 @@ async fn update(
     if input.id.is_some_and(|body_id| body_id != id) {
         return Err(Problem::invalid("id does not match the URL"));
     }
-    let person = state
-        .people
-        .rename(
-            acting,
-            PersonId::from_uuid(id),
-            expected,
-            &input.display_name,
-        )
-        .await?;
+    let person = rename_person(
+        &state.store,
+        acting,
+        PersonId::from_uuid(id),
+        expected,
+        &input.display_name,
+    )
+    .await?;
     Ok(with_etag(StatusCode::OK, PersonBody::from(&person)))
 }

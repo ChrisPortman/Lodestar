@@ -12,7 +12,10 @@ use chrono::NaiveDate;
 use lodestar_core::{
     action::{
         ActionId, ActionView,
-        use_cases::{ActionEdit, NewAction},
+        use_cases::{
+            ActionEdit, NewAction, create_action, get_action, list_actions, set_action_closed,
+            update_action,
+        },
     },
     person::PersonId,
     ports::{ActionFilter, PageRequest},
@@ -23,27 +26,27 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    AppState,
-    blockers::ItemRefBody,
+    AppState, Store,
     filters::{self, StateParam},
-    people::{DEFAULT_LIMIT, MAX_LIMIT},
     problem::Problem,
-    projects::{PersonRefBody, not_allowed, present},
-    request::{JsonBody, Path, Query, etag, if_match},
+    refs::{ItemRefBody, PersonRefBody},
+    request::{JsonBody, Path, Query, etag, if_match, not_allowed, page_request, present},
     session::Acting,
 };
 
-pub fn routes() -> Router<AppState> {
+pub fn routes<S: Store>() -> Router<AppState<S>> {
     Router::new()
         .route(
             "/actions",
-            get(list).post(create).delete(not_allowed("GET,HEAD,POST")),
+            get(list::<S>)
+                .post(create::<S>)
+                .delete(not_allowed("GET,HEAD,POST")),
         )
         .route(
             "/actions/{id}",
-            get(fetch)
-                .put(update)
-                .patch(close)
+            get(fetch::<S>)
+                .put(update::<S>)
+                .patch(close::<S>)
                 .delete(not_allowed("GET,HEAD,PUT,PATCH")),
         )
 }
@@ -88,10 +91,7 @@ impl From<ActionView> for ActionBody {
             project_code: view.project_code,
             reference: view.reference,
             description: view.description,
-            assignee: view.assignee.map(|a| PersonRefBody {
-                id: a.id.as_uuid(),
-                display_name: a.display_name,
-            }),
+            assignee: view.assignee.map(PersonRefBody::from),
             due_date: view.due_date,
             closed: view.closed,
             blocked_by: view.blocked_by.into_iter().map(ItemRefBody::from).collect(),
@@ -187,17 +187,11 @@ pub struct ListParams {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn list(
-    State(state): State<AppState>,
+async fn list<S: Store>(
+    State(state): State<AppState<S>>,
     Query(params): Query<ListParams>,
 ) -> Result<Json<ActionPage>, Problem> {
-    let limit = params.limit.unwrap_or(DEFAULT_LIMIT);
-    if !(1..=MAX_LIMIT).contains(&limit) {
-        return Err(Problem::invalid(format!(
-            "limit must be between 1 and {MAX_LIMIT}"
-        )));
-    }
-    let offset = params.offset.unwrap_or(0);
+    let PageRequest { offset, limit } = page_request(params.limit, params.offset)?;
     let (include_closed, closed_only) = StateParam::flags(params.state, params.include_closed);
     let filter = ActionFilter {
         project_id: params.project_id.map(ProjectId::from_uuid),
@@ -206,10 +200,7 @@ async fn list(
         assignee: filters::assignee(params.assignee.as_deref(), "assignee")?,
         due_by: params.due_by,
     };
-    let page = state
-        .actions
-        .list(filter, PageRequest { offset, limit })
-        .await?;
+    let page = list_actions(&state.store, filter, PageRequest { offset, limit }).await?;
     Ok(Json(ActionPage {
         items: page.items.into_iter().map(ActionBody::from).collect(),
         total: page.total,
@@ -232,8 +223,8 @@ async fn list(
         (status = 422, description = "Invalid Action", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn create(
-    State(state): State<AppState>,
+async fn create<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     JsonBody(input): JsonBody<ActionInput>,
 ) -> Result<Response, Problem> {
@@ -251,19 +242,18 @@ async fn create(
     let Some(project_id) = input.project_id else {
         return Err(Problem::invalid("project_id is required"));
     };
-    let action = state
-        .actions
-        .create(
-            acting,
-            NewAction {
-                project_id: ProjectId::from_uuid(project_id),
-                description: &input.description,
-                assignee: assignee(input.assignee.flatten().as_ref()),
-                due_date: input.due_date.flatten(),
-            },
-        )
-        .await?;
-    let body = ActionBody::from(state.actions.get(action.id()).await?);
+    let action = create_action(
+        &state.store,
+        acting,
+        NewAction {
+            project_id: ProjectId::from_uuid(project_id),
+            description: &input.description,
+            assignee: assignee(input.assignee.flatten().as_ref()),
+            due_date: input.due_date.flatten(),
+        },
+    )
+    .await?;
+    let body = ActionBody::from(get_action(&state.store, action.id()).await?);
     let location = format!("/api/v1/actions/{}", body.id);
     Ok((
         [(header::LOCATION, location)],
@@ -284,8 +274,11 @@ async fn create(
         (status = 404, body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Response, Problem> {
-    let view = state.actions.get(ActionId::from_uuid(id)).await?;
+async fn fetch<S: Store>(
+    State(state): State<AppState<S>>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    let view = get_action(&state.store, ActionId::from_uuid(id)).await?;
     Ok(with_etag(StatusCode::OK, view.into()))
 }
 
@@ -308,8 +301,8 @@ async fn fetch(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Re
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn update(
-    State(state): State<AppState>,
+async fn update<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -329,7 +322,7 @@ async fn update(
         return Err(Problem::invalid("due_date is required (null clears it)"));
     };
     let id = ActionId::from_uuid(id);
-    let stored = state.actions.get(id).await?;
+    let stored = get_action(&state.store, id).await?;
     if stored.version != expected {
         return Err(Problem::stale());
     }
@@ -350,22 +343,21 @@ async fn update(
             "project_id, project_code, reference and closed cannot be changed with PUT",
         ));
     }
-    state
-        .actions
-        .update(
-            acting,
-            id,
-            expected,
-            ActionEdit {
-                description: &input.description,
-                assignee: assignee(assignee_input.as_ref()),
-                due_date,
-            },
-        )
-        .await?;
+    update_action(
+        &state.store,
+        acting,
+        id,
+        expected,
+        ActionEdit {
+            description: &input.description,
+            assignee: assignee(assignee_input.as_ref()),
+            due_date,
+        },
+    )
+    .await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.actions.get(id).await?.into(),
+        get_action(&state.store, id).await?.into(),
     ))
 }
 
@@ -388,8 +380,8 @@ async fn update(
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn close(
-    State(state): State<AppState>,
+async fn close<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
@@ -397,12 +389,9 @@ async fn close(
 ) -> Result<Response, Problem> {
     let expected = if_match(&headers)?;
     let id = ActionId::from_uuid(id);
-    state
-        .actions
-        .set_closed(acting, id, expected, patch.closed)
-        .await?;
+    set_action_closed(&state.store, acting, id, expected, patch.closed).await?;
     Ok(with_etag(
         StatusCode::OK,
-        state.actions.get(id).await?.into(),
+        get_action(&state.store, id).await?.into(),
     ))
 }

@@ -11,26 +11,28 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use lodestar_core::{
-    action::use_cases::ActionFilter,
-    blocker::use_cases::BlockerFilter,
+    action::use_cases::{ActionFilter, list_actions},
+    blocker::use_cases::{BlockerFilter, list_blockers},
     history::HistoryEntry,
-    ports::{HistoryQuery, PageRequest, RepoError, RiskFilter, RiskSort},
-    project::ProjectId,
+    person::use_cases::get_person,
+    ports::{PageRequest, RiskFilter, RiskSort},
+    project::{ProjectId, members::project_members, use_cases::get_project},
+    risk::use_cases::list_risks,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::{
-    AppState,
+    AppState, Store,
     actions::ActionBody,
     blockers::BlockerBody,
     people::PersonBody,
     problem::Problem,
-    projects::{PersonRefBody, ProjectBody},
+    projects::ProjectBody,
+    refs::PersonRefBody,
     request::{Path, Query},
     risks::RiskBody,
-    services::BoxFuture,
     session::Acting,
 };
 
@@ -42,23 +44,8 @@ pub const FORMAT_VERSION: u32 = 1;
 /// Pages are fetched this size until every item is read.
 const PAGE: u32 = 1000;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/projects/{id}/export", get(export))
-}
-
-/// The Change History a Project Export needs.
-pub trait ProjectHistory: Send + Sync {
-    fn project_history(&self, id: ProjectId)
-    -> BoxFuture<'_, Result<Vec<HistoryEntry>, RepoError>>;
-}
-
-impl<S: HistoryQuery> ProjectHistory for S {
-    fn project_history(
-        &self,
-        id: ProjectId,
-    ) -> BoxFuture<'_, Result<Vec<HistoryEntry>, RepoError>> {
-        Box::pin(HistoryQuery::project_history(self, id))
-    }
+pub fn routes<S: Store>() -> Router<AppState<S>> {
+    Router::new().route("/projects/{id}/export", get(export::<S>))
 }
 
 /// One Change History entry, with its snapshots exactly as stored. Snapshots
@@ -155,18 +142,19 @@ pub struct ExportParams {
         (status = 422, description = "Invalid parameters", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn export(
-    State(state): State<AppState>,
+async fn export<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
     Query(params): Query<ExportParams>,
 ) -> Result<Response, Problem> {
     let project_id = ProjectId::from_uuid(id);
-    let project = state.projects.get(project_id).await?;
-    let exported_by = state.people.get(acting).await?;
-    let members = state.projects.members(project_id).await?;
+    let project = get_project(&state.store, project_id).await?;
+    let exported_by = get_person(&state.store, acting).await?;
+    let members = project_members(&state.store, project_id).await?;
     let actions = all(|page| {
-        state.actions.list(
+        list_actions(
+            &state.store,
             ActionFilter {
                 project_id: Some(project_id),
                 include_closed: true,
@@ -177,7 +165,8 @@ async fn export(
     })
     .await?;
     let risks = all(|page| {
-        state.risks.list(
+        list_risks(
+            &state.store,
             page,
             RiskFilter {
                 project_id: Some(project_id),
@@ -189,7 +178,8 @@ async fn export(
     })
     .await?;
     let blockers = all(|page| {
-        state.blockers.list(
+        list_blockers(
+            &state.store,
             BlockerFilter {
                 project_id: Some(project_id),
                 include_cleared: true,
@@ -200,7 +190,7 @@ async fn export(
     })
     .await?;
     let history = if params.include_history.unwrap_or(false) {
-        Some(state.history.project_history(project_id).await?)
+        Some(state.store.project_history(project_id).await?)
     } else {
         None
     };
@@ -222,7 +212,7 @@ async fn export(
     mentioned.extend(history.iter().flatten().map(|e| e.acting_person));
     let mut people = Vec::with_capacity(mentioned.len());
     for person in mentioned {
-        people.push(PersonBody::from(state.people.get(person).await?));
+        people.push(PersonBody::from(get_person(&state.store, person).await?));
     }
     people.sort_by(|a, b| a.display_name.cmp(&b.display_name).then(a.id.cmp(&b.id)));
 
@@ -237,13 +227,7 @@ async fn export(
             display_name: exported_by.display_name,
         },
         project: project.into(),
-        members: members
-            .into_iter()
-            .map(|m| PersonRefBody {
-                id: m.id.as_uuid(),
-                display_name: m.display_name,
-            })
-            .collect(),
+        members: members.into_iter().map(PersonRefBody::from).collect(),
         actions: actions.into_iter().map(ActionBody::from).collect(),
         risks: risks.into_iter().map(RiskBody::from).collect(),
         blockers: blockers.into_iter().map(BlockerBody::from).collect(),

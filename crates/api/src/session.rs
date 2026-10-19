@@ -8,20 +8,20 @@ use axum::{
     routing::get,
 };
 use axum_extra::extract::cookie::{Cookie, Key, SameSite, SignedCookieJar};
-use lodestar_core::person::PersonId;
+use lodestar_core::person::{PersonId, use_cases::get_person};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{AppState, people::PersonBody, problem::Problem, request::JsonBody};
+use crate::{AppState, Store, people::PersonBody, problem::Problem, request::JsonBody};
 
 pub const COOKIE: &str = "lodestar_session";
 
 /// About 400 days: the longest lifetime browsers honour.
 const MAX_AGE_SECONDS: i64 = 400 * 24 * 60 * 60;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/session", get(current).post(choose))
+pub fn routes<S: Store>() -> Router<AppState<S>> {
+    Router::new().route("/session", get(current::<S>).post(choose::<S>))
 }
 
 /// The Person named by a valid session cookie, if any. It is not checked
@@ -31,12 +31,12 @@ pub struct MaybeActing(pub Option<PersonId>);
 /// A valid session is required: 401 otherwise.
 pub struct Acting(pub PersonId);
 
-impl FromRequestParts<AppState> for MaybeActing {
+impl<S: Store> FromRequestParts<AppState<S>> for MaybeActing {
     type Rejection = std::convert::Infallible;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &AppState,
+        state: &AppState<S>,
     ) -> Result<Self, Self::Rejection> {
         let jar = SignedCookieJar::from_headers(&parts.headers, state.session_key.clone());
         let person = jar
@@ -47,12 +47,12 @@ impl FromRequestParts<AppState> for MaybeActing {
     }
 }
 
-impl FromRequestParts<AppState> for Acting {
+impl<S: Store> FromRequestParts<AppState<S>> for Acting {
     type Rejection = Problem;
 
     async fn from_request_parts(
         parts: &mut Parts,
-        state: &AppState,
+        state: &AppState<S>,
     ) -> Result<Self, Self::Rejection> {
         let MaybeActing(person) = MaybeActing::from_request_parts(parts, state)
             .await
@@ -99,16 +99,18 @@ pub struct NewSession {
         (status = 401, description = "No valid session", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn current(
-    State(state): State<AppState>,
+async fn current<S: Store>(
+    State(state): State<AppState<S>>,
     Acting(person): Acting,
 ) -> Result<Json<Session>, Problem> {
-    let view = state.people.get(person).await.map_err(|e| match e {
-        lodestar_core::person::use_cases::PersonError::Repo(
-            lodestar_core::ports::RepoError::NotFound,
-        ) => Problem::unauthorized(),
-        other => other.into(),
-    })?;
+    let view = get_person(&state.store, person)
+        .await
+        .map_err(|e| match e {
+            lodestar_core::person::use_cases::PersonError::Repo(
+                lodestar_core::ports::RepoError::NotFound,
+            ) => Problem::unauthorized(),
+            other => other.into(),
+        })?;
     Ok(Json(Session {
         person: view.into(),
     }))
@@ -126,12 +128,12 @@ async fn current(
         (status = 422, description = "No such Person", body = Problem, content_type = "application/problem+json"),
     )
 )]
-async fn choose(
-    State(state): State<AppState>,
+async fn choose<S: Store>(
+    State(state): State<AppState<S>>,
     JsonBody(body): JsonBody<NewSession>,
 ) -> Result<(SignedCookieJar, Json<Session>), Problem> {
     let id = PersonId::from_uuid(body.person_id);
-    let view = state.people.get(id).await.map_err(|e| match e {
+    let view = get_person(&state.store, id).await.map_err(|e| match e {
         lodestar_core::person::use_cases::PersonError::Repo(
             lodestar_core::ports::RepoError::NotFound,
         ) => Problem::invalid("person_id does not name a Person"),
