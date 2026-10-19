@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue'
 import type { Project } from '../api/client'
+import { useActions } from '../actions'
+import { useBlockers } from '../blockers'
 import { useAddMember, useMembers, useRemoveMember, useSetProjectLeader } from '../members'
 import { usePeople } from '../session'
 
 const props = defineProps<{ project: Project }>()
 const emit = defineEmits<{ close: [] }>()
 
-const members = useMembers(toRef(() => props.project.id))
+const projectId = toRef(() => props.project.id)
+const members = useMembers(projectId)
+const actions = useActions(projectId)
+const blockers = useBlockers(projectId)
 const people = usePeople()
 const add = useAddMember()
 const remove = useRemoveMember()
@@ -20,6 +25,30 @@ const candidates = computed(() => {
 })
 const error = computed(() => add.error.value ?? remove.error.value ?? lead.error.value)
 const chosen = ref('')
+
+/** Each Member's open Actions and open Blockers they're accountable for. */
+const openItems = computed(() => {
+  const counts = new Map<string, { actions: number; blockers: number }>()
+  const entry = (id: string) => {
+    let c = counts.get(id)
+    if (!c) counts.set(id, (c = { actions: 0, blockers: 0 }))
+    return c
+  }
+  for (const a of actions.data.value ?? [])
+    if (!a.closed && a.assignee) entry(a.assignee.id).actions++
+  for (const b of blockers.data.value ?? [])
+    if (!b.cleared && b.accountable) entry(b.accountable.id).blockers++
+  return counts
+})
+
+function plural(n: number, word: string) {
+  return `${n} ${word}${n === 1 ? '' : 's'}`
+}
+
+function openItemsLabel(id: string) {
+  const c = openItems.value.get(id) ?? { actions: 0, blockers: 0 }
+  return `${plural(c.actions, 'open Action')}, ${plural(c.blockers, 'open Blocker')}`
+}
 
 async function addChosen() {
   if (!chosen.value) return
@@ -60,6 +89,9 @@ async function addChosen() {
             class="ml-1 rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800"
           >
             Leader
+          </span>
+          <span class="block text-xs text-gray-600" data-open-items>
+            {{ openItemsLabel(member.id) }}
           </span>
         </span>
         <template v-if="!readOnly">

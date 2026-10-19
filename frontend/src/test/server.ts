@@ -2,11 +2,12 @@ import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import type { components } from '../api/schema'
 import { fakeActions, type Action } from './actions-backend'
+import { fakeBlockers, type Blocker } from './blockers-backend'
 import { fakeRisks, type Risk } from './risks-backend'
 
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
-export type { Action, Risk }
+export type { Action, Blocker, Risk }
 type Schemas = components['schemas']
 
 export const api = (path: string) => `${location.origin}/api/v1${path}`
@@ -40,6 +41,7 @@ export function fakeBackend(
   initialProjects: Project[] = [],
   initialRisks: Risk[] = [],
   initialActions: Action[] = [],
+  initialBlockers: Blocker[] = [],
 ) {
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
@@ -158,6 +160,7 @@ export function fakeBackend(
       if (!ids.delete(params.personId as string)) return problem(404, 'Not Found')
       if (project.project_leader?.id === params.personId) project.project_leader = null
       actions.unassign(project.id, params.personId as string)
+      blockers.unassign(project.id, params.personId as string)
       project.version += 1
       return HttpResponse.json<Project>(project)
     }),
@@ -214,8 +217,12 @@ export function fakeBackend(
   ]
   const risks = fakeRisks(projects, initialRisks)
   handlers.push(...risks.handlers)
-  const actions = fakeActions(projects, members, personRef, initialActions)
+  const actions = fakeActions(projects, members, personRef, initialActions, (id) =>
+    blockers.blockedBy(id),
+  )
   handlers.push(...actions.handlers)
+  const blockers = fakeBlockers(projects, members, personRef, actions.actions, initialBlockers)
+  handlers.push(...blockers.handlers)
   return {
     handlers,
     people,
@@ -223,6 +230,7 @@ export function fakeBackend(
     members,
     risks: risks.risks,
     actions: actions.actions,
+    blockers: blockers.blockers,
     acting: () => acting,
   }
 }

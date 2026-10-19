@@ -12,8 +12,11 @@ export function fakeActions(
   members: Map<string, Set<string>>,
   personRef: (id: string) => Schemas['PersonRef'],
   initial: Action[],
+  blockedBy: (actionId: string) => Schemas['ItemRef'][] = () => [],
 ) {
-  const actions = initial.map((a) => ({ ...a }) as Mutable<Action>)
+  const actions = initial.map((a) => ({ ...a, blocked_by: [] }) as Mutable<Action>)
+  /** As served: with the open Blockers blocking it (FR-53). */
+  const shown = (a: Action): Action => ({ ...a, blocked_by: blockedBy(a.id) })
   let n = 0
 
   const isMember = (projectId: string, a: Action['assignee']) =>
@@ -47,7 +50,7 @@ export function fakeActions(
           (query.get('include_closed') === 'true' || !a.closed),
       )
       return HttpResponse.json<Schemas['ActionPage']>({
-        items,
+        items: items.map(shown),
         limit: 1000,
         offset: 0,
         total: items.length,
@@ -69,10 +72,11 @@ export function fakeActions(
         assignee: body.assignee ? personRef(body.assignee.id) : null,
         due_date: body.due_date ?? null,
         closed: false,
+        blocked_by: [],
         version: 1,
       }
       actions.push(action)
-      return HttpResponse.json<Action>(action, { status: 201 })
+      return HttpResponse.json<Action>(shown(action), { status: 201 })
     }),
     http.put(api('/actions/:id'), async ({ request, params }) => {
       const action = writable(request, params.id)
@@ -86,7 +90,7 @@ export function fakeActions(
       action.assignee = body.assignee ? personRef(body.assignee.id) : null
       action.due_date = body.due_date
       action.version += 1
-      return HttpResponse.json<Action>(action)
+      return HttpResponse.json<Action>(shown(action))
     }),
     http.patch(api('/actions/:id'), async ({ request, params }) => {
       if (request.headers.get('Content-Type') !== 'application/merge-patch+json')
@@ -99,7 +103,7 @@ export function fakeActions(
         if (!closed && !isMember(action.project_id, action.assignee)) action.assignee = null
         action.version += 1
       }
-      return HttpResponse.json<Action>(action)
+      return HttpResponse.json<Action>(shown(action))
     }),
   ]
   return { handlers, actions, unassign }

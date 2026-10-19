@@ -10,6 +10,7 @@ import {
 import type { Project } from './api/client'
 import { projectsKey } from './projects'
 import { actionsKey } from './actions'
+import { blockersKey } from './blockers'
 
 export function useMembers(projectId: Ref<string>) {
   return useQuery({
@@ -28,6 +29,7 @@ function useMemberMutation<T>(mutationFn: (input: T) => Promise<Project>) {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: projectsKey }),
         queryClient.invalidateQueries({ queryKey: actionsKey }),
+        queryClient.invalidateQueries({ queryKey: blockersKey }),
       ]),
   })
 }

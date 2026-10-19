@@ -102,6 +102,13 @@ function setDue(action: Action, event: Event) {
             @cancel="editingId = null"
           />
           <p v-else class="whitespace-pre-line">{{ action.description }}</p>
+          <p
+            v-if="action.blocked_by.length > 0"
+            class="mt-1 text-sm font-semibold text-red-700"
+            data-blocked
+          >
+            Blocked by {{ action.blocked_by.map((b) => b.reference).join(', ') }}
+          </p>
         </div>
         <select
           :value="action.assignee?.id ?? ''"

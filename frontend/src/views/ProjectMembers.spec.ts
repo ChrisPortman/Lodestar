@@ -64,6 +64,59 @@ describe('Members in the meeting view', () => {
     await waitFor(() => expect(backend.projects[0]?.project_leader?.id).toBe('b'))
   })
 
+  it("shows each Member's open Actions and Blockers", async () => {
+    const item = { project_id: 'p1', project_code: 'WEBS', version: 1 }
+    const toBob = { id: 'b', display_name: 'Bob' }
+    const { backend } = await renderApp(
+      '/projects/p1',
+      [ada, bob],
+      'a',
+      [web],
+      [],
+      [
+        {
+          ...item,
+          id: 'x1',
+          reference: 'A-001',
+          description: 'a',
+          assignee: toBob,
+          due_date: null,
+          closed: false,
+          blocked_by: [],
+        },
+        {
+          ...item,
+          id: 'x2',
+          reference: 'A-002',
+          description: 'b',
+          assignee: toBob,
+          due_date: null,
+          closed: true,
+          blocked_by: [],
+        },
+      ],
+      [
+        {
+          ...item,
+          id: 'k1',
+          reference: 'B-001',
+          description: 'c',
+          accountable: toBob,
+          cleared: false,
+          blocked_actions: [],
+        },
+      ],
+    )
+    backend.members.get('p1')?.add('b')
+    const panel = await openMembers()
+    await waitFor(() =>
+      expect(memberNames(panel)).toEqual([
+        expect.stringContaining('0 open Actions, 0 open Blockers'),
+        expect.stringContaining('1 open Action, 1 open Blocker'),
+      ]),
+    )
+  })
+
   it('removing the leader leaves the Project flagged with no leader', async () => {
     await renderApp('/projects/p1', [ada, bob], 'a', [web])
     const panel = await openMembers()
