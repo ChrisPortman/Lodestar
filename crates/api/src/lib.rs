@@ -2,6 +2,7 @@
 
 mod actions;
 mod blockers;
+mod export;
 mod filters;
 mod frontend;
 mod health;
@@ -21,7 +22,10 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
-    ports::{ActionsQuery, BlockersQuery, PeopleQuery, ProjectsQuery, RisksQuery, UnitOfWork},
+    ports::{
+        ActionsQuery, BlockersQuery, HistoryQuery, PeopleQuery, ProjectsQuery, RisksQuery,
+        UnitOfWork,
+    },
 };
 use rust_embed::RustEmbed;
 use tower_http::compression::CompressionLayer;
@@ -52,6 +56,7 @@ pub(crate) struct AppState {
     pub risks: Arc<dyn services::Risks>,
     pub actions: Arc<dyn services::Actions>,
     pub blockers: Arc<dyn services::Blockers>,
+    pub history: Arc<dyn export::ProjectHistory>,
     pub session_key: Key,
 }
 
@@ -65,6 +70,7 @@ where
         + RisksQuery
         + ActionsQuery
         + BlockersQuery
+        + HistoryQuery
         + Clone
         + 'static,
 {
@@ -85,6 +91,7 @@ where
         + RisksQuery
         + ActionsQuery
         + BlockersQuery
+        + HistoryQuery
         + Clone
         + 'static,
 {
@@ -93,7 +100,8 @@ where
         projects: Arc::new(services.store.clone()),
         risks: Arc::new(services.store.clone()),
         actions: Arc::new(services.store.clone()),
-        blockers: Arc::new(services.store),
+        blockers: Arc::new(services.store.clone()),
+        history: Arc::new(services.store),
         session_key: Key::try_from(services.session_key.as_slice())
             .expect("session key must be at least 64 bytes"),
     };
@@ -104,6 +112,7 @@ where
         .merge(actions::routes())
         .merge(blockers::routes())
         .merge(members::routes())
+        .merge(export::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
         .with_state(state);
@@ -153,6 +162,7 @@ where
         members::list,
         members::add,
         members::remove,
+        export::export,
         session::current,
         session::choose,
     )

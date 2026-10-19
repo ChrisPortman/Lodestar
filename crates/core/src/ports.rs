@@ -290,6 +290,12 @@ pub trait HistoryQuery: Send + Sync {
         entity_id: Uuid,
         page: PageRequest,
     ) -> impl Future<Output = Result<Page<HistoryEntry>, RepoError>> + Send;
+
+    /// Every entry for a Project and the items in it, in the order recorded.
+    fn project_history(
+        &self,
+        project_id: ProjectId,
+    ) -> impl Future<Output = Result<Vec<HistoryEntry>, RepoError>> + Send;
 }
 
 /// Who an Action or Blocker must be assigned to, to be listed.

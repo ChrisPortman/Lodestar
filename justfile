@@ -70,6 +70,18 @@ audit-rust:
 audit-npm:
     cd frontend && node scripts/npm-audit.mjs
 
+# Release artifact: dist/lodestar-<target> plus its .sha256, checked with `sha256sum -c`.
+release target="x86_64-unknown-linux-gnu": frontend
+    #!/usr/bin/env bash
+    set -euo pipefail
+    SQLX_OFFLINE=true cargo build --release --locked -p lodestar --target {{target}}
+    mkdir -p dist
+    name="lodestar-{{target}}"
+    cp "target/{{target}}/release/lodestar" "dist/$name"
+    cd dist
+    sha256sum "$name" > "$name.sha256"
+    sha256sum -c "$name.sha256"
+
 # Backend on :8080 and Vite dev server proxying /api to it.
 dev:
     cargo run -p lodestar & cd frontend && npm run dev

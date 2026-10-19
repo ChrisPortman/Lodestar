@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, toRef } from 'vue'
+import { RouterLink } from 'vue-router'
 import ActionsPanel from '../components/ActionsPanel.vue'
 import BlockersPanel from '../components/BlockersPanel.vue'
+import ExportControl from '../components/ExportControl.vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
 import MembersPanel from '../components/MembersPanel.vue'
 import RisksPanel from '../components/RisksPanel.vue'
@@ -36,6 +38,12 @@ const showMembers = ref(false)
           <span v-if="session.data.value" class="text-sm text-gray-600">
             Acting as <strong>{{ session.data.value.person.display_name }}</strong>
           </span>
+          <RouterLink
+            :to="`/projects/${id}/report`"
+            class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+          >
+            Project on a Page
+          </RouterLink>
           <button
             type="button"
             class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
@@ -44,6 +52,7 @@ const showMembers = ref(false)
           >
             Members
           </button>
+          <ExportControl :project="project.data.value" />
         </div>
         <HealthRatingControl :project="project.data.value" />
       </header>

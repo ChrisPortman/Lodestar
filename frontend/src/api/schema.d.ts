@@ -240,6 +240,27 @@ export interface paths {
     patch: operations['archive_project']
     trace?: never
   }
+  '/api/v1/projects/{id}/export': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Downloads a Project, archived or not, with all its Members, Actions, Risks
+     *     and Blockers as an attachment named `<project-code>-<date>.json`. Needs a
+     *     session.
+     */
+    get: operations['export_project']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/projects/{id}/members': {
     parameters: {
       query?: never
@@ -443,6 +464,40 @@ export interface components {
     BlockerPatch: {
       cleared: boolean
     }
+    /**
+     * @description One Change History entry, with its snapshots exactly as stored. Snapshots
+     *     follow the domain shape when the entry was written, not `format_version`.
+     */
+    ChangeHistoryEntry: {
+      /**
+       * Format: uuid
+       * @description Listed in `people`.
+       */
+      acting_person_id: string
+      after: Record<string, never>
+      /** @description `null` on creation. */
+      before?: Record<string, never> | null
+      /**
+       * Format: uuid
+       * @description The entry that triggered this one, if any.
+       */
+      caused_by?: string | null
+      /** @description `created` or `updated`. */
+      change_kind: string
+      /** Format: uuid */
+      entity_id: string
+      /** @description `project`, `action`, `risk` or `blocker`. */
+      entity_type: string
+      /** Format: uuid */
+      id: string
+      /** Format: date-time */
+      recorded_at: string
+      /**
+       * Format: int32
+       * @description The entity version this change produced.
+       */
+      version: number
+    }
     /** @description A suggested Project Code. */
     CodeSuggestion: {
       /** @description `null` when the name has too few letters to suggest one. */
@@ -542,6 +597,36 @@ export interface components {
       project_leader?: components['schemas']['PersonRef'] | null
       /** Format: int32 */
       readonly version: number
+    }
+    /** @description A whole Project as one JSON document (FR-110). */
+    ProjectExport: {
+      /** @description Every Action, closed ones included, ordered by Reference. */
+      actions: components['schemas']['Action'][]
+      /** @description Every Blocker, cleared ones included, ordered by Reference. */
+      blockers: components['schemas']['Blocker'][]
+      /**
+       * @description Present only with `include_history=true`: every entry for the
+       *     Project and its items, in the order recorded.
+       */
+      change_history?: components['schemas']['ChangeHistoryEntry'][] | null
+      /** Format: date-time */
+      exported_at: string
+      /** @description The Acting Person. */
+      exported_by: components['schemas']['PersonRef']
+      /** @description Always `lodestar.project-export`. */
+      format: string
+      /**
+       * Format: int32
+       * @description Currently 1.
+       */
+      format_version: number
+      /** @description Ordered by display name. */
+      members: components['schemas']['PersonRef'][]
+      /** @description Every Person the document mentions, ordered by display name. */
+      people: components['schemas']['Person'][]
+      project: components['schemas']['Project']
+      /** @description Every Risk, closed ones included, ordered by Reference. */
+      risks: components['schemas']['Risk'][]
     }
     /** @description A page of Projects. */
     ProjectPage: {
@@ -1818,6 +1903,57 @@ export interface operations {
       }
       /** @description If-Match missing */
       428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  export_project: {
+    parameters: {
+      query?: {
+        /** @description Include the Change History. */
+        include_history?: boolean
+      }
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          'content-disposition'?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ProjectExport']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
         headers: {
           [name: string]: unknown
         }
