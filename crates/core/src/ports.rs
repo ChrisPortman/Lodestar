@@ -100,11 +100,21 @@ pub struct Page<T> {
     pub total: u64,
 }
 
-/// Read-only views of People, ordered by display name.
+/// The order People are listed in. Ties are broken by ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PeopleSort {
+    /// Creation order (IDs are UUIDv7).
+    #[default]
+    Id,
+    DisplayName,
+}
+
+/// Read-only views of People.
 pub trait PeopleQuery: Send + Sync {
     fn list_people(
         &self,
         page: PageRequest,
+        sort: PeopleSort,
     ) -> impl Future<Output = Result<Page<PersonView>, RepoError>> + Send;
 
     fn get_person(

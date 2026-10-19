@@ -6,8 +6,8 @@ use uuid::Uuid;
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
-    HistoryQuery, PageRequest, PeopleQuery, PersonRepository, ReferenceCounter, ReferenceKind,
-    RepoError, Transaction, UnitOfWork,
+    HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ReferenceCounter,
+    ReferenceKind, RepoError, Transaction, UnitOfWork,
 };
 use crate::test_support::a_person;
 
@@ -216,15 +216,34 @@ pub async fn people_are_listed_by_name_in_pages(store: impl Store) {
     tx.commit().await.unwrap();
 
     let page = store
-        .list_people(PageRequest {
-            offset: 1,
-            limit: 1,
-        })
+        .list_people(
+            PageRequest {
+                offset: 1,
+                limit: 1,
+            },
+            PeopleSort::DisplayName,
+        )
         .await
         .unwrap();
     assert_eq!(page.total, 3);
     let names: Vec<_> = page.items.iter().map(|p| p.display_name.as_str()).collect();
     assert_eq!(names, ["Bea"]);
+}
+
+pub async fn people_are_listed_by_id_by_default(store: impl Store) {
+    let mut tx = store.begin().await.unwrap();
+    for name in ["Charlie", "Ada", "Bea"] {
+        let person = a_person().named(name).build();
+        tx.people().save(None, &person, &ctx()).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+
+    let page = store
+        .list_people(PageRequest::first(10), PeopleSort::Id)
+        .await
+        .unwrap();
+    let names: Vec<_> = page.items.iter().map(|p| p.display_name.as_str()).collect();
+    assert_eq!(names, ["Charlie", "Ada", "Bea"]);
 }
 
 pub async fn a_person_can_be_fetched_by_id(store: impl Store) {
@@ -264,6 +283,7 @@ macro_rules! port_contract_tests {
             references_count_up_per_project_and_kind,
             rolled_back_references_are_reused,
             people_are_listed_by_name_in_pages,
+            people_are_listed_by_id_by_default,
             a_person_can_be_fetched_by_id
         );
     };

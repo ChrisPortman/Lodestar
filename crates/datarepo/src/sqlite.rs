@@ -10,7 +10,7 @@ use lodestar_core::history::{
 };
 use lodestar_core::person::{DisplayName, Person, PersonId, PersonView};
 use lodestar_core::ports::{
-    HistoryQuery, Page, PageRequest, PeopleQuery, PersonRepository, ReferenceCounter,
+    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ReferenceCounter,
     ReferenceKind, RepoError, Transaction, UnitOfWork,
 };
 use sqlx::Sqlite;
@@ -254,12 +254,18 @@ impl ReferenceCounter for SqliteReferences<'_> {
 }
 
 impl PeopleQuery for SqliteStore {
-    async fn list_people(&self, page: PageRequest) -> Result<Page<PersonView>, RepoError> {
+    async fn list_people(
+        &self,
+        page: PageRequest,
+        sort: PeopleSort,
+    ) -> Result<Page<PersonView>, RepoError> {
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
+        let by_name = sort == PeopleSort::DisplayName;
         let rows = sqlx::query!(
             "SELECT id, display_name, version FROM people
-             ORDER BY display_name, id LIMIT ? OFFSET ?",
+             ORDER BY CASE WHEN ? THEN display_name END, id LIMIT ? OFFSET ?",
+            by_name,
             limit,
             offset
         )

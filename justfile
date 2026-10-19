@@ -54,9 +54,9 @@ sqlx-check:
     cargo sqlx prepare --workspace --check -- --all-targets
 
 # Regenerate openapi/openapi.json and frontend/src/api/schema.d.ts.
-# Stub until the `lodestar openapi` command exists (API foundation ticket).
 contract:
-    @echo "contract: no-op until 'lodestar openapi' exists"
+    SQLX_OFFLINE=true cargo run -q -p lodestar -- openapi openapi/openapi.json
+    cd frontend && npx openapi-typescript ../openapi/openapi.json -o src/api/schema.d.ts && npx prettier --write src/api/schema.d.ts
 
 # Fail if the generated API contract differs from what is committed (NFR-62).
 contract-check: contract

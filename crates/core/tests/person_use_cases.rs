@@ -3,7 +3,7 @@ use lodestar_core::person::DisplayNameError;
 use lodestar_core::person::use_cases::{
     PersonError, create_person, get_person, list_people, rename_person,
 };
-use lodestar_core::ports::{HistoryQuery, PageRequest, RepoError};
+use lodestar_core::ports::{HistoryQuery, PageRequest, PeopleSort, RepoError};
 use lodestar_core::test_support::InMemoryStore;
 
 #[tokio::test]
@@ -54,7 +54,7 @@ async fn an_invalid_name_creates_nobody() {
         PersonError::InvalidDisplayName(DisplayNameError::Empty)
     );
     assert_eq!(
-        list_people(&store, PageRequest::first(10))
+        list_people(&store, PageRequest::first(10), PeopleSort::DisplayName)
             .await
             .unwrap()
             .total,
@@ -66,7 +66,7 @@ async fn an_invalid_name_creates_nobody() {
 async fn renaming_a_person_saves_the_new_name() {
     let store = InMemoryStore::new();
     let ada = create_person(&store, None, "Ada").await.unwrap();
-    let renamed = rename_person(&store, ada.id(), ada.id(), "Ada King")
+    let renamed = rename_person(&store, ada.id(), ada.id(), 1, "Ada King")
         .await
         .unwrap();
 
@@ -77,12 +77,31 @@ async fn renaming_a_person_saves_the_new_name() {
 }
 
 #[tokio::test]
+async fn renaming_from_an_out_of_date_version_conflicts() {
+    let store = InMemoryStore::new();
+    let ada = create_person(&store, None, "Ada").await.unwrap();
+    rename_person(&store, ada.id(), ada.id(), 1, "Ada King")
+        .await
+        .unwrap();
+    assert_eq!(
+        rename_person(&store, ada.id(), ada.id(), 1, "Ada L")
+            .await
+            .unwrap_err(),
+        PersonError::Repo(RepoError::Conflict)
+    );
+    assert_eq!(
+        get_person(&store, ada.id()).await.unwrap().display_name,
+        "Ada King"
+    );
+}
+
+#[tokio::test]
 async fn renaming_an_unknown_person_is_not_found() {
     let store = InMemoryStore::new();
     let ada = create_person(&store, None, "Ada").await.unwrap();
     let missing = lodestar_core::person::PersonId::new();
     assert_eq!(
-        rename_person(&store, ada.id(), missing, "X")
+        rename_person(&store, ada.id(), missing, 1, "X")
             .await
             .unwrap_err(),
         PersonError::Repo(RepoError::NotFound)
@@ -95,7 +114,9 @@ async fn people_are_listed_by_name() {
     for name in ["Bea", "Ada"] {
         create_person(&store, None, name).await.unwrap();
     }
-    let page = list_people(&store, PageRequest::first(10)).await.unwrap();
+    let page = list_people(&store, PageRequest::first(10), PeopleSort::DisplayName)
+        .await
+        .unwrap();
     let names: Vec<_> = page.items.iter().map(|p| p.display_name.as_str()).collect();
     assert_eq!(names, ["Ada", "Bea"]);
 }

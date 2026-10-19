@@ -3,7 +3,8 @@
 use crate::history::ChangeContext;
 use crate::person::{DisplayNameError, Person, PersonId, PersonView};
 use crate::ports::{
-    Page, PageRequest, PeopleQuery, PersonRepository, RepoError, Transaction, UnitOfWork,
+    Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, RepoError, Transaction,
+    UnitOfWork,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -29,15 +30,20 @@ pub async fn create_person<U: UnitOfWork>(
     Ok(person)
 }
 
-/// Changes a Person's display name (FR-05).
+/// Changes a Person's display name (FR-05). `expected_version` is the version
+/// the change was based on; [`RepoError::Conflict`] if it is out of date.
 pub async fn rename_person<U: UnitOfWork>(
     uow: &U,
     acting: PersonId,
     id: PersonId,
+    expected_version: u32,
     display_name: &str,
 ) -> Result<Person, PersonError> {
     let mut tx = uow.begin().await?;
     let before = tx.people().load(id).await?;
+    if before.version() != expected_version {
+        return Err(RepoError::Conflict.into());
+    }
     let after = before.renamed(display_name)?;
     tx.people()
         .save(Some(&before), &after, &ChangeContext::by(acting))
@@ -49,8 +55,9 @@ pub async fn rename_person<U: UnitOfWork>(
 pub async fn list_people<Q: PeopleQuery>(
     query: &Q,
     page: PageRequest,
+    sort: PeopleSort,
 ) -> Result<Page<PersonView>, PersonError> {
-    Ok(query.list_people(page).await?)
+    Ok(query.list_people(page, sort).await?)
 }
 
 pub async fn get_person<Q: PeopleQuery>(

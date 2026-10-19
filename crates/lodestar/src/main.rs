@@ -19,6 +19,7 @@ const EX_CONFIG: u8 = 78;
 async fn main() -> ExitCode {
     let config_path = match cli::parse(std::env::args_os().skip(1)) {
         Ok(Command::Run { config }) => config,
+        Ok(Command::OpenApi { out }) => return write_openapi(&out),
         Ok(Command::Help) => {
             print!("{}", cli::HELP);
             return ExitCode::SUCCESS;
@@ -51,7 +52,7 @@ async fn main() -> ExitCode {
         );
     }
 
-    let _session_key = match config::session_key(&config.session) {
+    let session_key = match config::session_key(&config.session) {
         Ok((key, source)) => {
             match source {
                 KeySource::Generated(path) => {
@@ -87,9 +88,33 @@ async fn main() -> ExitCode {
         }
     };
     tracing::info!("Lodestar listening on http://{addr}");
-    if let Err(error) = axum::serve(listener, lodestar_api::router(database)).await {
+    if let Err(error) = axum::serve(
+        listener,
+        lodestar_api::router(lodestar_api::Services {
+            store: database.store(),
+            health: database,
+            session_key,
+        }),
+    )
+    .await
+    {
         tracing::error!(%error, "server error");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+fn write_openapi(out: &std::path::Path) -> ExitCode {
+    let result = out
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| std::fs::write(out, lodestar_api::openapi_json()));
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("lodestar: cannot write {}: {error}", out.display());
+            ExitCode::FAILURE
+        }
+    }
 }

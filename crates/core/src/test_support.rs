@@ -14,7 +14,7 @@ use crate::history::{
 };
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
-    HistoryQuery, Page, PageRequest, PeopleQuery, PersonRepository, ReferenceCounter,
+    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ReferenceCounter,
     ReferenceKind, RepoError, Transaction, UnitOfWork,
 };
 
@@ -142,9 +142,18 @@ fn view(person: &Person) -> PersonView {
 }
 
 impl PeopleQuery for InMemoryStore {
-    async fn list_people(&self, page: PageRequest) -> Result<Page<PersonView>, RepoError> {
+    async fn list_people(
+        &self,
+        page: PageRequest,
+        sort: PeopleSort,
+    ) -> Result<Page<PersonView>, RepoError> {
         let mut all: Vec<_> = self.snapshot().people.values().map(view).collect();
-        all.sort_by(|a, b| (&a.display_name, a.id).cmp(&(&b.display_name, b.id)));
+        match sort {
+            PeopleSort::Id => all.sort_by_key(|p| p.id),
+            PeopleSort::DisplayName => {
+                all.sort_by(|a, b| (&a.display_name, a.id).cmp(&(&b.display_name, b.id)))
+            }
+        }
         Ok(page_of(all, page))
     }
 

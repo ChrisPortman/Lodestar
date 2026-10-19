@@ -1,9 +1,13 @@
-//! Command line: only `--config <path>`, `--help` and `--version`.
+//! Command line: `--config <path>`, `--help`, `--version`, and `openapi [path]`.
 
 use std::{ffi::OsString, path::PathBuf};
 
 pub const HELP: &str = "\
 Usage: lodestar [--config <path>]
+       lodestar openapi [<path>]
+
+Commands:
+  openapi [<path>]  Write the OpenAPI document (default openapi/openapi.json)
 
 Options:
   --config <path>  Configuration file (or LODESTAR_CONFIG; default ./lodestar.toml if present)
@@ -16,12 +20,23 @@ Settings can also be given as LODESTAR_* environment variables, e.g. LODESTAR_SE
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     Run { config: Option<PathBuf> },
+    OpenApi { out: PathBuf },
     Help,
     Version,
 }
 
 pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, String> {
-    let mut args = args.into_iter();
+    let mut args = args.into_iter().peekable();
+    if args.peek().and_then(|a| a.to_str()) == Some("openapi") {
+        args.next();
+        let out = args
+            .next()
+            .map_or_else(|| "openapi/openapi.json".into(), PathBuf::from);
+        if let Some(extra) = args.next() {
+            return Err(format!("unexpected argument {extra:?}"));
+        }
+        return Ok(Command::OpenApi { out });
+    }
     let mut config = None;
     while let Some(arg) = args.next() {
         match arg.to_str() {
@@ -65,6 +80,23 @@ mod tests {
         );
         assert_eq!(parse_strs(&["--help"]), Ok(Command::Help));
         assert_eq!(parse_strs(&["-V"]), Ok(Command::Version));
+    }
+
+    #[test]
+    fn parses_openapi_with_an_optional_output_path() {
+        assert_eq!(
+            parse_strs(&["openapi"]),
+            Ok(Command::OpenApi {
+                out: "openapi/openapi.json".into()
+            })
+        );
+        assert_eq!(
+            parse_strs(&["openapi", "x.json"]),
+            Ok(Command::OpenApi {
+                out: "x.json".into()
+            })
+        );
+        assert!(parse_strs(&["openapi", "a", "b"]).is_err());
     }
 
     #[test]

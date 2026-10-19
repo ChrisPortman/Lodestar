@@ -16,6 +16,14 @@ impl lodestar_core::health::HealthProbe for AlwaysHealthy {
     }
 }
 
+fn services() -> lodestar_api::Services<AlwaysHealthy, lodestar_core::test_support::InMemoryStore> {
+    lodestar_api::Services {
+        health: AlwaysHealthy,
+        store: lodestar_core::test_support::InMemoryStore::new(),
+        session_key: vec![0; 64],
+    }
+}
+
 #[derive(RustEmbed)]
 #[folder = "tests/fixtures/dist"]
 struct BuiltFrontend;
@@ -48,7 +56,7 @@ fn header_value<'a>(response: &'a Response, name: &str) -> &'a str {
 #[tokio::test]
 async fn root_serves_index_html_without_caching() {
     let response = get(
-        lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy),
+        lodestar_api::router_with::<BuiltFrontend, _, _>(services()),
         "/",
     )
     .await;
@@ -62,7 +70,7 @@ async fn root_serves_index_html_without_caching() {
 #[tokio::test]
 async fn hashed_assets_are_cached_immutably() {
     let response = get(
-        lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy),
+        lodestar_api::router_with::<BuiltFrontend, _, _>(services()),
         "/assets/index-abc123.js",
     )
     .await;
@@ -78,7 +86,7 @@ async fn hashed_assets_are_cached_immutably() {
 #[tokio::test]
 async fn extensionless_client_routes_fall_back_to_index_html() {
     let response = get(
-        lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy),
+        lodestar_api::router_with::<BuiltFrontend, _, _>(services()),
         "/projects/abc",
     )
     .await;
@@ -91,7 +99,7 @@ async fn extensionless_client_routes_fall_back_to_index_html() {
 #[tokio::test]
 async fn missing_files_with_an_extension_are_not_found() {
     let response = get(
-        lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy),
+        lodestar_api::router_with::<BuiltFrontend, _, _>(services()),
         "/assets/nope.js",
     )
     .await;
@@ -101,7 +109,7 @@ async fn missing_files_with_an_extension_are_not_found() {
 #[tokio::test]
 async fn api_paths_do_not_fall_back_to_index_html() {
     let response = get(
-        lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy),
+        lodestar_api::router_with::<BuiltFrontend, _, _>(services()),
         "/api/v1/unknown",
     )
     .await;
@@ -112,7 +120,7 @@ async fn api_paths_do_not_fall_back_to_index_html() {
 #[tokio::test]
 async fn root_says_frontend_not_built_when_dist_is_missing() {
     let response = get(
-        lodestar_api::router_with::<MissingFrontend, _>(AlwaysHealthy),
+        lodestar_api::router_with::<MissingFrontend, _, _>(services()),
         "/",
     )
     .await;
@@ -126,7 +134,7 @@ async fn root_says_frontend_not_built_when_dist_is_missing() {
 async fn every_response_carries_security_headers() {
     for path in ["/", "/assets/index-abc123.js", "/api/v1/unknown", "/x.png"] {
         let response = get(
-            lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy),
+            lodestar_api::router_with::<BuiltFrontend, _, _>(services()),
             path,
         )
         .await;
@@ -143,7 +151,7 @@ async fn every_response_carries_security_headers() {
 
 #[tokio::test]
 async fn responses_are_compressed_when_the_client_accepts_it() {
-    let response = lodestar_api::router_with::<BuiltFrontend, _>(AlwaysHealthy)
+    let response = lodestar_api::router_with::<BuiltFrontend, _, _>(services())
         .oneshot(
             Request::get("/")
                 .header(header::ACCEPT_ENCODING, "gzip")

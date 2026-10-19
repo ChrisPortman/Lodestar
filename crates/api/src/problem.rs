@@ -1,0 +1,136 @@
+//! RFC 9457 problem details, and the mapping from domain and port errors onto
+//! them (NFR-13).
+
+use axum::{
+    Json,
+    extract::rejection::{JsonRejection, PathRejection, QueryRejection},
+    http::{HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
+};
+use lodestar_core::{person::use_cases::PersonError, ports::RepoError};
+use serde::Serialize;
+use utoipa::ToSchema;
+
+/// An RFC 9457 problem details object, served as `application/problem+json`.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct Problem {
+    /// Always `about:blank`: the status code says what went wrong.
+    #[serde(rename = "type")]
+    pub kind: &'static str,
+    pub title: String,
+    pub status: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(skip)]
+    allow: Option<&'static str>,
+}
+
+impl Problem {
+    pub fn new(status: StatusCode) -> Self {
+        Self {
+            kind: "about:blank",
+            title: status.canonical_reason().unwrap_or("Error").to_owned(),
+            status: status.as_u16(),
+            detail: None,
+            allow: None,
+        }
+    }
+
+    pub fn detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
+        self
+    }
+
+    pub fn not_found() -> Self {
+        Self::new(StatusCode::NOT_FOUND)
+    }
+
+    pub fn invalid(detail: impl Into<String>) -> Self {
+        Self::new(StatusCode::UNPROCESSABLE_ENTITY).detail(detail)
+    }
+
+    pub fn unauthorized() -> Self {
+        Self::new(StatusCode::UNAUTHORIZED).detail("no valid session; choose an Acting Person")
+    }
+
+    pub fn stale() -> Self {
+        Self::new(StatusCode::PRECONDITION_FAILED)
+            .detail("the item has changed since it was read; reload it")
+    }
+
+    /// 405, with the `Allow` header listing the methods that are supported.
+    pub fn method_not_allowed(allow: &'static str) -> Self {
+        let mut problem =
+            Self::new(StatusCode::METHOD_NOT_ALLOWED).detail("nothing is deleted (ADR-0006)");
+        problem.allow = Some(allow);
+        problem
+    }
+
+    fn status(&self) -> StatusCode {
+        StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
+impl IntoResponse for Problem {
+    fn into_response(self) -> Response {
+        let status = self.status();
+        let allow = self.allow;
+        let mut response = (status, Json(self)).into_response();
+        let headers = response.headers_mut();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/problem+json"),
+        );
+        if let Some(allow) = allow {
+            headers.insert(header::ALLOW, HeaderValue::from_static(allow));
+        }
+        response
+    }
+}
+
+impl From<RepoError> for Problem {
+    fn from(error: RepoError) -> Self {
+        match error {
+            RepoError::NotFound => Self::not_found(),
+            RepoError::Conflict => Self::stale(),
+            RepoError::UniqueViolation { .. } => {
+                Self::new(StatusCode::CONFLICT).detail(error.to_string())
+            }
+            RepoError::Unexpected(message) => {
+                tracing::error!(%message, "unexpected storage error");
+                Self::new(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
+impl From<PersonError> for Problem {
+    fn from(error: PersonError) -> Self {
+        match error {
+            PersonError::InvalidDisplayName(e) => Self::invalid(e.to_string()),
+            PersonError::Repo(e) => e.into(),
+        }
+    }
+}
+
+impl From<JsonRejection> for Problem {
+    fn from(rejection: JsonRejection) -> Self {
+        let status = match rejection {
+            JsonRejection::JsonDataError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            _ => rejection.status(),
+        };
+        Self::new(status).detail(rejection.body_text())
+    }
+}
+
+impl From<PathRejection> for Problem {
+    fn from(rejection: PathRejection) -> Self {
+        Self::new(StatusCode::BAD_REQUEST).detail(rejection.body_text())
+    }
+}
+
+impl From<QueryRejection> for Problem {
+    fn from(rejection: QueryRejection) -> Self {
+        Self::invalid(rejection.body_text())
+    }
+}

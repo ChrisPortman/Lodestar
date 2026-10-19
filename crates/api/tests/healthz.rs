@@ -14,10 +14,14 @@ impl HealthProbe for Database {
 }
 
 async fn healthz(reachable: bool) -> (StatusCode, serde_json::Value) {
-    let response = lodestar_api::router(Database { reachable })
-        .oneshot(Request::get("/healthz").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let response = lodestar_api::router(lodestar_api::Services {
+        health: Database { reachable },
+        store: lodestar_core::test_support::InMemoryStore::new(),
+        session_key: vec![0; 64],
+    })
+    .oneshot(Request::get("/healthz").body(Body::empty()).unwrap())
+    .await
+    .unwrap();
     let status = response.status();
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     (status, serde_json::from_slice(&bytes).unwrap())
