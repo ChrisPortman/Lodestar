@@ -6,7 +6,7 @@ use lodestar_core::action::use_cases::{
 use lodestar_core::action::{Action, ActionId};
 use lodestar_core::history::{ChangeKind, EntityType};
 use lodestar_core::person::{Person, use_cases::create_person};
-use lodestar_core::ports::{HistoryQuery, PageRequest, RepoError};
+use lodestar_core::ports::{ClosedFilter, HistoryQuery, PageRequest, RepoError};
 use lodestar_core::project::Project;
 use lodestar_core::project::members::{add_member, remove_member};
 use lodestar_core::project::use_cases::{NewProject, create_project, set_archived};
@@ -405,7 +405,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
         &w.store,
         ActionFilter {
             project_id: Some(w.project.id()),
-            include_closed: false,
+            state: ClosedFilter::Open,
             ..ActionFilter::default()
         },
         PageRequest::first(10),
@@ -417,7 +417,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
         &w.store,
         ActionFilter {
             project_id: Some(w.project.id()),
-            include_closed: true,
+            state: ClosedFilter::All,
             ..ActionFilter::default()
         },
         PageRequest::first(10),
@@ -429,7 +429,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
         &w.store,
         ActionFilter {
             project_id: None,
-            include_closed: false,
+            state: ClosedFilter::Open,
             ..ActionFilter::default()
         },
         PageRequest::first(10),

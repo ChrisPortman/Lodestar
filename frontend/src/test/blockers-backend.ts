@@ -51,10 +51,12 @@ export function fakeBlockers(
   const handlers = [
     http.get(api('/blockers'), ({ request }) => {
       const query = new URL(request.url).searchParams
+      const inState = (state: string, cleared: boolean) =>
+        state === 'all' || (state === 'cleared') === cleared
       const items = blockers.filter(
         (b) =>
           (!query.has('project_id') || b.project_id === query.get('project_id')) &&
-          (query.get('include_cleared') === 'true' || !b.cleared),
+          inState(query.get('state') ?? 'open', b.cleared),
       )
       return HttpResponse.json<Schemas['BlockerPage']>({
         items,

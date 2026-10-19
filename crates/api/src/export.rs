@@ -15,7 +15,7 @@ use lodestar_core::{
     blocker::use_cases::{BlockerFilter, list_blockers},
     history::HistoryEntry,
     person::use_cases::get_person,
-    ports::{PageRequest, RiskFilter, RiskSort},
+    ports::{ClearedFilter, ClosedFilter, PageRequest, RiskFilter, RiskSort},
     project::{ProjectId, members::project_members, use_cases::get_project},
     risk::use_cases::list_risks,
 };
@@ -157,7 +157,7 @@ async fn export<S: Store>(
             &state.store,
             ActionFilter {
                 project_id: Some(project_id),
-                include_closed: true,
+                state: ClosedFilter::All,
                 ..ActionFilter::default()
             },
             page,
@@ -170,7 +170,7 @@ async fn export<S: Store>(
             page,
             RiskFilter {
                 project_id: Some(project_id),
-                include_closed: true,
+                state: ClosedFilter::All,
                 ..RiskFilter::default()
             },
             RiskSort::Reference,
@@ -182,7 +182,7 @@ async fn export<S: Store>(
             &state.store,
             BlockerFilter {
                 project_id: Some(project_id),
-                include_cleared: true,
+                state: ClearedFilter::All,
                 ..BlockerFilter::default()
             },
             page,

@@ -8,7 +8,7 @@ export async function listRisks(projectId: string): Promise<Risk[]> {
   const page = unwrap(
     await client.GET('/api/v1/risks', {
       params: {
-        query: { project_id: projectId, include_closed: true, sort: 'reference', limit: 1000 },
+        query: { project_id: projectId, state: 'all', sort: 'reference', limit: 1000 },
       },
     }),
   )

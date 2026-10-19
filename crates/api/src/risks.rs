@@ -164,16 +164,13 @@ pub struct ListParams {
     offset: Option<u32>,
     #[param(inline)]
     sort: Option<RiskSortParam>,
-    /// Include closed Risks. Ignored when `state` is given.
-    #[param(default = false)]
-    include_closed: Option<bool>,
     /// Open (the default), closed or all Risks.
     #[param(inline)]
     state: Option<StateParam>,
 }
 
-/// Lists Risks, ordered by ID unless `sort` is given. Closed Risks are left
-/// out unless `include_closed=true`.
+/// Lists Risks, ordered by ID unless `sort` is given. Only open Risks are
+/// listed unless `state` says otherwise.
 #[utoipa::path(
     get,
     path = "/api/v1/risks",
@@ -195,11 +192,9 @@ async fn list<S: Store>(
         RiskSortParam::Reference => RiskSort::Reference,
         RiskSortParam::Score => RiskSort::Score,
     };
-    let (include_closed, closed_only) = StateParam::flags(params.state, params.include_closed);
     let filter = RiskFilter {
         project_id: params.project_id.map(ProjectId::from_uuid),
-        include_closed,
-        closed_only,
+        state: params.state.unwrap_or_default().into(),
     };
     let page = list_risks(&state.store, PageRequest { offset, limit }, filter, sort).await?;
     Ok(Json(RiskPage {

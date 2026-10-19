@@ -7,7 +7,7 @@ export type Action = components['schemas']['Action']
 export async function listActions(projectId: string): Promise<Action[]> {
   const page = unwrap(
     await client.GET('/api/v1/actions', {
-      params: { query: { project_id: projectId, include_closed: true, limit: 1000 } },
+      params: { query: { project_id: projectId, state: 'all', limit: 1000 } },
     }),
   )
   return page.items

@@ -26,10 +26,12 @@ export function fakeRisks(projects: Schemas['Project'][], initial: Risk[]) {
   const handlers = [
     http.get(api('/risks'), ({ request }) => {
       const query = new URL(request.url).searchParams
+      const inState = (state: string, closed: boolean) =>
+        state === 'all' || (state === 'closed') === closed
       const items = risks.filter(
         (r) =>
           (!query.has('project_id') || r.project_id === query.get('project_id')) &&
-          (query.get('include_closed') === 'true' || !r.closed),
+          inState(query.get('state') ?? 'open', r.closed),
       )
       return HttpResponse.json<Schemas['RiskPage']>({
         items,

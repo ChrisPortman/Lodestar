@@ -260,14 +260,54 @@ pub enum RiskSort {
     Score,
 }
 
+/// Which Actions or Risks to list by whether they are closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClosedFilter {
+    #[default]
+    Open,
+    Closed,
+    All,
+}
+
+impl ClosedFilter {
+    /// Whether an item that is or isn't `closed` passes this filter.
+    #[must_use]
+    pub fn matches(self, closed: bool) -> bool {
+        match self {
+            Self::Open => !closed,
+            Self::Closed => closed,
+            Self::All => true,
+        }
+    }
+}
+
+/// Which Blockers to list by whether they are cleared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClearedFilter {
+    #[default]
+    Open,
+    Cleared,
+    All,
+}
+
+impl ClearedFilter {
+    /// Whether a Blocker that is or isn't `cleared` passes this filter.
+    #[must_use]
+    pub fn matches(self, cleared: bool) -> bool {
+        match self {
+            Self::Open => !cleared,
+            Self::Cleared => cleared,
+            Self::All => true,
+        }
+    }
+}
+
 /// Which Risks to list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RiskFilter {
     /// Only this Project's Risks; every Project's when `None`.
     pub project_id: Option<ProjectId>,
-    pub include_closed: bool,
-    /// Only closed Risks. Implies `include_closed`.
-    pub closed_only: bool,
+    pub state: ClosedFilter,
 }
 
 /// Read-only views of Risks.
@@ -323,10 +363,7 @@ impl AssigneeFilter {
 pub struct ActionFilter {
     /// Only this Project's Actions; all Projects when `None`.
     pub project_id: Option<ProjectId>,
-    /// Include closed Actions as well as open ones.
-    pub include_closed: bool,
-    /// Only closed Actions. Implies `include_closed`.
-    pub closed_only: bool,
+    pub state: ClosedFilter,
     /// Only Actions with this assignee.
     pub assignee: Option<AssigneeFilter>,
     /// Only Actions due on or before this date.
@@ -352,10 +389,7 @@ pub trait ActionsQuery: Send + Sync {
 pub struct BlockerFilter {
     /// Only this Project's Blockers; all Projects when `None`.
     pub project_id: Option<ProjectId>,
-    /// Include cleared Blockers as well as open ones.
-    pub include_cleared: bool,
-    /// Only cleared Blockers. Implies `include_cleared`.
-    pub cleared_only: bool,
+    pub state: ClearedFilter,
     /// Only Blockers with this accountable Person.
     pub accountable: Option<AssigneeFilter>,
 }

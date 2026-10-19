@@ -161,9 +161,6 @@ pub struct ListParams {
     limit: Option<u32>,
     #[param(minimum = 0, default = 0)]
     offset: Option<u32>,
-    /// Include closed Actions. Ignored when `state` is given.
-    #[param(default = false)]
-    include_closed: Option<bool>,
     /// Open (the default), closed or all Actions.
     #[param(inline)]
     state: Option<StateParam>,
@@ -174,8 +171,8 @@ pub struct ListParams {
     due_by: Option<NaiveDate>,
 }
 
-/// Lists Actions by Project Code, then Reference. Closed Actions are left out
-/// unless `include_closed=true`.
+/// Lists Actions by Project Code, then Reference. Only open Actions are
+/// listed unless `state` says otherwise.
 #[utoipa::path(
     get,
     path = "/api/v1/actions",
@@ -192,11 +189,9 @@ async fn list<S: Store>(
     Query(params): Query<ListParams>,
 ) -> Result<Json<ActionPage>, Problem> {
     let PageRequest { offset, limit } = page_request(params.limit, params.offset)?;
-    let (include_closed, closed_only) = StateParam::flags(params.state, params.include_closed);
     let filter = ActionFilter {
         project_id: params.project_id.map(ProjectId::from_uuid),
-        include_closed,
-        closed_only,
+        state: params.state.unwrap_or_default().into(),
         assignee: filters::assignee(params.assignee.as_deref(), "assignee")?,
         due_by: params.due_by,
     };

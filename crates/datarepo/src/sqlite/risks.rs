@@ -2,7 +2,8 @@
 
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::ports::{
-    Page, PageRequest, ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery,
+    ClosedFilter, Page, PageRequest, ReferenceKind, RepoError, RiskFilter, RiskRepository,
+    RiskSort, RisksQuery,
 };
 use lodestar_core::project::ProjectId;
 use lodestar_core::risk::{Rating, Risk, RiskId, RiskParts, RiskView};
@@ -169,8 +170,8 @@ impl RisksQuery for SqliteStore {
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
         let project = filter.project_id.map(|p| p.to_string());
-        let include_closed = filter.include_closed || filter.closed_only;
-        let closed_only = filter.closed_only;
+        let include_closed = filter.state != ClosedFilter::Open;
+        let closed_only = filter.state == ClosedFilter::Closed;
         let by_reference = sort == RiskSort::Reference;
         let by_score = sort == RiskSort::Score;
         let rows = sqlx::query_as!(

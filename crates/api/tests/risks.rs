@@ -203,11 +203,15 @@ async fn closing_and_reopening_uses_merge_patch() {
         .get(&format!("/api/v1/risks?project_id={project}"), "")
         .await;
     assert_eq!(listed.body["total"], 0);
-    let with_closed = app
+    let legacy = app
         .get(
             &format!("/api/v1/risks?project_id={project}&include_closed=true"),
             "",
         )
+        .await;
+    assert_eq!(legacy.body["total"], 0, "only `state` selects closed Risks");
+    let with_closed = app
+        .get(&format!("/api/v1/risks?project_id={project}&state=all"), "")
         .await;
     assert_eq!(with_closed.body["total"], 1);
 

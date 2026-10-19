@@ -216,7 +216,12 @@ async fn closed_actions_are_listed_only_on_request() {
     assert_eq!(open.status, StatusCode::OK);
     assert_eq!(open.body["total"], 1);
     assert_eq!(open.body["items"][0]["reference"], "A-002");
-    let all = w.get(&format!("{base}&include_closed=true")).await;
+    let legacy = w.get(&format!("{base}&include_closed=true")).await;
+    assert_eq!(
+        legacy.body["total"], 1,
+        "only `state` selects closed Actions"
+    );
+    let all = w.get(&format!("{base}&state=all")).await;
     let refs: Vec<_> = all.body["items"]
         .as_array()
         .unwrap()

@@ -7,7 +7,7 @@ use lodestar_core::blocker::use_cases::{
 use lodestar_core::blocker::{Blocker, BlockerId};
 use lodestar_core::history::{ChangeKind, EntityType, HistoryEntry};
 use lodestar_core::person::{Person, use_cases::create_person};
-use lodestar_core::ports::{HistoryQuery, PageRequest, RepoError};
+use lodestar_core::ports::{ClearedFilter, HistoryQuery, PageRequest, RepoError};
 use lodestar_core::project::members::{add_member, remove_member};
 use lodestar_core::project::use_cases::{NewProject, create_project, set_archived};
 use lodestar_core::project::{Project, ProjectId};
@@ -360,7 +360,11 @@ async fn open_blockers_are_listed_by_reference_and_cleared_ones_on_request() {
                 &store,
                 BlockerFilter {
                     project_id,
-                    include_cleared,
+                    state: if include_cleared {
+                        ClearedFilter::All
+                    } else {
+                        ClearedFilter::Open
+                    },
                     ..BlockerFilter::default()
                 },
                 PageRequest::first(10),

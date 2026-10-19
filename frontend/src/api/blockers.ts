@@ -7,7 +7,7 @@ export type Blocker = components['schemas']['Blocker']
 export async function listBlockers(projectId: string): Promise<Blocker[]> {
   const page = unwrap(
     await client.GET('/api/v1/blockers', {
-      params: { query: { project_id: projectId, include_cleared: true, limit: 1000 } },
+      params: { query: { project_id: projectId, state: 'all', limit: 1000 } },
     }),
   )
   return page.items

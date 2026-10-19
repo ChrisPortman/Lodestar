@@ -5,8 +5,8 @@ use lodestar_core::action::{Action, ActionId, ActionParts, ActionView};
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, AssigneeFilter, Page, PageRequest, ReferenceKind,
-    RepoError,
+    ActionFilter, ActionRepository, ActionsQuery, AssigneeFilter, ClosedFilter, Page, PageRequest,
+    ReferenceKind, RepoError,
 };
 use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
 use std::collections::HashMap;
@@ -241,8 +241,8 @@ impl ActionsQuery for SqliteStore {
         page: PageRequest,
     ) -> Result<Page<ActionView>, RepoError> {
         let project = filter.project_id.map(|p| p.to_string());
-        let include_closed = filter.include_closed || filter.closed_only;
-        let closed_only = filter.closed_only;
+        let include_closed = filter.state != ClosedFilter::Open;
+        let closed_only = filter.state == ClosedFilter::Closed;
         let unassigned = filter.assignee == Some(AssigneeFilter::Unassigned);
         let assignee = match filter.assignee {
             Some(AssigneeFilter::Person(id)) => Some(id.to_string()),

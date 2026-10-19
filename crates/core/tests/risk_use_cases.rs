@@ -1,6 +1,6 @@
 use lodestar_core::history::{ChangeKind, EntityType};
 use lodestar_core::person::{Person, use_cases::create_person};
-use lodestar_core::ports::{HistoryQuery, PageRequest, RepoError};
+use lodestar_core::ports::{ClosedFilter, HistoryQuery, PageRequest, RepoError};
 use lodestar_core::project::use_cases::{NewProject, create_project, set_archived};
 use lodestar_core::project::{DescriptionError, Project, ProjectId};
 use lodestar_core::risk::use_cases::{
@@ -39,7 +39,11 @@ fn new<'a>(project: &Project, description: &'a str, likelihood: u8, impact: u8) 
 fn filter(project: &Project, include_closed: bool) -> RiskFilter {
     RiskFilter {
         project_id: Some(project.id()),
-        include_closed,
+        state: if include_closed {
+            ClosedFilter::All
+        } else {
+            ClosedFilter::Open
+        },
         ..RiskFilter::default()
     }
 }

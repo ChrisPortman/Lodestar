@@ -10,9 +10,10 @@ use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
     ActionFilter, ActionRepository, ActionsQuery, BlockerFilter, BlockerRepository, BlockersQuery,
-    HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
-    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter,
-    RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
+    ClearedFilter, ClosedFilter, HistoryQuery, PageRequest, PeopleQuery, PeopleSort,
+    PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
+    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
+    UnitOfWork,
 };
 use crate::project::{Description, Project, ProjectId, ProjectName};
 use crate::risk::{Rating, RiskId};
@@ -569,7 +570,11 @@ pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
 
     let in_web = |include_closed| RiskFilter {
         project_id: Some(web.id()),
-        include_closed,
+        state: if include_closed {
+            ClosedFilter::All
+        } else {
+            ClosedFilter::Open
+        },
         ..RiskFilter::default()
     };
     let all = PageRequest::first(10);
@@ -602,7 +607,7 @@ pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
     );
     let everywhere = RiskFilter {
         project_id: None,
-        include_closed: true,
+        state: ClosedFilter::All,
         ..RiskFilter::default()
     };
     let everything = store.list_risks(all, everywhere, RiskSort::Id).await;
@@ -787,7 +792,7 @@ pub async fn actions_are_listed_by_project_code_and_reference(store: impl Store)
         .list_actions(
             ActionFilter {
                 project_id: Some(web),
-                include_closed: true,
+                state: ClosedFilter::All,
                 ..ActionFilter::default()
             },
             PageRequest {
@@ -967,7 +972,7 @@ pub async fn blockers_are_listed_by_project_code_and_reference(store: impl Store
         .list_blockers(
             BlockerFilter {
                 project_id: Some(web),
-                include_cleared: true,
+                state: ClearedFilter::All,
                 ..BlockerFilter::default()
             },
             PageRequest {

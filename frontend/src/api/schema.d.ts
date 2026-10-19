@@ -12,8 +12,8 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Lists Actions by Project Code, then Reference. Closed Actions are left out
-     *     unless `include_closed=true`.
+     * Lists Actions by Project Code, then Reference. Only open Actions are
+     *     listed unless `state` says otherwise.
      */
     get: operations['list_actions']
     put?: never
@@ -58,8 +58,8 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Lists Blockers by Project Code, then Reference. Cleared Blockers are left
-     *     out unless `include_cleared=true`.
+     * Lists Blockers by Project Code, then Reference. Only open Blockers are
+     *     listed unless `state` says otherwise.
      */
     get: operations['list_blockers']
     put?: never
@@ -312,8 +312,8 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Lists Risks, ordered by ID unless `sort` is given. Closed Risks are left
-     *     out unless `include_closed=true`.
+     * Lists Risks, ordered by ID unless `sort` is given. Only open Risks are
+     *     listed unless `state` says otherwise.
      */
     get: operations['list_risks']
     put?: never
@@ -719,8 +719,6 @@ export interface operations {
         /** @description Page size, 1–1000. */
         limit?: number
         offset?: number
-        /** @description Include closed Actions. Ignored when `state` is given. */
-        include_closed?: boolean
         /** @description Open (the default), closed or all Actions. */
         state?: 'open' | 'closed' | 'all'
         /** @description Only Actions assigned to this Person ID, or `unassigned`. */
@@ -1007,8 +1005,6 @@ export interface operations {
         /** @description Page size, 1–1000. */
         limit?: number
         offset?: number
-        /** @description Include cleared Blockers. Ignored when `state` is given. */
-        include_cleared?: boolean
         /** @description Open (the default), cleared or all Blockers. */
         state?: 'open' | 'cleared' | 'all'
         /** @description Only Blockers this Person ID is accountable for, or `unassigned`. */
@@ -2154,8 +2150,6 @@ export interface operations {
         limit?: number
         offset?: number
         sort?: 'id' | 'reference' | 'score'
-        /** @description Include closed Risks. Ignored when `state` is given. */
-        include_closed?: boolean
         /** @description Open (the default), closed or all Risks. */
         state?: 'open' | 'closed' | 'all'
       }

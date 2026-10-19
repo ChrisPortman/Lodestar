@@ -1,7 +1,10 @@
 //! List filter parameters shared by the Action, Blocker and Risk lists
 //! (FR-92, FR-23).
 
-use lodestar_core::{person::PersonId, ports::AssigneeFilter};
+use lodestar_core::{
+    person::PersonId,
+    ports::{AssigneeFilter, ClearedFilter, ClosedFilter},
+};
 use serde::Deserialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -21,44 +24,41 @@ pub fn assignee(value: Option<&str>, name: &str) -> Result<Option<AssigneeFilter
 }
 
 /// Which Actions or Risks to list by state.
-#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StateParam {
+    #[default]
     Open,
     Closed,
     All,
 }
 
-impl StateParam {
-    /// `(include_closed, closed_only)`, with `include_closed` the legacy flag
-    /// used when no state is given.
-    pub fn flags(state: Option<Self>, include_closed: Option<bool>) -> (bool, bool) {
+impl From<StateParam> for ClosedFilter {
+    fn from(state: StateParam) -> Self {
         match state {
-            None => (include_closed.unwrap_or(false), false),
-            Some(Self::Open) => (false, false),
-            Some(Self::Closed) => (true, true),
-            Some(Self::All) => (true, false),
+            StateParam::Open => Self::Open,
+            StateParam::Closed => Self::Closed,
+            StateParam::All => Self::All,
         }
     }
 }
 
 /// Which Blockers to list by state.
-#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockerStateParam {
+    #[default]
     Open,
     Cleared,
     All,
 }
 
-impl BlockerStateParam {
-    /// `(include_cleared, cleared_only)`, as [`StateParam::flags`].
-    pub fn flags(state: Option<Self>, include_cleared: Option<bool>) -> (bool, bool) {
+impl From<BlockerStateParam> for ClearedFilter {
+    fn from(state: BlockerStateParam) -> Self {
         match state {
-            None => (include_cleared.unwrap_or(false), false),
-            Some(Self::Open) => (false, false),
-            Some(Self::Cleared) => (true, true),
-            Some(Self::All) => (true, false),
+            BlockerStateParam::Open => Self::Open,
+            BlockerStateParam::Cleared => Self::Cleared,
+            BlockerStateParam::All => Self::All,
         }
     }
 }

@@ -8,8 +8,8 @@ use lodestar_core::blocker::{Blocker, BlockerId, BlockerParts, BlockerView};
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
-    AssigneeFilter, BlockerFilter, BlockerRepository, BlockersQuery, Page, PageRequest,
-    ReferenceKind, RepoError,
+    AssigneeFilter, BlockerFilter, BlockerRepository, BlockersQuery, ClearedFilter, Page,
+    PageRequest, ReferenceKind, RepoError,
 };
 use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
 use sqlx::{Sqlite, SqliteExecutor};
@@ -331,8 +331,8 @@ impl BlockersQuery for SqliteStore {
         page: PageRequest,
     ) -> Result<Page<BlockerView>, RepoError> {
         let project = filter.project_id.map(|p| p.to_string());
-        let include_cleared = filter.include_cleared || filter.cleared_only;
-        let cleared_only = filter.cleared_only;
+        let include_cleared = filter.state != ClearedFilter::Open;
+        let cleared_only = filter.state == ClearedFilter::Cleared;
         let unassigned = filter.accountable == Some(AssigneeFilter::Unassigned);
         let accountable = match filter.accountable {
             Some(AssigneeFilter::Person(id)) => Some(id.to_string()),

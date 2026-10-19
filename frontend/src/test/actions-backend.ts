@@ -44,10 +44,12 @@ export function fakeActions(
   const handlers = [
     http.get(api('/actions'), ({ request }) => {
       const query = new URL(request.url).searchParams
+      const inState = (state: string, closed: boolean) =>
+        state === 'all' || (state === 'closed') === closed
       const items = actions.filter(
         (a) =>
           (!query.has('project_id') || a.project_id === query.get('project_id')) &&
-          (query.get('include_closed') === 'true' || !a.closed),
+          inState(query.get('state') ?? 'open', a.closed),
       )
       return HttpResponse.json<Schemas['ActionPage']>({
         items: items.map(shown),

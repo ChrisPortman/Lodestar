@@ -11,7 +11,7 @@
         "tags": [
           "actions"
         ],
-        "summary": "Lists Actions by Project Code, then Reference. Closed Actions are left out\nunless `include_closed=true`.",
+        "summary": "Lists Actions by Project Code, then Reference. Only open Actions are\nlisted unless `state` says otherwise.",
         "operationId": "list_actions",
         "parameters": [
           {
@@ -46,16 +46,6 @@
               "format": "int32",
               "default": 0,
               "minimum": 0
-            }
-          },
-          {
-            "name": "include_closed",
-            "in": "query",
-            "description": "Include closed Actions. Ignored when `state` is given.",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false
             }
           },
           {
@@ -466,7 +456,7 @@
         "tags": [
           "blockers"
         ],
-        "summary": "Lists Blockers by Project Code, then Reference. Cleared Blockers are left\nout unless `include_cleared=true`.",
+        "summary": "Lists Blockers by Project Code, then Reference. Only open Blockers are\nlisted unless `state` says otherwise.",
         "operationId": "list_blockers",
         "parameters": [
           {
@@ -501,16 +491,6 @@
               "format": "int32",
               "default": 0,
               "minimum": 0
-            }
-          },
-          {
-            "name": "include_cleared",
-            "in": "query",
-            "description": "Include cleared Blockers. Ignored when `state` is given.",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false
             }
           },
           {
@@ -2198,7 +2178,7 @@
         "tags": [
           "risks"
         ],
-        "summary": "Lists Risks, ordered by ID unless `sort` is given. Closed Risks are left\nout unless `include_closed=true`.",
+        "summary": "Lists Risks, ordered by ID unless `sort` is given. Only open Risks are\nlisted unless `state` says otherwise.",
         "operationId": "list_risks",
         "parameters": [
           {
@@ -2246,16 +2226,6 @@
                 "reference",
                 "score"
               ]
-            }
-          },
-          {
-            "name": "include_closed",
-            "in": "query",
-            "description": "Include closed Risks. Ignored when `state` is given.",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false
             }
           },
           {
