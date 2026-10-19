@@ -9,6 +9,7 @@ import {
 } from './api/members'
 import type { Project } from './api/client'
 import { projectsKey } from './projects'
+import { actionsKey } from './actions'
 
 export function useMembers(projectId: Ref<string>) {
   return useQuery({
@@ -17,12 +18,17 @@ export function useMembers(projectId: Ref<string>) {
   })
 }
 
-// Member changes bump the Project's version, so every Project query is refreshed.
+// Member changes bump the Project's version, so every Project query is
+// refreshed, and removal unassigns open items, so those are too.
 function useMemberMutation<T>(mutationFn: (input: T) => Promise<Project>) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: projectsKey }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectsKey }),
+        queryClient.invalidateQueries({ queryKey: actionsKey }),
+      ]),
   })
 }
 

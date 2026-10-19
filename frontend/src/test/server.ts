@@ -1,11 +1,12 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import type { components } from '../api/schema'
+import { fakeActions, type Action } from './actions-backend'
 import { fakeRisks, type Risk } from './risks-backend'
 
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
-export type { Risk }
+export type { Action, Risk }
 type Schemas = components['schemas']
 
 export const api = (path: string) => `${location.origin}/api/v1${path}`
@@ -38,6 +39,7 @@ export function fakeBackend(
   actingId: string | null = null,
   initialProjects: Project[] = [],
   initialRisks: Risk[] = [],
+  initialActions: Action[] = [],
 ) {
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
@@ -155,6 +157,7 @@ export function fakeBackend(
       const ids = members.get(project.id)!
       if (!ids.delete(params.personId as string)) return problem(404, 'Not Found')
       if (project.project_leader?.id === params.personId) project.project_leader = null
+      actions.unassign(project.id, params.personId as string)
       project.version += 1
       return HttpResponse.json<Project>(project)
     }),
@@ -211,7 +214,17 @@ export function fakeBackend(
   ]
   const risks = fakeRisks(projects, initialRisks)
   handlers.push(...risks.handlers)
-  return { handlers, people, projects, members, risks: risks.risks, acting: () => acting }
+  const actions = fakeActions(projects, members, personRef, initialActions)
+  handlers.push(...actions.handlers)
+  return {
+    handlers,
+    people,
+    projects,
+    members,
+    risks: risks.risks,
+    actions: actions.actions,
+    acting: () => acting,
+  }
 }
 
 export const server = setupServer()

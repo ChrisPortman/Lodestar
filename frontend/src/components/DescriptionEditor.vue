@@ -7,6 +7,9 @@ const props = defineProps<{ initial: string; label: string; saveLabel?: string }
 const emit = defineEmits<{ save: [text: string]; cancel: [] }>()
 
 const text = ref(props.initial)
+// If the stored text changes while editing (a 412 refetch), keep the user's
+// text and show the new value alongside it (#8).
+const started = props.initial
 const field = useTemplateRef<HTMLTextAreaElement>('field')
 onMounted(() => field.value?.focus())
 
@@ -28,6 +31,10 @@ function save() {
       @keydown.ctrl.enter.prevent="save"
       @keydown.esc.prevent="emit('cancel')"
     />
+    <p v-if="initial !== started" role="status" class="text-sm text-amber-900">
+      Changed elsewhere since you started editing. Now:
+      <span class="whitespace-pre-line">{{ initial }}</span>
+    </p>
     <slot />
     <div class="flex gap-2">
       <button type="submit" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
