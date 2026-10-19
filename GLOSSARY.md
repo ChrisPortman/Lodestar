@@ -51,6 +51,10 @@ _Avoid_: Status, RAG
 A report summarising a Project's open Actions, Risks and Blockers, plus its Health Rating.
 _Avoid_: Status report, dashboard
 
+**Project Export**:
+A complete, downloadable copy of a Project: its Members, every Action, Risk and Blocker (closed ones included), and the People they mention, optionally with its Change History. It is an archive, not a report, and cannot be imported back.
+_Avoid_: Backup, dump, report
+
 **Reference**:
 The short, human-readable label shown for an Action, Risk or Blocker, made of a type prefix and a number (e.g. A-001, R-001, B-001). It is numbered within its Project and never reused.
 _Avoid_: ID, key, number
