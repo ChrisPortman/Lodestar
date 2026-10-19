@@ -5,8 +5,8 @@ use lodestar_core::action::{Action, ActionId, ActionParts, ActionView};
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, AssigneeFilter, ClosedFilter, Page, PageRequest,
-    ReferenceKind, RepoError,
+    ActionFilter, ActionRepository, ActionSort, ActionsQuery, AssigneeFilter, ClosedFilter, Page,
+    PageRequest, ReferenceKind, RepoError,
 };
 use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
 use std::collections::HashMap;
@@ -239,6 +239,7 @@ impl ActionsQuery for SqliteStore {
         &self,
         filter: ActionFilter,
         page: PageRequest,
+        sort: ActionSort,
     ) -> Result<Page<ActionView>, RepoError> {
         let project = filter.project_id.map(|p| p.to_string());
         let include_closed = filter.state != ClosedFilter::Open;
@@ -251,6 +252,9 @@ impl ActionsQuery for SqliteStore {
         let due_by = filter.due_by.map(|d| d.to_string());
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
+        let by_reference = sort == ActionSort::Reference;
+        let by_due_date = sort == ActionSort::DueDate;
+        let by_assignee = sort == ActionSort::Assignee;
         let rows = sqlx::query_as!(
             ActionViewRow,
             r#"SELECT a.id, a.project_id, p.project_code, a.reference, a.description,
@@ -262,7 +266,14 @@ impl ActionsQuery for SqliteStore {
                WHERE (?1 IS NULL OR a.project_id = ?1) AND (?2 OR a.closed = 0)
                  AND (NOT ?3 OR a.closed = 1) AND (NOT ?4 OR a.assignee_id IS NULL)
                  AND (?5 IS NULL OR a.assignee_id = ?5) AND (?6 IS NULL OR a.due_date <= ?6)
-               ORDER BY p.project_code, a.reference, a.id LIMIT ?7 OFFSET ?8"#,
+               ORDER BY CASE WHEN ?9 THEN p.project_code END,
+                        CASE WHEN ?9 THEN a.reference END,
+                        CASE WHEN ?10 THEN a.due_date IS NULL END,
+                        CASE WHEN ?10 THEN a.due_date END,
+                        CASE WHEN ?11 THEN pe.display_name IS NULL END,
+                        CASE WHEN ?11 THEN pe.display_name END,
+                        a.id
+               LIMIT ?7 OFFSET ?8"#,
             project,
             include_closed,
             closed_only,
@@ -270,7 +281,10 @@ impl ActionsQuery for SqliteStore {
             assignee,
             due_by,
             limit,
-            offset
+            offset,
+            by_reference,
+            by_due_date,
+            by_assignee
         )
         .fetch_all(&self.pool)
         .await

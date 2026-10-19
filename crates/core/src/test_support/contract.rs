@@ -9,11 +9,11 @@ use crate::blocker::{Blocker, BlockerId};
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, BlockerFilter, BlockerRepository, BlockersQuery,
-    ClearedFilter, ClosedFilter, HistoryQuery, PageRequest, PeopleQuery, PeopleSort,
-    PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
-    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
-    UnitOfWork,
+    ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
+    BlockerSort, BlockersQuery, ClearedFilter, ClosedFilter, HistoryQuery, PageRequest,
+    PeopleQuery, PeopleSort, PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery,
+    ReferenceCounter, ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery,
+    Transaction, UnitOfWork,
 };
 use crate::project::{Description, Project, ProjectId, ProjectName};
 use crate::risk::{Rating, RiskId};
@@ -575,7 +575,6 @@ pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
         } else {
             ClosedFilter::Open
         },
-        ..RiskFilter::default()
     };
     let all = PageRequest::first(10);
     let names = |page: crate::ports::Page<crate::risk::RiskView>| -> (u64, Vec<String>) {
@@ -608,7 +607,6 @@ pub async fn risks_are_listed_by_project_state_and_score(store: impl Store) {
     let everywhere = RiskFilter {
         project_id: None,
         state: ClosedFilter::All,
-        ..RiskFilter::default()
     };
     let everything = store.list_risks(all, everywhere, RiskSort::Id).await;
     assert_eq!(everything.unwrap().total, 5);
@@ -783,7 +781,11 @@ pub async fn actions_are_listed_by_project_code_and_reference(store: impl Store)
             .collect()
     };
     let open = store
-        .list_actions(ActionFilter::default(), PageRequest::first(10))
+        .list_actions(
+            ActionFilter::default(),
+            PageRequest::first(10),
+            ActionSort::Reference,
+        )
         .await
         .unwrap();
     assert_eq!(open.total, 3);
@@ -799,6 +801,7 @@ pub async fn actions_are_listed_by_project_code_and_reference(store: impl Store)
                 offset: 1,
                 limit: 5,
             },
+            ActionSort::Reference,
         )
         .await
         .unwrap();
@@ -914,7 +917,11 @@ pub async fn actions_show_the_open_blockers_blocking_them(store: impl Store) {
         ["B-001", "B-002"]
     );
     let listed = store
-        .list_actions(ActionFilter::default(), PageRequest::first(10))
+        .list_actions(
+            ActionFilter::default(),
+            PageRequest::first(10),
+            ActionSort::Reference,
+        )
         .await
         .unwrap();
     assert_eq!(refs(listed.items[0].clone()), ["B-001", "B-002"]);
@@ -963,7 +970,11 @@ pub async fn blockers_are_listed_by_project_code_and_reference(store: impl Store
             .collect()
     };
     let open = store
-        .list_blockers(BlockerFilter::default(), PageRequest::first(10))
+        .list_blockers(
+            BlockerFilter::default(),
+            PageRequest::first(10),
+            BlockerSort::Reference,
+        )
         .await
         .unwrap();
     assert_eq!(open.total, 3);
@@ -979,6 +990,7 @@ pub async fn blockers_are_listed_by_project_code_and_reference(store: impl Store
                 offset: 1,
                 limit: 5,
             },
+            BlockerSort::Reference,
         )
         .await
         .unwrap();

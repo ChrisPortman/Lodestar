@@ -370,12 +370,27 @@ pub struct ActionFilter {
     pub due_by: Option<NaiveDate>,
 }
 
-/// Read-only views of Actions, ordered by Project Code then Reference.
+/// The order Actions are listed in. Ties are broken by ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActionSort {
+    /// Creation order (IDs are UUIDv7).
+    #[default]
+    Id,
+    /// Project Code, then Reference number.
+    Reference,
+    /// Earliest due first; undated last.
+    DueDate,
+    /// Assignee display name; unassigned last.
+    Assignee,
+}
+
+/// Read-only views of Actions.
 pub trait ActionsQuery: Send + Sync {
     fn list_actions(
         &self,
         filter: ActionFilter,
         page: PageRequest,
+        sort: ActionSort,
     ) -> impl Future<Output = Result<Page<ActionView>, RepoError>> + Send;
 
     fn get_action(
@@ -394,12 +409,25 @@ pub struct BlockerFilter {
     pub accountable: Option<AssigneeFilter>,
 }
 
-/// Read-only views of Blockers, ordered by Project Code then Reference.
+/// The order Blockers are listed in. Ties are broken by ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BlockerSort {
+    /// Creation order (IDs are UUIDv7).
+    #[default]
+    Id,
+    /// Project Code, then Reference number.
+    Reference,
+    /// Accountable Person's display name; unassigned last.
+    Accountable,
+}
+
+/// Read-only views of Blockers.
 pub trait BlockersQuery: Send + Sync {
     fn list_blockers(
         &self,
         filter: BlockerFilter,
         page: PageRequest,
+        sort: BlockerSort,
     ) -> impl Future<Output = Result<Page<BlockerView>, RepoError>> + Send;
 
     fn get_blocker(

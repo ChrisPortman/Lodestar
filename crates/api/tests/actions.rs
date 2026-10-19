@@ -383,3 +383,76 @@ async fn writing_needs_a_session() {
         .await;
     assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
 }
+
+fn labels(reply: &Reply) -> Vec<String> {
+    reply.body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| format!("{}/{}", a["project_code"], a["reference"]).replace('"', ""))
+        .collect()
+}
+
+#[tokio::test]
+async fn actions_are_listed_by_id_unless_sorted() {
+    let w = world().await;
+    let late = w.new_action("Late", Some(&w.bob)).await;
+    w.put(
+        late.body["id"].as_str().unwrap(),
+        "\"1\"",
+        json!({"description": "Late", "assignee": {"id": w.bob}, "due_date": "2026-12-01"}),
+    )
+    .await;
+    let early = w.new_action("Early", None).await;
+    w.put(
+        early.body["id"].as_str().unwrap(),
+        "\"1\"",
+        json!({"description": "Early", "assignee": null, "due_date": "2026-11-01"}),
+    )
+    .await;
+    let apps = w
+        .app
+        .send(
+            Method::POST,
+            "/api/v1/projects",
+            &[("cookie", &w.cookie)],
+            Some(json!({"name": "Apps", "project_code": "APPS"})),
+        )
+        .await
+        .body["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    w.create(json!({"project_id": apps, "description": "Undated"}))
+        .await;
+
+    assert_eq!(
+        labels(&w.get(&format!("/api/v1/actions{}", "")).await),
+        ["WEBR/A-001", "WEBR/A-002", "APPS/A-001"]
+    );
+    assert_eq!(
+        labels(&w.get(&format!("/api/v1/actions{}", "?sort=id")).await),
+        ["WEBR/A-001", "WEBR/A-002", "APPS/A-001"]
+    );
+    assert_eq!(
+        labels(
+            &w.get(&format!("/api/v1/actions{}", "?sort=reference"))
+                .await
+        ),
+        ["APPS/A-001", "WEBR/A-001", "WEBR/A-002"]
+    );
+    assert_eq!(
+        labels(&w.get(&format!("/api/v1/actions{}", "?sort=due_date")).await),
+        ["WEBR/A-002", "WEBR/A-001", "APPS/A-001"],
+        "earliest first, undated last"
+    );
+    assert_eq!(
+        labels(&w.get(&format!("/api/v1/actions{}", "?sort=assignee")).await),
+        ["WEBR/A-001", "WEBR/A-002", "APPS/A-001"],
+        "by display name, unassigned last"
+    );
+    let bad = w
+        .get(&format!("/api/v1/actions{}", "?sort=description"))
+        .await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY);
+}

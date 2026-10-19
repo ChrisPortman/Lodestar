@@ -12,7 +12,7 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Lists Actions by Project Code, then Reference. Only open Actions are
+     * Lists Actions, ordered by ID unless `sort` is given. Only open Actions are
      *     listed unless `state` says otherwise.
      */
     get: operations['list_actions']
@@ -58,7 +58,7 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Lists Blockers by Project Code, then Reference. Only open Blockers are
+     * Lists Blockers, ordered by ID unless `sort` is given. Only open Blockers are
      *     listed unless `state` says otherwise.
      */
     get: operations['list_blockers']
@@ -719,6 +719,7 @@ export interface operations {
         /** @description Page size, 1–1000. */
         limit?: number
         offset?: number
+        sort?: 'id' | 'reference' | 'due_date' | 'assignee'
         /** @description Open (the default), closed or all Actions. */
         state?: 'open' | 'closed' | 'all'
         /** @description Only Actions assigned to this Person ID, or `unassigned`. */
@@ -1005,6 +1006,7 @@ export interface operations {
         /** @description Page size, 1–1000. */
         limit?: number
         offset?: number
+        sort?: 'id' | 'reference' | 'accountable'
         /** @description Open (the default), cleared or all Blockers. */
         state?: 'open' | 'cleared' | 'all'
         /** @description Only Blockers this Person ID is accountable for, or `unassigned`. */

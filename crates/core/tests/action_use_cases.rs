@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use lodestar_core::action::use_cases::{
-    ActionEdit, ActionError, ActionFilter, NewAction, create_action, get_action, list_actions,
-    set_action_closed, update_action,
+    ActionEdit, ActionError, ActionFilter, ActionSort, NewAction, create_action, get_action,
+    list_actions, set_action_closed, update_action,
 };
 use lodestar_core::action::{Action, ActionId};
 use lodestar_core::history::{ChangeKind, EntityType};
@@ -409,6 +409,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
             ..ActionFilter::default()
         },
         PageRequest::first(10),
+        ActionSort::Reference,
     )
     .await
     .unwrap();
@@ -421,6 +422,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
             ..ActionFilter::default()
         },
         PageRequest::first(10),
+        ActionSort::Reference,
     )
     .await
     .unwrap();
@@ -433,6 +435,7 @@ async fn open_actions_are_listed_by_reference_and_closed_ones_on_request() {
             ..ActionFilter::default()
         },
         PageRequest::first(10),
+        ActionSort::Reference,
     )
     .await
     .unwrap();

@@ -1,7 +1,7 @@
 use lodestar_core::action::Action;
 use lodestar_core::action::use_cases::{NewAction, create_action, get_action};
 use lodestar_core::blocker::use_cases::{
-    BlockerEdit, BlockerError, BlockerFilter, NewBlocker, create_blocker, get_blocker,
+    BlockerEdit, BlockerError, BlockerFilter, BlockerSort, NewBlocker, create_blocker, get_blocker,
     link_blocked_action, list_blockers, set_blocker_cleared, unlink_blocked_action, update_blocker,
 };
 use lodestar_core::blocker::{Blocker, BlockerId};
@@ -368,6 +368,7 @@ async fn open_blockers_are_listed_by_reference_and_cleared_ones_on_request() {
                     ..BlockerFilter::default()
                 },
                 PageRequest::first(10),
+                BlockerSort::Reference,
             )
             .await
             .unwrap()

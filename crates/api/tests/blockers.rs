@@ -373,3 +373,45 @@ async fn writing_needs_a_session() {
         .await;
     assert_eq!(reply.status, StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn blockers_are_listed_by_id_unless_sorted() {
+    let w = world().await;
+    w.new_blocker("Unowned", None).await;
+    w.new_blocker("Bob's", Some(&w.bob)).await;
+    let apps = w_project(&w.app, &w.cookie, "APPS").await;
+    w.create(json!({"project_id": apps, "description": "Elsewhere"}))
+        .await;
+
+    let labels = |reply: Reply| -> Vec<String> {
+        reply.body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|b| format!("{}/{}", b["project_code"], b["reference"]).replace('"', ""))
+            .collect()
+    };
+    assert_eq!(
+        labels(w.get(&format!("/api/v1/blockers{}", "")).await),
+        ["WEBR/B-001", "WEBR/B-002", "APPS/B-001"]
+    );
+    assert_eq!(
+        labels(
+            w.get(&format!("/api/v1/blockers{}", "?sort=reference"))
+                .await
+        ),
+        ["APPS/B-001", "WEBR/B-001", "WEBR/B-002"]
+    );
+    assert_eq!(
+        labels(
+            w.get(&format!("/api/v1/blockers{}", "?sort=accountable"))
+                .await
+        ),
+        ["WEBR/B-002", "WEBR/B-001", "APPS/B-001"],
+        "by display name, unassigned last"
+    );
+    let bad = w
+        .get(&format!("/api/v1/blockers{}", "?sort=description"))
+        .await;
+    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY);
+}

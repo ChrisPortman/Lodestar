@@ -16,10 +16,11 @@ use crate::history::{
 };
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
-    ActionFilter, ActionRepository, ActionsQuery, BlockerFilter, BlockerRepository, BlockersQuery,
-    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
-    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter,
-    RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
+    ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
+    BlockerSort, BlockersQuery, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort,
+    PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
+    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
+    UnitOfWork,
 };
 use crate::project::{
     Description, ItemRef, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
@@ -613,11 +614,18 @@ fn action_view(state: &State, action: &Action) -> ActionView {
     }
 }
 
+/// By display name, with no one last.
+fn by_person(a: Option<&PersonRef>, b: Option<&PersonRef>) -> std::cmp::Ordering {
+    let key = |p: Option<&PersonRef>| (p.is_none(), p.map(|p| p.display_name.clone()));
+    key(a).cmp(&key(b))
+}
+
 impl ActionsQuery for InMemoryStore {
     async fn list_actions(
         &self,
         filter: ActionFilter,
         page: PageRequest,
+        sort: ActionSort,
     ) -> Result<Page<ActionView>, RepoError> {
         let state = self.snapshot();
         let mut all: Vec<_> = state
@@ -633,9 +641,18 @@ impl ActionsQuery for InMemoryStore {
             })
             .map(|a| (a.reference(), action_view(&state, a)))
             .collect();
-        all.sort_by(|(ra, a), (rb, b)| {
-            (&a.project_code, ra, a.id).cmp(&(&b.project_code, rb, b.id))
-        });
+        match sort {
+            ActionSort::Id => all.sort_by_key(|(_, a)| a.id),
+            ActionSort::Reference => all.sort_by(|(ra, a), (rb, b)| {
+                (&a.project_code, ra, a.id).cmp(&(&b.project_code, rb, b.id))
+            }),
+            ActionSort::DueDate => {
+                all.sort_by_key(|(_, a)| (a.due_date.is_none(), a.due_date, a.id));
+            }
+            ActionSort::Assignee => all.sort_by(|(_, a), (_, b)| {
+                by_person(a.assignee.as_ref(), b.assignee.as_ref()).then(a.id.cmp(&b.id))
+            }),
+        }
         Ok(page_of(all.into_iter().map(|(_, v)| v).collect(), page))
     }
 
@@ -684,6 +701,7 @@ impl BlockersQuery for InMemoryStore {
         &self,
         filter: BlockerFilter,
         page: PageRequest,
+        sort: BlockerSort,
     ) -> Result<Page<BlockerView>, RepoError> {
         let state = self.snapshot();
         let mut all: Vec<_> = state
@@ -698,9 +716,15 @@ impl BlockersQuery for InMemoryStore {
             })
             .map(|b| (b.reference(), blocker_view(&state, b)))
             .collect();
-        all.sort_by(|(ra, a), (rb, b)| {
-            (&a.project_code, ra, a.id).cmp(&(&b.project_code, rb, b.id))
-        });
+        match sort {
+            BlockerSort::Id => all.sort_by_key(|(_, b)| b.id),
+            BlockerSort::Reference => all.sort_by(|(ra, a), (rb, b)| {
+                (&a.project_code, ra, a.id).cmp(&(&b.project_code, rb, b.id))
+            }),
+            BlockerSort::Accountable => all.sort_by(|(_, a), (_, b)| {
+                by_person(a.accountable.as_ref(), b.accountable.as_ref()).then(a.id.cmp(&b.id))
+            }),
+        }
         Ok(page_of(all.into_iter().map(|(_, v)| v).collect(), page))
     }
 

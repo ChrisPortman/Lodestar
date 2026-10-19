@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT a.id, a.project_id, p.project_code, a.reference, a.description,\n                      a.assignee_id, pe.display_name AS \"assignee_name?\", a.due_date,\n                      a.closed, a.version\n               FROM actions a\n               JOIN projects p ON p.id = a.project_id\n               LEFT JOIN people pe ON pe.id = a.assignee_id\n               WHERE (?1 IS NULL OR a.project_id = ?1) AND (?2 OR a.closed = 0)\n                 AND (NOT ?3 OR a.closed = 1) AND (NOT ?4 OR a.assignee_id IS NULL)\n                 AND (?5 IS NULL OR a.assignee_id = ?5) AND (?6 IS NULL OR a.due_date <= ?6)\n               ORDER BY p.project_code, a.reference, a.id LIMIT ?7 OFFSET ?8",
+  "query": "SELECT a.id, a.project_id, p.project_code, a.reference, a.description,\n                      a.assignee_id, pe.display_name AS \"assignee_name?\", a.due_date,\n                      a.closed, a.version\n               FROM actions a\n               JOIN projects p ON p.id = a.project_id\n               LEFT JOIN people pe ON pe.id = a.assignee_id\n               WHERE (?1 IS NULL OR a.project_id = ?1) AND (?2 OR a.closed = 0)\n                 AND (NOT ?3 OR a.closed = 1) AND (NOT ?4 OR a.assignee_id IS NULL)\n                 AND (?5 IS NULL OR a.assignee_id = ?5) AND (?6 IS NULL OR a.due_date <= ?6)\n               ORDER BY CASE WHEN ?9 THEN p.project_code END,\n                        CASE WHEN ?9 THEN a.reference END,\n                        CASE WHEN ?10 THEN a.due_date IS NULL END,\n                        CASE WHEN ?10 THEN a.due_date END,\n                        CASE WHEN ?11 THEN pe.display_name IS NULL END,\n                        CASE WHEN ?11 THEN pe.display_name END,\n                        a.id\n               LIMIT ?7 OFFSET ?8",
   "describe": {
     "columns": [
       {
@@ -115,7 +115,7 @@
       }
     ],
     "parameters": {
-      "Right": 8
+      "Right": 11
     },
     "nullable": [
       false,
@@ -130,5 +130,5 @@
       false
     ]
   },
-  "hash": "71f6428cef0072ad3855cebb8ef87e697ab2413ea6bfb471481823e398156432"
+  "hash": "f4a5fa5a2a19296abbe9312c791bb7e509d2afffba352a32bcab6421c2780fbb"
 }

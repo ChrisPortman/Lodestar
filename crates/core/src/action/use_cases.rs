@@ -13,7 +13,7 @@ use crate::ports::{
 use crate::project::guard::{GuardError, writable_project};
 use crate::project::{Description, DescriptionError, ProjectId};
 
-pub use crate::ports::ActionFilter;
+pub use crate::ports::{ActionFilter, ActionSort};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ActionError {
@@ -184,8 +184,9 @@ pub async fn list_actions<Q: ActionsQuery>(
     query: &Q,
     filter: ActionFilter,
     page: PageRequest,
+    sort: ActionSort,
 ) -> Result<Page<ActionView>, ActionError> {
-    Ok(query.list_actions(filter, page).await?)
+    Ok(query.list_actions(filter, page, sort).await?)
 }
 
 pub async fn get_action<Q: ActionsQuery>(

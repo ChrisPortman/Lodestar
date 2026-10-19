@@ -12,7 +12,7 @@ use crate::ports::{
 use crate::project::guard::{GuardError, writable_project};
 use crate::project::{Description, DescriptionError, ProjectId};
 
-pub use crate::ports::BlockerFilter;
+pub use crate::ports::{BlockerFilter, BlockerSort};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BlockerError {
@@ -236,8 +236,9 @@ pub async fn list_blockers<Q: BlockersQuery>(
     query: &Q,
     filter: BlockerFilter,
     page: PageRequest,
+    sort: BlockerSort,
 ) -> Result<Page<BlockerView>, BlockerError> {
-    Ok(query.list_blockers(filter, page).await?)
+    Ok(query.list_blockers(filter, page, sort).await?)
 }
 
 pub async fn get_blocker<Q: BlockersQuery>(

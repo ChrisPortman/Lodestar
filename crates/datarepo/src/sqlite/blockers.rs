@@ -8,8 +8,8 @@ use lodestar_core::blocker::{Blocker, BlockerId, BlockerParts, BlockerView};
 use lodestar_core::history::{ChangeContext, ChangeKind, EntityType, HistoryEntryId, snapshot};
 use lodestar_core::person::PersonId;
 use lodestar_core::ports::{
-    AssigneeFilter, BlockerFilter, BlockerRepository, BlockersQuery, ClearedFilter, Page,
-    PageRequest, ReferenceKind, RepoError,
+    AssigneeFilter, BlockerFilter, BlockerRepository, BlockerSort, BlockersQuery, ClearedFilter,
+    Page, PageRequest, ReferenceKind, RepoError,
 };
 use lodestar_core::project::{ItemRef, PersonRef, ProjectId};
 use sqlx::{Sqlite, SqliteExecutor};
@@ -329,6 +329,7 @@ impl BlockersQuery for SqliteStore {
         &self,
         filter: BlockerFilter,
         page: PageRequest,
+        sort: BlockerSort,
     ) -> Result<Page<BlockerView>, RepoError> {
         let project = filter.project_id.map(|p| p.to_string());
         let include_cleared = filter.state != ClearedFilter::Open;
@@ -340,6 +341,8 @@ impl BlockersQuery for SqliteStore {
         };
         let limit = i64::from(page.limit);
         let offset = i64::from(page.offset);
+        let by_reference = sort == BlockerSort::Reference;
+        let by_accountable = sort == BlockerSort::Accountable;
         let rows = sqlx::query_as!(
             BlockerViewRow,
             r#"SELECT b.id, b.project_id, p.project_code, b.reference, b.description,
@@ -351,14 +354,21 @@ impl BlockersQuery for SqliteStore {
                WHERE (?1 IS NULL OR b.project_id = ?1) AND (?2 OR b.cleared = 0)
                  AND (NOT ?3 OR b.cleared = 1) AND (NOT ?4 OR b.accountable_id IS NULL)
                  AND (?5 IS NULL OR b.accountable_id = ?5)
-               ORDER BY p.project_code, b.reference, b.id LIMIT ?6 OFFSET ?7"#,
+               ORDER BY CASE WHEN ?8 THEN p.project_code END,
+                        CASE WHEN ?8 THEN b.reference END,
+                        CASE WHEN ?9 THEN pe.display_name IS NULL END,
+                        CASE WHEN ?9 THEN pe.display_name END,
+                        b.id
+               LIMIT ?6 OFFSET ?7"#,
             project,
             include_cleared,
             cleared_only,
             unassigned,
             accountable,
             limit,
-            offset
+            offset,
+            by_reference,
+            by_accountable
         )
         .fetch_all(&self.pool)
         .await

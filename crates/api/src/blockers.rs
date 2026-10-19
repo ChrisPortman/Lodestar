@@ -18,7 +18,7 @@ use lodestar_core::{
         },
     },
     person::PersonId,
-    ports::{BlockerFilter, PageRequest},
+    ports::{BlockerFilter, BlockerSort, PageRequest},
     project::ProjectId,
 };
 use serde::{Deserialize, Serialize};
@@ -167,6 +167,29 @@ pub struct BlockerPage {
     pub offset: u32,
 }
 
+/// The order to list Blockers in.
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockerSortParam {
+    /// Creation order.
+    #[default]
+    Id,
+    /// Project Code, then Reference number.
+    Reference,
+    /// Accountable display name; unassigned last.
+    Accountable,
+}
+
+impl From<BlockerSortParam> for BlockerSort {
+    fn from(sort: BlockerSortParam) -> Self {
+        match sort {
+            BlockerSortParam::Id => Self::Id,
+            BlockerSortParam::Reference => Self::Reference,
+            BlockerSortParam::Accountable => BlockerSort::Accountable,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct ListParams {
@@ -177,6 +200,8 @@ pub struct ListParams {
     limit: Option<u32>,
     #[param(minimum = 0, default = 0)]
     offset: Option<u32>,
+    #[param(inline)]
+    sort: Option<BlockerSortParam>,
     /// Open (the default), cleared or all Blockers.
     #[param(inline)]
     state: Option<BlockerStateParam>,
@@ -184,7 +209,7 @@ pub struct ListParams {
     accountable: Option<String>,
 }
 
-/// Lists Blockers by Project Code, then Reference. Only open Blockers are
+/// Lists Blockers, ordered by ID unless `sort` is given. Only open Blockers are
 /// listed unless `state` says otherwise.
 #[utoipa::path(
     get,
@@ -207,7 +232,13 @@ async fn list<S: Store>(
         state: params.state.unwrap_or_default().into(),
         accountable: filters::assignee(params.accountable.as_deref(), "accountable")?,
     };
-    let page = list_blockers(&state.store, filter, PageRequest { offset, limit }).await?;
+    let page = list_blockers(
+        &state.store,
+        filter,
+        PageRequest { offset, limit },
+        params.sort.unwrap_or_default().into(),
+    )
+    .await?;
     Ok(Json(BlockerPage {
         items: page.items.into_iter().map(BlockerBody::from).collect(),
         total: page.total,

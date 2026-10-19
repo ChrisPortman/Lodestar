@@ -11,7 +11,7 @@
         "tags": [
           "actions"
         ],
-        "summary": "Lists Actions by Project Code, then Reference. Only open Actions are\nlisted unless `state` says otherwise.",
+        "summary": "Lists Actions, ordered by ID unless `sort` is given. Only open Actions are\nlisted unless `state` says otherwise.",
         "operationId": "list_actions",
         "parameters": [
           {
@@ -46,6 +46,21 @@
               "format": "int32",
               "default": 0,
               "minimum": 0
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The order to list Actions in.",
+              "enum": [
+                "id",
+                "reference",
+                "due_date",
+                "assignee"
+              ]
             }
           },
           {
@@ -456,7 +471,7 @@
         "tags": [
           "blockers"
         ],
-        "summary": "Lists Blockers by Project Code, then Reference. Only open Blockers are\nlisted unless `state` says otherwise.",
+        "summary": "Lists Blockers, ordered by ID unless `sort` is given. Only open Blockers are\nlisted unless `state` says otherwise.",
         "operationId": "list_blockers",
         "parameters": [
           {
@@ -491,6 +506,20 @@
               "format": "int32",
               "default": 0,
               "minimum": 0
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The order to list Blockers in.",
+              "enum": [
+                "id",
+                "reference",
+                "accountable"
+              ]
             }
           },
           {

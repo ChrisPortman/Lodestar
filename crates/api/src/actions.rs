@@ -18,7 +18,7 @@ use lodestar_core::{
         },
     },
     person::PersonId,
-    ports::{ActionFilter, PageRequest},
+    ports::{ActionFilter, ActionSort, PageRequest},
     project::ProjectId,
 };
 use serde::{Deserialize, Serialize};
@@ -151,6 +151,32 @@ pub struct ActionPage {
     pub offset: u32,
 }
 
+/// The order to list Actions in.
+#[derive(Debug, Clone, Copy, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionSortParam {
+    /// Creation order.
+    #[default]
+    Id,
+    /// Project Code, then Reference number.
+    Reference,
+    /// Earliest due first; undated last.
+    DueDate,
+    /// Assignee display name; unassigned last.
+    Assignee,
+}
+
+impl From<ActionSortParam> for ActionSort {
+    fn from(sort: ActionSortParam) -> Self {
+        match sort {
+            ActionSortParam::Id => Self::Id,
+            ActionSortParam::Reference => Self::Reference,
+            ActionSortParam::DueDate => ActionSort::DueDate,
+            ActionSortParam::Assignee => ActionSort::Assignee,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct ListParams {
@@ -161,6 +187,8 @@ pub struct ListParams {
     limit: Option<u32>,
     #[param(minimum = 0, default = 0)]
     offset: Option<u32>,
+    #[param(inline)]
+    sort: Option<ActionSortParam>,
     /// Open (the default), closed or all Actions.
     #[param(inline)]
     state: Option<StateParam>,
@@ -171,7 +199,7 @@ pub struct ListParams {
     due_by: Option<NaiveDate>,
 }
 
-/// Lists Actions by Project Code, then Reference. Only open Actions are
+/// Lists Actions, ordered by ID unless `sort` is given. Only open Actions are
 /// listed unless `state` says otherwise.
 #[utoipa::path(
     get,
@@ -195,7 +223,13 @@ async fn list<S: Store>(
         assignee: filters::assignee(params.assignee.as_deref(), "assignee")?,
         due_by: params.due_by,
     };
-    let page = list_actions(&state.store, filter, PageRequest { offset, limit }).await?;
+    let page = list_actions(
+        &state.store,
+        filter,
+        PageRequest { offset, limit },
+        params.sort.unwrap_or_default().into(),
+    )
+    .await?;
     Ok(Json(ActionPage {
         items: page.items.into_iter().map(ActionBody::from).collect(),
         total: page.total,

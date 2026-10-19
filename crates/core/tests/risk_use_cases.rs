@@ -44,7 +44,6 @@ fn filter(project: &Project, include_closed: bool) -> RiskFilter {
         } else {
             ClosedFilter::Open
         },
-        ..RiskFilter::default()
     }
 }
 

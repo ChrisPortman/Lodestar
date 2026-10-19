@@ -11,8 +11,8 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use lodestar_core::{
-    action::use_cases::{ActionFilter, list_actions},
-    blocker::use_cases::{BlockerFilter, list_blockers},
+    action::use_cases::{ActionFilter, ActionSort, list_actions},
+    blocker::use_cases::{BlockerFilter, BlockerSort, list_blockers},
     history::HistoryEntry,
     person::use_cases::get_person,
     ports::{ClearedFilter, ClosedFilter, PageRequest, RiskFilter, RiskSort},
@@ -161,6 +161,7 @@ async fn export<S: Store>(
                 ..ActionFilter::default()
             },
             page,
+            ActionSort::Reference,
         )
     })
     .await?;
@@ -171,7 +172,6 @@ async fn export<S: Store>(
             RiskFilter {
                 project_id: Some(project_id),
                 state: ClosedFilter::All,
-                ..RiskFilter::default()
             },
             RiskSort::Reference,
         )
@@ -186,6 +186,7 @@ async fn export<S: Store>(
                 ..BlockerFilter::default()
             },
             page,
+            BlockerSort::Reference,
         )
     })
     .await?;
