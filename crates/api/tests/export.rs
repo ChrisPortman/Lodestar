@@ -333,3 +333,87 @@ async fn export_needs_a_session_and_an_existing_project() {
         .await;
     assert_eq!(missing.status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn people_include_the_actor_behind_every_caused_by() {
+    let w = world().await;
+    let project_path = format!("/api/v1/projects/{}", w.project);
+    send(
+        &w,
+        Method::PATCH,
+        &project_path,
+        &w.cookie,
+        "\"3\"",
+        json!({"archived": false}),
+    )
+    .await;
+    post(
+        &w.app,
+        &w.cookie,
+        "/api/v1/actions",
+        json!({"project_id": w.project, "description": "Follow up", "assignee": {"id": w.bob}}),
+    )
+    .await;
+    let dan = post(
+        &w.app,
+        &w.cookie,
+        "/api/v1/people",
+        json!({"display_name": "Dan"}),
+    )
+    .await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let dan_cookie = w
+        .app
+        .send(
+            Method::POST,
+            "/api/v1/session",
+            &[],
+            Some(json!({"person_id": dan})),
+        )
+        .await
+        .cookie();
+    let removed = w
+        .app
+        .send(
+            Method::DELETE,
+            &format!("{project_path}/members/{}", w.bob),
+            &[("cookie", &dan_cookie), ("if-match", "\"4\"")],
+            None,
+        )
+        .await;
+    assert!(removed.status.is_success(), "{:?}", removed.body);
+
+    let export = w
+        .app
+        .get(
+            &format!("{project_path}/export?include_history=true"),
+            &w.cookie,
+        )
+        .await;
+    let history = export.body["change_history"].as_array().unwrap();
+    let people: Vec<&str> = export.body["people"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap())
+        .collect();
+    let caused: Vec<&Value> = history
+        .iter()
+        .filter(|e| !e["caused_by"].is_null())
+        .collect();
+    assert!(
+        !caused.is_empty(),
+        "unassigning Bob is caused by his removal"
+    );
+    for entry in caused {
+        let cause = history
+            .iter()
+            .find(|c| c["id"] == entry["caused_by"])
+            .expect("the cause is in the exported history");
+        let actor = cause["acting_person_id"].as_str().unwrap();
+        assert_eq!(actor, dan);
+        assert!(people.contains(&actor), "{actor} is listed in people");
+    }
+}
