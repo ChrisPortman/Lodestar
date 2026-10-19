@@ -1,5 +1,6 @@
 //! HTTP layer: axum handlers and the embedded frontend.
 
+mod actions;
 mod frontend;
 mod health;
 mod members;
@@ -18,7 +19,7 @@ use axum::{Json, Router, http::StatusCode, routing::get};
 use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
-    ports::{PeopleQuery, ProjectsQuery, RisksQuery, UnitOfWork},
+    ports::{ActionsQuery, PeopleQuery, ProjectsQuery, RisksQuery, UnitOfWork},
 };
 use rust_embed::RustEmbed;
 use tower_http::compression::CompressionLayer;
@@ -47,6 +48,7 @@ pub(crate) struct AppState {
     pub people: Arc<dyn services::People>,
     pub projects: Arc<dyn services::Projects>,
     pub risks: Arc<dyn services::Risks>,
+    pub actions: Arc<dyn services::Actions>,
     pub session_key: Key,
 }
 
@@ -54,7 +56,7 @@ pub(crate) struct AppState {
 pub fn router<H, S>(services: Services<H, S>) -> Router
 where
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + Clone + 'static,
+    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + Clone + 'static,
 {
     router_with::<Frontend, H, S>(services)
 }
@@ -67,12 +69,13 @@ pub fn router_with<A, H, S>(services: Services<H, S>) -> Router
 where
     A: RustEmbed + Send + Sync + 'static,
     H: HealthProbe,
-    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + Clone + 'static,
+    S: UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + Clone + 'static,
 {
     let state = AppState {
         people: Arc::new(services.store.clone()),
         projects: Arc::new(services.store.clone()),
-        risks: Arc::new(services.store),
+        risks: Arc::new(services.store.clone()),
+        actions: Arc::new(services.store),
         session_key: Key::try_from(services.session_key.as_slice())
             .expect("session key must be at least 64 bytes"),
     };
@@ -80,6 +83,7 @@ where
         .merge(people::routes())
         .merge(projects::routes())
         .merge(risks::routes())
+        .merge(actions::routes())
         .merge(members::routes())
         .merge(session::routes())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
@@ -115,6 +119,11 @@ where
         risks::fetch,
         risks::update,
         risks::close,
+        actions::list,
+        actions::create,
+        actions::fetch,
+        actions::update,
+        actions::close,
         members::list,
         members::add,
         members::remove,

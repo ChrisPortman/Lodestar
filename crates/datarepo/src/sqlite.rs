@@ -15,9 +15,8 @@ use lodestar_core::history::{
 use lodestar_core::person::{DisplayName, Person, PersonId, PersonView};
 use lodestar_core::ports::{
     ActionRepository, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository,
-    ProjectRepository,
-    ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskRepository,
-    Transaction, UnitOfWork,
+    ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError,
+    RiskRepository, Transaction, UnitOfWork,
 };
 use lodestar_core::project::{
     Description, HealthRating, PersonRef, Project, ProjectCode, ProjectId, ProjectName,

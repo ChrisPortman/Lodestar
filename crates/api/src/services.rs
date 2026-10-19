@@ -20,6 +20,12 @@ use lodestar_core::{
     },
 };
 
+use lodestar_core::action::{
+    Action, ActionId, ActionView,
+    use_cases::{self as action_use_cases, ActionEdit, ActionError, ActionFilter, NewAction},
+};
+use lodestar_core::ports::ActionsQuery;
+
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub trait People: Send + Sync {
@@ -322,6 +328,92 @@ impl<S: UnitOfWork + RisksQuery> Risks for S {
         closed: bool,
     ) -> BoxFuture<'_, Result<Risk, RiskError>> {
         Box::pin(risk_use_cases::set_closed(
+            self,
+            acting,
+            id,
+            expected_version,
+            closed,
+        ))
+    }
+}
+
+pub trait Actions: Send + Sync {
+    fn list(
+        &self,
+        filter: ActionFilter,
+        page: PageRequest,
+    ) -> BoxFuture<'_, Result<Page<ActionView>, ActionError>>;
+
+    fn get(&self, id: ActionId) -> BoxFuture<'_, Result<ActionView, ActionError>>;
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewAction<'a>,
+    ) -> BoxFuture<'a, Result<Action, ActionError>>;
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: ActionId,
+        expected_version: u32,
+        edit: ActionEdit<'a>,
+    ) -> BoxFuture<'a, Result<Action, ActionError>>;
+
+    fn set_closed(
+        &self,
+        acting: PersonId,
+        id: ActionId,
+        expected_version: u32,
+        closed: bool,
+    ) -> BoxFuture<'_, Result<Action, ActionError>>;
+}
+
+impl<S: UnitOfWork + ActionsQuery> Actions for S {
+    fn list(
+        &self,
+        filter: ActionFilter,
+        page: PageRequest,
+    ) -> BoxFuture<'_, Result<Page<ActionView>, ActionError>> {
+        Box::pin(action_use_cases::list_actions(self, filter, page))
+    }
+
+    fn get(&self, id: ActionId) -> BoxFuture<'_, Result<ActionView, ActionError>> {
+        Box::pin(action_use_cases::get_action(self, id))
+    }
+
+    fn create<'a>(
+        &'a self,
+        acting: PersonId,
+        input: NewAction<'a>,
+    ) -> BoxFuture<'a, Result<Action, ActionError>> {
+        Box::pin(action_use_cases::create_action(self, acting, input))
+    }
+
+    fn update<'a>(
+        &'a self,
+        acting: PersonId,
+        id: ActionId,
+        expected_version: u32,
+        edit: ActionEdit<'a>,
+    ) -> BoxFuture<'a, Result<Action, ActionError>> {
+        Box::pin(action_use_cases::update_action(
+            self,
+            acting,
+            id,
+            expected_version,
+            edit,
+        ))
+    }
+
+    fn set_closed(
+        &self,
+        acting: PersonId,
+        id: ActionId,
+        expected_version: u32,
+        closed: bool,
+    ) -> BoxFuture<'_, Result<Action, ActionError>> {
+        Box::pin(action_use_cases::set_action_closed(
             self,
             acting,
             id,

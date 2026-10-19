@@ -4,6 +4,52 @@
  */
 
 export interface paths {
+  '/api/v1/actions': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Lists Actions by Project Code, then Reference. Closed Actions are left out
+     *     unless `include_closed=true`.
+     */
+    get: operations['list_actions']
+    put?: never
+    /** Creates an open Action with the next Reference in its Project. */
+    post: operations['create_action']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/actions/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Fetches an Action, open or closed. */
+    get: operations['get_action']
+    /**
+     * Replaces an Action's description, assignee and due date. Needs a session
+     *     and `If-Match`.
+     */
+    put: operations['update_action']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Closes or reopens an Action, with `{"closed": …}` as
+     *     `application/merge-patch+json`. Needs a session and `If-Match`.
+     */
+    patch: operations['close_action']
+    trace?: never
+  }
   '/api/v1/people': {
     parameters: {
       query?: never
@@ -217,6 +263,51 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /**
+     * @description An Action. Also the request body for `POST` and `PUT`: read-only fields
+     *     may be sent to `PUT` only if they match what is stored.
+     */
+    Action: {
+      assignee?: components['schemas']['PersonRef'] | null
+      /** @description Changed only with `PATCH`. */
+      readonly closed: boolean
+      /** @description 1–4000 characters once trimmed; may span lines. */
+      description: string
+      /**
+       * Format: date
+       * @description `YYYY-MM-DD`; past dates are allowed. Required on `PUT`.
+       */
+      due_date?: string | null
+      /** Format: uuid */
+      readonly id: string
+      readonly project_code: string
+      /**
+       * Format: uuid
+       * @description Required on `POST`; never changes.
+       */
+      project_id: string
+      /** @description `A-001`, … numbered within the Project. A label, not an identifier. */
+      readonly reference: string
+      /** Format: int32 */
+      readonly version: number
+    }
+    /** @description A page of Actions. */
+    ActionPage: {
+      items: components['schemas']['Action'][]
+      /** Format: int32 */
+      limit: number
+      /** Format: int32 */
+      offset: number
+      /**
+       * Format: int64
+       * @description Matching Actions across all pages.
+       */
+      total: number
+    }
+    /** @description The only change `PATCH` makes (ADR-0006). */
+    ActionPatch: {
+      closed: boolean
+    }
     /** @description A suggested Project Code. */
     CodeSuggestion: {
       /** @description `null` when the name has too few letters to suggest one. */
@@ -388,6 +479,288 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  list_actions: {
+    parameters: {
+      query?: {
+        /** @description Only this Project's Actions. */
+        project_id?: string
+        /** @description Page size, 1–1000. */
+        limit?: number
+        offset?: number
+        /** @description Include closed Actions. */
+        include_closed?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ActionPage']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  create_action: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Action']
+      }
+    }
+    responses: {
+      201: {
+        headers: {
+          etag?: string
+          location?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Action']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Action */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  get_action: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Action']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  update_action: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Action']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Action']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Action */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  close_action: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/merge-patch+json': components['schemas']['ActionPatch']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Action']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid patch */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
   list_people: {
     parameters: {
       query?: {
