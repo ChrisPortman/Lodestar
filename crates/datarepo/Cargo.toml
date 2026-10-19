@@ -6,7 +6,15 @@ version.workspace = true
 
 [features]
 default = ["sqlite"]
-sqlite = []
+sqlite = ["dep:sqlx"]
 
 [dependencies]
 lodestar-core.workspace = true
+sqlx = { workspace = true, optional = true }
+uuid.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+lodestar-core = { workspace = true, features = ["test-support"] }
+tokio.workspace = true

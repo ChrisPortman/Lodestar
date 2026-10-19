@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO reference_counters (project_id, kind, next) VALUES (?, ?, 1)\n             ON CONFLICT (project_id, kind) DO UPDATE SET next = next + 1\n             RETURNING next",
+  "describe": {
+    "columns": [
+      {
+        "name": "next",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "reference_counters",
+            "name": "next"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9862eca64b1bb6cd734d038e554add47ce4c7fa3c2884956d98c77ac413cd023"
+}

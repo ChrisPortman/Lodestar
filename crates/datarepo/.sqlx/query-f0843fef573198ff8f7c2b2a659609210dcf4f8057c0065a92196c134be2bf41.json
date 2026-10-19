@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO change_history\n            (id, entity_type, entity_id, project_id, version, change_kind,\n             acting_person_id, recorded_at, before, after, caused_by)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "f0843fef573198ff8f7c2b2a659609210dcf4f8057c0065a92196c134be2bf41"
+}

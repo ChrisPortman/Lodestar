@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE people SET display_name = ?, version = ? WHERE id = ? AND version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1c7ec248a314e2522cb28c2eb1cec62e5ace9182708162c72d9e18ea5096460b"
+}
