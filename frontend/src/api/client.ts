@@ -4,6 +4,7 @@ import type { components, paths } from './schema'
 export type Problem = components['schemas']['Problem']
 export type Person = components['schemas']['Person']
 export type Session = components['schemas']['Session']
+export type Project = components['schemas']['Project']
 
 /** A failed API call, carrying the server's `problem+json` body. */
 export class ApiError extends Error {

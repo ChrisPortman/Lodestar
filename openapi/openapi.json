@@ -903,7 +903,7 @@
           }
         }
       },
-      "PersonRefBody": {
+      "PersonRef": {
         "type": "object",
         "description": "A Person as shown on something that refers to them.",
         "required": [
@@ -993,7 +993,7 @@
           "project_leader": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/PersonRefBody",
+                "$ref": "#/components/schemas/PersonRef",
                 "description": "The creator, to begin with."
               },
               {

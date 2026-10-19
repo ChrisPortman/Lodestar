@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/vue-query'
 import { fetchSession } from './session'
 import HomeView from './views/HomeView.vue'
 import PeopleView from './views/PeopleView.vue'
+import ProjectsView from './views/ProjectsView.vue'
 import PlaceholderView from './views/PlaceholderView.vue'
 
 export function createAppRouter(history: RouterHistory, queryClient: QueryClient) {
@@ -10,7 +11,7 @@ export function createAppRouter(history: RouterHistory, queryClient: QueryClient
     history,
     routes: [
       { path: '/', name: 'home', component: HomeView, meta: { public: true } },
-      { path: '/projects', component: PlaceholderView, props: { title: 'Projects' } },
+      { path: '/projects', component: ProjectsView },
       { path: '/projects/:id', component: PlaceholderView, props: { title: 'Project' } },
       {
         path: '/projects/:id/report',

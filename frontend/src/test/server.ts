@@ -3,6 +3,7 @@ import { setupServer } from 'msw/node'
 import type { components } from '../api/schema'
 
 export type Person = components['schemas']['Person']
+export type Project = components['schemas']['Project']
 type Schemas = components['schemas']
 
 export const api = (path: string) => `${location.origin}/api/v1${path}`
@@ -15,9 +16,28 @@ export function problem(status: number, title: string): Response {
   )
 }
 
-/** An in-memory backend for the People and session endpoints. */
-export function fakeBackend(initial: Person[], actingId: string | null = null) {
+type Mutable<T> = { -readonly [K in keyof T]: T[K] }
+
+/** A crude stand-in for FR-16: the first four letters, numbered if taken. */
+function suggest(name: string, taken: string[]): string | null {
+  const base = name
+    .replace(/[^a-z]/gi, '')
+    .slice(0, 4)
+    .toUpperCase()
+  if (base.length < 2) return null
+  let code = base
+  for (let n = 1; taken.includes(code); n++) code = `${base}${n}`
+  return code
+}
+
+/** An in-memory backend for the People, Projects and session endpoints. */
+export function fakeBackend(
+  initial: Person[],
+  actingId: string | null = null,
+  initialProjects: Project[] = [],
+) {
   const people = initial.map((p) => ({ ...p }))
+  const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
   let acting = actingId
   let n = 0
   const handlers = [
@@ -48,6 +68,68 @@ export function fakeBackend(initial: Person[], actingId: string | null = null) {
       person.version += 1
       return HttpResponse.json<Person>(person)
     }),
+    http.get(api('/projects/code_suggestion'), ({ request }) => {
+      const name = new URL(request.url).searchParams.get('name') ?? ''
+      const project_code = suggest(
+        name,
+        projects.map((p) => p.project_code),
+      )
+      return HttpResponse.json<Schemas['CodeSuggestion']>({ project_code })
+    }),
+    http.get(api('/projects'), ({ request }) => {
+      const all = new URL(request.url).searchParams.get('include_archived') === 'true'
+      const items = projects.filter((p) => all || !p.archived)
+      return HttpResponse.json<Schemas['ProjectPage']>({
+        items,
+        limit: 100,
+        offset: 0,
+        total: items.length,
+      })
+    }),
+    http.post(api('/projects'), async ({ request }) => {
+      const body = (await request.json()) as Project
+      if (projects.some((p) => p.project_code === body.project_code))
+        return problem(409, 'Conflict')
+      const person = people.find((p) => p.id === acting)
+      const project: Mutable<Project> = {
+        id: `project-${++n}`,
+        version: 1,
+        name: body.name.trim(),
+        description: body.description?.trim() || null,
+        project_code: body.project_code,
+        archived: false,
+        project_leader: person ? { id: person.id, display_name: person.display_name } : null,
+      }
+      projects.push(project)
+      return HttpResponse.json<Project>(project, { status: 201 })
+    }),
+    http.put(api('/projects/:id'), async ({ request, params }) => {
+      const project = projects.find((p) => p.id === params.id)
+      if (!project) return problem(404, 'Not Found')
+      if (request.headers.get('If-Match') !== `"${project.version}"`)
+        return problem(412, 'Precondition Failed')
+      if (project.archived) return problem(409, 'Conflict')
+      const body = (await request.json()) as Project
+      if (!('description' in body)) return problem(422, 'Unprocessable Content')
+      project.name = body.name.trim()
+      project.description = body.description ?? null
+      project.version += 1
+      return HttpResponse.json<Project>(project)
+    }),
+    http.patch(api('/projects/:id'), async ({ request, params }) => {
+      const project = projects.find((p) => p.id === params.id)
+      if (!project) return problem(404, 'Not Found')
+      if (request.headers.get('Content-Type') !== 'application/merge-patch+json')
+        return problem(415, 'Unsupported Media Type')
+      if (request.headers.get('If-Match') !== `"${project.version}"`)
+        return problem(412, 'Precondition Failed')
+      const { archived } = (await request.json()) as Schemas['ProjectPatch']
+      if (project.archived !== archived) {
+        project.archived = archived
+        project.version += 1
+      }
+      return HttpResponse.json<Project>(project)
+    }),
     http.get(api('/session'), () => {
       const person = people.find((p) => p.id === acting)
       return person
@@ -62,7 +144,7 @@ export function fakeBackend(initial: Person[], actingId: string | null = null) {
       return HttpResponse.json<Schemas['Session']>({ person })
     }),
   ]
-  return { handlers, people, acting: () => acting }
+  return { handlers, people, projects, acting: () => acting }
 }
 
 export const server = setupServer()

@@ -161,7 +161,7 @@ export interface components {
       total: number
     }
     /** @description A Person as shown on something that refers to them. */
-    PersonRefBody: {
+    PersonRef: {
       display_name: string
       /** Format: uuid */
       id: string
@@ -193,7 +193,7 @@ export interface components {
        *     1–9 uppercase letters or digits, unique across Projects.
        */
       project_code: string
-      readonly project_leader?: components['schemas']['PersonRefBody'] | null
+      readonly project_leader?: components['schemas']['PersonRef'] | null
       /** Format: int32 */
       readonly version: number
     }

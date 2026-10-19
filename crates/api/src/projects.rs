@@ -46,6 +46,7 @@ fn not_allowed(allow: &'static str) -> impl Fn() -> std::future::Ready<Problem> 
 
 /// A Person as shown on something that refers to them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[schema(as = PersonRef)]
 pub struct PersonRefBody {
     pub id: Uuid,
     pub display_name: String,
