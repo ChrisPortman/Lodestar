@@ -14,6 +14,7 @@ const web = {
   description: null,
   archived: false,
   project_leader: { id: 'a', display_name: 'Ada' },
+  health_rating: null,
   version: 1,
 } as Project
 
@@ -28,12 +29,12 @@ function memberNames(panel: HTMLElement) {
     .map((li) => li.textContent ?? '')
 }
 
-describe('Project meeting view', () => {
+describe('Members in the meeting view', () => {
   it('shows the code, name and Acting Person in the header', async () => {
     await renderApp('/projects/p1', [ada], 'a', [web])
-    const header = await screen.findByRole('banner', { name: 'Project' })
-    expect(within(header).getByText('WEBS')).toBeTruthy()
-    expect(within(header).getByRole('heading', { name: /Website/ })).toBeTruthy()
+    const heading = await screen.findByRole('heading', { name: /Website/ })
+    expect(heading.textContent).toContain('WEBS')
+    const header = heading.closest('header')!
     expect(within(header).getByText(/Acting as/).textContent).toContain('Ada')
     expect(within(header).queryByText('No Project Leader')).toBeNull()
   })
