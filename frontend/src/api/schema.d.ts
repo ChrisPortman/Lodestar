@@ -103,6 +103,52 @@ export interface paths {
     patch: operations['archive_project']
     trace?: never
   }
+  '/api/v1/risks': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Lists Risks, ordered by ID unless `sort` is given. Closed Risks are left
+     *     out unless `include_closed=true`.
+     */
+    get: operations['list_risks']
+    put?: never
+    /** Creates an open Risk with the next Reference in its Project. */
+    post: operations['create_risk']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/risks/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Fetches a Risk, open or closed. */
+    get: operations['get_risk']
+    /**
+     * Replaces a Risk's description, likelihood and impact. Needs a session and
+     *     `If-Match`.
+     */
+    put: operations['update_risk']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Closes or reopens a Risk, with `{"closed": …}` as
+     *     `application/merge-patch+json`. Needs a session and `If-Match`.
+     */
+    patch: operations['close_risk']
+    trace?: never
+  }
   '/api/v1/session': {
     parameters: {
       query?: never
@@ -226,6 +272,54 @@ export interface components {
      * @enum {string}
      */
     Rag: 'red' | 'amber' | 'green'
+    /**
+     * @description A Risk. Also the request body for `POST` and `PUT`: read-only fields may
+     *     be sent to `PUT` only if they match what is stored.
+     */
+    Risk: {
+      /** @description Changed only with `PATCH`. */
+      readonly closed: boolean
+      /** @description 1–4000 characters once trimmed; may span lines. */
+      description: string
+      /** Format: uuid */
+      readonly id: string
+      /** Format: int32 */
+      impact: number
+      /** Format: int32 */
+      likelihood: number
+      readonly project_code: string
+      /**
+       * Format: uuid
+       * @description Required on `POST`; never changes.
+       */
+      project_id: string
+      /** @description `R-001`, … numbered within the Project. A label, not an identifier. */
+      readonly reference: string
+      /**
+       * Format: int32
+       * @description Likelihood × impact, calculated (FR-41).
+       */
+      readonly score: number
+      /** Format: int32 */
+      readonly version: number
+    }
+    /** @description A page of Risks. */
+    RiskPage: {
+      items: components['schemas']['Risk'][]
+      /** Format: int32 */
+      limit: number
+      /** Format: int32 */
+      offset: number
+      /**
+       * Format: int64
+       * @description Matching Risks across all pages.
+       */
+      total: number
+    }
+    /** @description The only change `PATCH` makes (ADR-0006). */
+    RiskPatch: {
+      closed: boolean
+    }
     /** @description The current Acting Person. */
     Session: {
       person: components['schemas']['Person']
@@ -678,6 +772,289 @@ export interface operations {
         }
       }
       404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid patch */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  list_risks: {
+    parameters: {
+      query?: {
+        /** @description Only this Project's Risks. */
+        project_id?: string
+        /** @description Page size, 1–1000. */
+        limit?: number
+        offset?: number
+        sort?: 'id' | 'reference' | 'score'
+        /** @description Include closed Risks. */
+        include_closed?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RiskPage']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  create_risk: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Risk']
+      }
+    }
+    responses: {
+      201: {
+        headers: {
+          etag?: string
+          location?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Risk']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Risk */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  get_risk: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Risk']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  update_risk: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Risk']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Risk']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Risk */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  close_risk: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/merge-patch+json': components['schemas']['RiskPatch']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Risk']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
         headers: {
           [name: string]: unknown
         }

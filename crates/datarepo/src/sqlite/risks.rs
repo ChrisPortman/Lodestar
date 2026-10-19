@@ -9,8 +9,8 @@ use lodestar_core::risk::{Rating, Risk, RiskId, RiskParts, RiskView};
 use sqlx::Sqlite;
 
 use super::{
-    NewEntry, SqliteStore, count, corrupt, description, map_constraint, record_history,
-    unexpected, uuid, version,
+    NewEntry, SqliteStore, corrupt, count, description, map_constraint, record_history, unexpected,
+    uuid, version,
 };
 
 pub(super) struct SqliteRisks<'a>(pub(super) &'a mut sqlx::Transaction<'static, Sqlite>);

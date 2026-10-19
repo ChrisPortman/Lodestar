@@ -9,6 +9,7 @@ use axum::{
 };
 use lodestar_core::{
     person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
+    risk::use_cases::RiskError,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -126,6 +127,18 @@ impl From<ProjectError> for Problem {
             }
             ProjectError::UnknownActingPerson => Self::unauthorized(),
             ProjectError::Repo(e) => e.into(),
+        }
+    }
+}
+
+impl From<RiskError> for Problem {
+    fn from(error: RiskError) -> Self {
+        match error {
+            RiskError::InvalidDescription(_)
+            | RiskError::InvalidRating(_)
+            | RiskError::UnknownProject => Self::invalid(error.to_string()),
+            RiskError::Archived => Self::new(StatusCode::CONFLICT).detail(error.to_string()),
+            RiskError::Repo(e) => e.into(),
         }
     }
 }
