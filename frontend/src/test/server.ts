@@ -99,6 +99,7 @@ export function fakeBackend(
         project_code: body.project_code,
         archived: false,
         project_leader: person ? { id: person.id, display_name: person.display_name } : null,
+        health_rating: null,
       }
       projects.push(project)
       return HttpResponse.json<Project>(project, { status: 201 })
@@ -110,11 +111,20 @@ export function fakeBackend(
         return problem(412, 'Precondition Failed')
       if (project.archived) return problem(409, 'Conflict')
       const body = (await request.json()) as Project
-      if (!('description' in body)) return problem(422, 'Unprocessable Content')
+      if (!('description' in body) || !('health_rating' in body))
+        return problem(422, 'Unprocessable Content')
       project.name = body.name.trim()
       project.description = body.description ?? null
+      const health = body.health_rating
+      project.health_rating = health
+        ? { rating: health.rating, comment: health.comment?.trim() || null }
+        : null
       project.version += 1
       return HttpResponse.json<Project>(project)
+    }),
+    http.get(api('/projects/:id'), ({ params }) => {
+      const project = projects.find((p) => p.id === params.id)
+      return project ? HttpResponse.json<Project>(project) : problem(404, 'Not Found')
     }),
     http.patch(api('/projects/:id'), async ({ request, params }) => {
       const project = projects.find((p) => p.id === params.id)

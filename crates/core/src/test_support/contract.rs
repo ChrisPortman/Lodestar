@@ -281,7 +281,7 @@ pub async fn saved_project_can_be_loaded_and_updated(store: impl Store) {
         .described("Site")
         .coded("WEBR")
         .build();
-    let v2 = v1.edited(ProjectName::new("Website").unwrap(), None);
+    let v2 = v1.edited(ProjectName::new("Website").unwrap(), None, None);
     let mut tx = store.begin().await.unwrap();
     tx.projects().save(None, &v1, &ctx()).await.unwrap();
     assert_eq!(tx.projects().load(v1.id()).await.unwrap(), v1);

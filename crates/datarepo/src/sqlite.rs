@@ -491,6 +491,8 @@ struct ProjectRow {
     archived: i64,
     project_leader_id: Option<String>,
     leader_name: Option<String>,
+    health_rating: Option<String>,
+    health_comment: Option<String>,
     version: i64,
 }
 
@@ -505,6 +507,13 @@ impl TryFrom<ProjectRow> for ProjectView {
                 display_name: r.leader_name.unwrap_or_default(),
             }),
         };
+        let health_rating = match r.health_rating {
+            None => None,
+            Some(rating) => Some(HealthRating {
+                rating: Rag::parse(&rating).ok_or_else(|| corrupt("health_rating", &rating))?,
+                comment: r.health_comment.map(description).transpose()?,
+            }),
+        };
         Ok(ProjectView {
             id: ProjectId::from_uuid(uuid(&r.id)?),
             name: r.name,
@@ -512,6 +521,7 @@ impl TryFrom<ProjectRow> for ProjectView {
             project_code: r.project_code,
             archived: r.archived != 0,
             project_leader,
+            health_rating,
             version: version(r.version)?,
         })
     }
@@ -530,7 +540,8 @@ impl ProjectsQuery for SqliteStore {
         let rows = sqlx::query_as!(
             ProjectRow,
             r#"SELECT p.id, p.name, p.description, p.project_code, p.archived,
-                      p.project_leader_id, pe.display_name AS "leader_name?", p.version
+                      p.project_leader_id, pe.display_name AS "leader_name?",
+                      p.health_rating, p.health_comment, p.version
                FROM projects p LEFT JOIN people pe ON pe.id = p.project_leader_id
                WHERE ? OR p.archived = 0
                ORDER BY CASE WHEN ? THEN p.name END, p.id LIMIT ? OFFSET ?"#,
@@ -564,7 +575,8 @@ impl ProjectsQuery for SqliteStore {
         sqlx::query_as!(
             ProjectRow,
             r#"SELECT p.id, p.name, p.description, p.project_code, p.archived,
-                      p.project_leader_id, pe.display_name AS "leader_name?", p.version
+                      p.project_leader_id, pe.display_name AS "leader_name?",
+                      p.health_rating, p.health_comment, p.version
                FROM projects p LEFT JOIN people pe ON pe.id = p.project_leader_id
                WHERE p.id = ?"#,
             id_text

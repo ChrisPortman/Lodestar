@@ -163,7 +163,7 @@ async fn put_renames_and_redescribes() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "Website", "description": null}),
+        json!({"name": "Website", "description": null, "health_rating": null}),
     )
     .await;
     assert_eq!(reply.status, StatusCode::OK);
@@ -185,7 +185,7 @@ async fn put_renames_and_redescribes() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "X", "description": null}),
+        json!({"name": "X", "description": null, "health_rating": null}),
     )
     .await;
     assert_eq!(stale.status, StatusCode::PRECONDITION_FAILED);
@@ -207,7 +207,7 @@ async fn the_project_code_cannot_be_changed_by_put() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "Web", "description": null, "project_code": "NEWC"}),
+        json!({"name": "Web", "description": null, "health_rating": null, "project_code": "NEWC"}),
     )
     .await;
     assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -218,7 +218,7 @@ async fn the_project_code_cannot_be_changed_by_put() {
         &cookie,
         id,
         "\"1\"",
-        json!({"name": "Web", "description": null, "archived": true}),
+        json!({"name": "Web", "description": null, "health_rating": null, "archived": true}),
     )
     .await;
     assert_eq!(archived.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -250,7 +250,7 @@ async fn an_archived_project_is_read_only_until_unarchived() {
         &cookie,
         id,
         "\"2\"",
-        json!({"name": "Website", "description": null}),
+        json!({"name": "Website", "description": null, "health_rating": null}),
     )
     .await;
     assert_eq!(edit.status, StatusCode::CONFLICT);
@@ -267,7 +267,7 @@ async fn an_archived_project_is_read_only_until_unarchived() {
         &cookie,
         id,
         "\"3\"",
-        json!({"name": "Website", "description": null}),
+        json!({"name": "Website", "description": null, "health_rating": null}),
     )
     .await;
     assert_eq!(edit.status, StatusCode::OK);
@@ -359,4 +359,125 @@ async fn an_unknown_project_is_404() {
         .get("/api/v1/projects/0192f0c4-0000-7000-8000-000000000000", "")
         .await;
     assert_eq!(reply.status, StatusCode::NOT_FOUND);
+}
+
+/// A `PUT` body keeping name and description, with the given Health Rating.
+fn rated(health: Value) -> Value {
+    json!({"name": "Web", "description": null, "health_rating": health})
+}
+
+#[tokio::test]
+async fn a_new_project_is_not_rated() {
+    let (app, cookie) = with_person().await;
+    let created = create(
+        &app,
+        &cookie,
+        json!({"name": "Web", "project_code": "WEBR"}),
+    )
+    .await;
+    assert_eq!(created.status, StatusCode::CREATED);
+    assert_eq!(created.body["health_rating"], Value::Null);
+}
+
+#[tokio::test]
+async fn put_sets_changes_and_clears_the_health_rating() {
+    let (app, cookie) = with_person().await;
+    let created = create(
+        &app,
+        &cookie,
+        json!({"name": "Web", "project_code": "WEBR"}),
+    )
+    .await;
+    let id = created.body["id"].as_str().unwrap();
+
+    let set = put(
+        &app,
+        &cookie,
+        id,
+        "\"1\"",
+        rated(json!({"rating": "amber", "comment": "  Vendor late  "})),
+    )
+    .await;
+    assert_eq!(set.status, StatusCode::OK);
+    assert_eq!(
+        set.body["health_rating"],
+        json!({"rating": "amber", "comment": "Vendor late"})
+    );
+
+    let comment_cleared = put(
+        &app,
+        &cookie,
+        id,
+        "\"2\"",
+        rated(json!({"rating": "green", "comment": null})),
+    )
+    .await;
+    assert_eq!(comment_cleared.status, StatusCode::OK);
+    assert_eq!(
+        comment_cleared.body["health_rating"],
+        json!({"rating": "green", "comment": null})
+    );
+
+    let unrated = put(&app, &cookie, id, "\"3\"", rated(Value::Null)).await;
+    assert_eq!(unrated.status, StatusCode::OK);
+    assert_eq!(unrated.body["health_rating"], Value::Null);
+
+    let fetched = app.get(&format!("/api/v1/projects/{id}"), "").await;
+    assert_eq!(fetched.body["health_rating"], Value::Null);
+    assert_eq!(fetched.body["version"], 4);
+}
+
+#[tokio::test]
+async fn invalid_health_ratings_are_a_422_problem() {
+    let (app, cookie) = with_person().await;
+    let created = create(
+        &app,
+        &cookie,
+        json!({"name": "Web", "project_code": "WEBR"}),
+    )
+    .await;
+    let id = created.body["id"].as_str().unwrap();
+    for health in [
+        json!({"rating": "blue", "comment": null}),
+        json!({"rating": "red", "comment": "   "}),
+        json!({"rating": "red", "comment": "x".repeat(4001)}),
+        json!({"comment": "no rating"}),
+    ] {
+        let reply = put(&app, &cookie, id, "\"1\"", rated(health.clone())).await;
+        assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY, "{health}");
+        assert_eq!(reply.header("content-type"), PROBLEM);
+    }
+    let missing = put(
+        &app,
+        &cookie,
+        id,
+        "\"1\"",
+        json!({"name": "Web", "description": null}),
+    )
+    .await;
+    assert_eq!(missing.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn an_archived_project_rejects_a_health_rating() {
+    let (app, cookie) = with_person().await;
+    let created = create(
+        &app,
+        &cookie,
+        json!({"name": "Web", "project_code": "WEBR"}),
+    )
+    .await;
+    let id = created.body["id"].as_str().unwrap();
+    patch(&app, &cookie, id, "\"1\"", json!({"archived": true})).await;
+    let reply = put(
+        &app,
+        &cookie,
+        id,
+        "\"2\"",
+        rated(json!({"rating": "red", "comment": null})),
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::CONFLICT);
+    let now = app.get(&format!("/api/v1/projects/{id}"), "").await;
+    assert_eq!(now.body["health_rating"], Value::Null);
 }

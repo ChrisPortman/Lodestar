@@ -520,7 +520,7 @@
         "tags": [
           "projects"
         ],
-        "summary": "Replaces a Project's name and description. Needs a session and `If-Match`.",
+        "summary": "Replaces a Project's name, description and Health Rating. Needs a session and `If-Match`.",
         "operationId": "update_project",
         "parameters": [
           {
@@ -827,6 +827,28 @@
           }
         }
       },
+      "HealthRating": {
+        "type": "object",
+        "description": "A Project's Health Rating, set by hand (FR-70).",
+        "required": [
+          "rating"
+        ],
+        "properties": {
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "1–4000 characters once trimmed, or `null`.",
+            "maxLength": 4000,
+            "minLength": 1
+          },
+          "rating": {
+            "$ref": "#/components/schemas/Rag"
+          }
+        },
+        "additionalProperties": false
+      },
       "NewSession": {
         "type": "object",
         "description": "Chooses the Acting Person.",
@@ -974,6 +996,17 @@
             "maxLength": 4000,
             "minLength": 1
           },
+          "health_rating": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HealthRating",
+                "description": "`null` when the Project is not rated. Required on `PUT`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -1056,6 +1089,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "Rag": {
+        "type": "string",
+        "description": "Red, Amber or Green.",
+        "enum": [
+          "red",
+          "amber",
+          "green"
+        ]
       },
       "Session": {
         "type": "object",

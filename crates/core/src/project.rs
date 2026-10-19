@@ -189,6 +189,7 @@ pub struct ProjectView {
     pub project_code: String,
     pub archived: bool,
     pub project_leader: Option<PersonRef>,
+    pub health_rating: Option<HealthRating>,
     pub version: u32,
 }
 
@@ -256,11 +257,18 @@ impl Project {
         }
     }
 
-    /// The Project with a new name and description. The code never changes (FR-11).
-    pub fn edited(&self, name: ProjectName, description: Option<Description>) -> Self {
+    /// The Project with a new name, description and Health Rating. The code
+    /// never changes (FR-11).
+    pub fn edited(
+        &self,
+        name: ProjectName,
+        description: Option<Description>,
+        health_rating: Option<HealthRating>,
+    ) -> Self {
         Self {
             name,
             description,
+            health_rating,
             version: self.version + 1,
             ..self.clone()
         }

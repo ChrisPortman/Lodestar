@@ -4,6 +4,7 @@ import { fetchSession } from './session'
 import HomeView from './views/HomeView.vue'
 import PeopleView from './views/PeopleView.vue'
 import ProjectsView from './views/ProjectsView.vue'
+import ProjectView from './views/ProjectView.vue'
 import PlaceholderView from './views/PlaceholderView.vue'
 
 export function createAppRouter(history: RouterHistory, queryClient: QueryClient) {
@@ -12,7 +13,7 @@ export function createAppRouter(history: RouterHistory, queryClient: QueryClient
     routes: [
       { path: '/', name: 'home', component: HomeView, meta: { public: true } },
       { path: '/projects', component: ProjectsView },
-      { path: '/projects/:id', component: PlaceholderView, props: { title: 'Project' } },
+      { path: '/projects/:id', component: ProjectView, props: true },
       {
         path: '/projects/:id/report',
         component: PlaceholderView,
