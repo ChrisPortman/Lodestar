@@ -90,7 +90,7 @@ export interface paths {
     }
     /** Fetches a Project, archived or not. */
     get: operations['get_project']
-    /** Replaces a Project's name and description. Needs a session and `If-Match`. */
+    /** Replaces a Project's name, description and Health Rating. Needs a session and `If-Match`. */
     put: operations['update_project']
     post?: never
     delete?: never
@@ -129,6 +129,12 @@ export interface components {
     CodeSuggestion: {
       /** @description `null` when the name has too few letters to suggest one. */
       project_code?: string | null
+    }
+    /** @description A Project's Health Rating, set by hand (FR-70). */
+    HealthRating: {
+      /** @description 1–4000 characters once trimmed, or `null`. */
+      comment?: string | null
+      rating: components['schemas']['Rag']
     }
     /** @description Chooses the Acting Person. */
     NewSession: {
@@ -184,6 +190,7 @@ export interface components {
       readonly archived: boolean
       /** @description 1–4000 characters once trimmed, or `null`. Required on `PUT`. */
       description?: string | null
+      health_rating?: components['schemas']['HealthRating'] | null
       /** Format: uuid */
       readonly id: string
       /** @description Required, 1–100 characters; surrounding whitespace is trimmed. */
@@ -214,6 +221,11 @@ export interface components {
     ProjectPatch: {
       archived: boolean
     }
+    /**
+     * @description Red, Amber or Green.
+     * @enum {string}
+     */
+    Rag: 'red' | 'amber' | 'green'
     /** @description The current Acting Person. */
     Session: {
       person: components['schemas']['Person']

@@ -1,4 +1,11 @@
 import { client, ifMatch, unwrap, type Project } from './client'
+import type { components } from './schema'
+
+export type HealthRating = components['schemas']['HealthRating']
+
+export async function getProject(id: string): Promise<Project> {
+  return unwrap(await client.GET('/api/v1/projects/{id}', { params: { path: { id } } }))
+}
 
 export async function listProjects(includeArchived: boolean): Promise<Project[]> {
   const page = unwrap(
@@ -44,6 +51,19 @@ export async function updateProject(
     await client.PUT('/api/v1/projects/{id}', {
       params: { path: { id: project.id }, header: { 'if-match': ifMatch(project.version) } },
       body: { ...project, name, description },
+    }),
+  )
+}
+
+/** Sets the Health Rating (`null` for not rated), keeping every other field. */
+export async function setHealthRating(
+  project: Project,
+  healthRating: HealthRating | null,
+): Promise<Project> {
+  return unwrap(
+    await client.PUT('/api/v1/projects/{id}', {
+      params: { path: { id: project.id }, header: { 'if-match': ifMatch(project.version) } },
+      body: { ...project, health_rating: healthRating },
     }),
   )
 }

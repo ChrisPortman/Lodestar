@@ -3,10 +3,12 @@ use lodestar_core::person::{Person, PersonId, use_cases::create_person};
 use lodestar_core::ports::{HistoryQuery, PageRequest, RepoError, UnitOfWork};
 use lodestar_core::project::guard::{GuardError, writable_project};
 use lodestar_core::project::use_cases::{
-    NewProject, ProjectError, ProjectSort, create_project, get_project, list_projects,
-    set_archived, suggest_project_code, update_project,
+    HealthRatingInput, NewProject, ProjectEdit, ProjectError, ProjectSort, create_project,
+    get_project, list_projects, set_archived, suggest_project_code, update_project,
 };
-use lodestar_core::project::{DescriptionError, ProjectCodeError, ProjectNameError};
+use lodestar_core::project::{
+    DescriptionError, HealthRating, ProjectCodeError, ProjectNameError, Rag,
+};
 use lodestar_core::test_support::InMemoryStore;
 
 async fn setup() -> (InMemoryStore, Person) {
@@ -21,6 +23,73 @@ fn new<'a>(name: &'a str, code: &'a str) -> NewProject<'a> {
         description: None,
         project_code: code,
     }
+}
+
+fn edit(name: &str) -> ProjectEdit<'_> {
+    ProjectEdit {
+        name,
+        description: None,
+        health_rating: None,
+    }
+}
+
+#[tokio::test]
+async fn the_health_rating_is_set_by_hand_and_recorded_in_the_change_history() {
+    let (store, ada) = setup().await;
+    let p = create_project(&store, ada.id(), new("Web", "WEBR"))
+        .await
+        .unwrap();
+    assert_eq!(
+        get_project(&store, p.id()).await.unwrap().health_rating,
+        None
+    );
+
+    let rated = ProjectEdit {
+        health_rating: Some(HealthRatingInput {
+            rating: Rag::Red,
+            comment: Some(" Behind "),
+        }),
+        ..edit("Web")
+    };
+    update_project(&store, ada.id(), p.id(), 1, rated)
+        .await
+        .unwrap();
+    assert_eq!(
+        get_project(&store, p.id()).await.unwrap().health_rating,
+        Some(HealthRating {
+            rating: Rag::Red,
+            comment: Some(lodestar_core::project::Description::new("Behind").unwrap()),
+        })
+    );
+
+    let history = store
+        .entity_history(
+            EntityType::Project,
+            p.id().as_uuid(),
+            PageRequest::first(10),
+        )
+        .await
+        .unwrap();
+    let last = history.items.last().unwrap();
+    assert_eq!(last.after["health_rating"]["rating"], "red");
+    assert_eq!(
+        last.before.as_ref().unwrap()["health_rating"],
+        serde_json::Value::Null
+    );
+
+    let blank = ProjectEdit {
+        health_rating: Some(HealthRatingInput {
+            rating: Rag::Red,
+            comment: Some("  "),
+        }),
+        ..edit("Web")
+    };
+    assert_eq!(
+        update_project(&store, ada.id(), p.id(), 2, blank)
+            .await
+            .unwrap_err(),
+        ProjectError::InvalidDescription(DescriptionError::Empty)
+    );
 }
 
 #[tokio::test]
@@ -158,7 +227,7 @@ async fn editing_changes_name_and_description_but_never_the_code() {
     )
     .await
     .unwrap();
-    let edited = update_project(&store, ada.id(), p.id(), 1, "Website", None)
+    let edited = update_project(&store, ada.id(), p.id(), 1, edit("Website"))
         .await
         .unwrap();
     assert_eq!(edited.version(), 2);
@@ -168,7 +237,7 @@ async fn editing_changes_name_and_description_but_never_the_code() {
     assert_eq!(view.project_code, "WEBR");
 
     assert_eq!(
-        update_project(&store, ada.id(), p.id(), 1, "Stale", None)
+        update_project(&store, ada.id(), p.id(), 1, edit("Stale"))
             .await
             .unwrap_err(),
         ProjectError::Repo(RepoError::Conflict)
@@ -187,7 +256,7 @@ async fn an_archived_project_rejects_edits_until_unarchived() {
     assert!(archived.archived());
 
     assert_eq!(
-        update_project(&store, ada.id(), p.id(), 2, "Website", None)
+        update_project(&store, ada.id(), p.id(), 2, edit("Website"))
             .await
             .unwrap_err(),
         ProjectError::Archived
@@ -202,7 +271,7 @@ async fn an_archived_project_rejects_edits_until_unarchived() {
     set_archived(&store, ada.id(), p.id(), 2, false)
         .await
         .unwrap();
-    update_project(&store, ada.id(), p.id(), 3, "Website", None)
+    update_project(&store, ada.id(), p.id(), 3, edit("Website"))
         .await
         .unwrap();
 }
@@ -247,7 +316,7 @@ async fn every_change_is_in_the_change_history() {
     let p = create_project(&store, ada.id(), new("Web", "WEBR"))
         .await
         .unwrap();
-    update_project(&store, ada.id(), p.id(), 1, "Website", None)
+    update_project(&store, ada.id(), p.id(), 1, edit("Website"))
         .await
         .unwrap();
     set_archived(&store, ada.id(), p.id(), 2, true)

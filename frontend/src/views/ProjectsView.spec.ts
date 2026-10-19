@@ -12,6 +12,7 @@ function project(fields: Partial<Project> & Pick<Project, 'id' | 'name' | 'proje
     description: null,
     archived: false,
     project_leader: leader,
+    health_rating: null,
     version: 1,
     ...fields,
   } as Project

@@ -11,7 +11,7 @@ use lodestar_core::{
     ports::{Page, PageRequest, PeopleQuery, PeopleSort, ProjectSort, ProjectsQuery, UnitOfWork},
     project::{
         Project, ProjectCode, ProjectId, ProjectView,
-        use_cases::{self as project_use_cases, NewProject, ProjectError},
+        use_cases::{self as project_use_cases, NewProject, ProjectEdit, ProjectError},
     },
 };
 
@@ -105,8 +105,7 @@ pub trait Projects: Send + Sync {
         acting: PersonId,
         id: ProjectId,
         expected_version: u32,
-        name: &'a str,
-        description: Option<&'a str>,
+        edit: ProjectEdit<'a>,
     ) -> BoxFuture<'a, Result<Project, ProjectError>>;
 
     fn set_archived(
@@ -157,16 +156,14 @@ impl<S: UnitOfWork + ProjectsQuery> Projects for S {
         acting: PersonId,
         id: ProjectId,
         expected_version: u32,
-        name: &'a str,
-        description: Option<&'a str>,
+        edit: ProjectEdit<'a>,
     ) -> BoxFuture<'a, Result<Project, ProjectError>> {
         Box::pin(project_use_cases::update_project(
             self,
             acting,
             id,
             expected_version,
-            name,
-            description,
+            edit,
         ))
     }
 
