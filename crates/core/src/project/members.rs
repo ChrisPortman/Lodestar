@@ -2,6 +2,7 @@
 //! Project aggregate, so each change bumps the Project's version and writes
 //! its Change History entry.
 
+use crate::action::use_cases::unassign_open_actions;
 use crate::history::ChangeContext;
 use crate::person::PersonId;
 use crate::ports::{
@@ -73,11 +74,12 @@ pub async fn remove_member<U: UnitOfWork>(
 ///
 /// Actions and Blockers plug their unassignment in here as they are built.
 async fn unassign_open_items<T: Transaction>(
-    _tx: &mut T,
-    _project: ProjectId,
-    _person: PersonId,
-    _ctx: &ChangeContext,
+    tx: &mut T,
+    project: ProjectId,
+    person: PersonId,
+    ctx: &ChangeContext,
 ) -> Result<(), RepoError> {
+    unassign_open_actions(tx, project, person, ctx).await?;
     Ok(())
 }
 

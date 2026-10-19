@@ -55,6 +55,7 @@ impl ChangeContext {
 pub enum EntityType {
     Person,
     Project,
+    Action,
 }
 
 impl EntityType {
@@ -62,6 +63,7 @@ impl EntityType {
         match self {
             Self::Person => "person",
             Self::Project => "project",
+            Self::Action => "action",
         }
     }
 
@@ -69,6 +71,7 @@ impl EntityType {
         match s {
             "person" => Some(Self::Person),
             "project" => Some(Self::Project),
+            "action" => Some(Self::Action),
             _ => None,
         }
     }

@@ -9,12 +9,13 @@ use std::sync::{Arc, Mutex};
 use chrono::Utc;
 use uuid::Uuid;
 
+use crate::action::{Action, ActionId, ActionView};
 use crate::history::{
     ChangeContext, ChangeKind, EntityType, HistoryEntry, HistoryEntryId, snapshot,
 };
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
-    HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ActionFilter, ActionRepository, ActionsQuery, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
     ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
     UnitOfWork,
 };
@@ -28,6 +29,7 @@ struct State {
     projects: BTreeMap<ProjectId, Project>,
     history: Vec<HistoryEntry>,
     references: HashMap<(Uuid, ReferenceKind), u32>,
+    actions: BTreeMap<ActionId, Action>,
 }
 
 /// An in-memory store implementing every port. Transactions work on a copy
@@ -74,6 +76,10 @@ impl Transaction for InMemoryTx {
 
     fn references(&mut self) -> impl ReferenceCounter + Send + '_ {
         InMemoryReferences(&mut self.work)
+    }
+
+    fn actions(&mut self) -> impl ActionRepository + Send + '_ {
+        InMemoryActions(&mut self.work)
     }
 
     async fn commit(self) -> Result<(), RepoError> {
@@ -169,6 +175,60 @@ impl ProjectRepository for InMemoryProjects<'_> {
             caused_by: ctx.caused_by,
         });
         Ok(id)
+    }
+}
+
+struct InMemoryActions<'a>(&'a mut State);
+
+impl ActionRepository for InMemoryActions<'_> {
+    async fn load(&mut self, id: ActionId) -> Result<Action, RepoError> {
+        self.0.actions.get(&id).cloned().ok_or(RepoError::NotFound)
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&Action>,
+        after: &Action,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        let stored_version = self.0.actions.get(&after.id()).map(Action::version);
+        if stored_version != before.map(Action::version) {
+            return Err(RepoError::Conflict);
+        }
+        self.0.actions.insert(after.id(), after.clone());
+        let id = HistoryEntryId::new();
+        self.0.history.push(HistoryEntry {
+            id,
+            entity_type: EntityType::Action,
+            entity_id: after.id().as_uuid(),
+            project_id: Some(after.project_id().as_uuid()),
+            version: after.version(),
+            change_kind: if before.is_some() {
+                ChangeKind::Updated
+            } else {
+                ChangeKind::Created
+            },
+            acting_person: ctx.acting_person,
+            recorded_at: Utc::now(),
+            before: before.map(snapshot),
+            after: snapshot(after),
+            caused_by: ctx.caused_by,
+        });
+        Ok(id)
+    }
+
+    async fn open_assigned_to(
+        &mut self,
+        project: ProjectId,
+        person: PersonId,
+    ) -> Result<Vec<Action>, RepoError> {
+        Ok(self
+            .0
+            .actions
+            .values()
+            .filter(|a| a.project_id() == project && !a.closed() && a.assignee() == Some(person))
+            .cloned()
+            .collect())
     }
 }
 
@@ -323,6 +383,63 @@ impl HistoryQuery for InMemoryStore {
             .filter(|e| e.entity_type == entity_type && e.entity_id == entity_id)
             .collect();
         Ok(page_of(all, page))
+    }
+}
+
+fn person_ref(state: &State, id: PersonId) -> PersonRef {
+    PersonRef {
+        id,
+        display_name: state
+            .people
+            .get(&id)
+            .map(|p| p.display_name().as_str().to_owned())
+            .unwrap_or_default(),
+    }
+}
+
+fn action_view(state: &State, action: &Action) -> ActionView {
+    ActionView {
+        id: action.id(),
+        project_id: action.project_id(),
+        project_code: state
+            .projects
+            .get(&action.project_id())
+            .map(|p| p.project_code().as_str().to_owned())
+            .unwrap_or_default(),
+        reference: action.reference_label(),
+        description: action.description().as_str().to_owned(),
+        assignee: action.assignee().map(|id| person_ref(state, id)),
+        due_date: action.due_date(),
+        closed: action.closed(),
+        version: action.version(),
+    }
+}
+
+impl ActionsQuery for InMemoryStore {
+    async fn list_actions(
+        &self,
+        filter: ActionFilter,
+        page: PageRequest,
+    ) -> Result<Page<ActionView>, RepoError> {
+        let state = self.snapshot();
+        let mut all: Vec<_> = state
+            .actions
+            .values()
+            .filter(|a| filter.project_id.is_none_or(|p| a.project_id() == p))
+            .filter(|a| filter.include_closed || !a.closed())
+            .map(|a| (a.reference(), action_view(&state, a)))
+            .collect();
+        all.sort_by(|(ra, a), (rb, b)| (&a.project_code, ra, a.id).cmp(&(&b.project_code, rb, b.id)));
+        Ok(page_of(all.into_iter().map(|(_, v)| v).collect(), page))
+    }
+
+    async fn get_action(&self, id: ActionId) -> Result<ActionView, RepoError> {
+        let state = self.snapshot();
+        state
+            .actions
+            .get(&id)
+            .map(|a| action_view(&state, a))
+            .ok_or(RepoError::NotFound)
     }
 }
 

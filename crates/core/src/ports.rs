@@ -8,6 +8,7 @@ use std::future::Future;
 
 use uuid::Uuid;
 
+use crate::action::{Action, ActionId, ActionView};
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{PersonRef, Project, ProjectId, ProjectView};
@@ -41,6 +42,8 @@ pub trait Transaction: Send {
 
     fn references(&mut self) -> impl ReferenceCounter + Send + '_;
 
+    fn actions(&mut self) -> impl ActionRepository + Send + '_;
+
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
 
@@ -69,6 +72,25 @@ pub trait ProjectRepository {
         after: &Project,
         ctx: &ChangeContext,
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+pub trait ActionRepository {
+    fn load(&mut self, id: ActionId) -> impl Future<Output = Result<Action, RepoError>> + Send;
+
+    /// As [`PersonRepository::save`].
+    fn save(
+        &mut self,
+        before: Option<&Action>,
+        after: &Action,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+
+    /// The open Actions in `project` assigned to `person`.
+    fn open_assigned_to(
+        &mut self,
+        project: ProjectId,
+        person: PersonId,
+    ) -> impl Future<Output = Result<Vec<Action>, RepoError>> + Send;
 }
 
 /// The kinds of item that get a per-Project Reference (ADR-0001).
@@ -186,4 +208,25 @@ pub trait HistoryQuery: Send + Sync {
         entity_id: Uuid,
         page: PageRequest,
     ) -> impl Future<Output = Result<Page<HistoryEntry>, RepoError>> + Send;
+}
+
+/// Which Actions to list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ActionFilter {
+    /// Only this Project's Actions; all Projects when `None`.
+    pub project_id: Option<ProjectId>,
+    /// Include closed Actions as well as open ones.
+    pub include_closed: bool,
+}
+
+/// Read-only views of Actions, ordered by Project Code then Reference.
+pub trait ActionsQuery: Send + Sync {
+    fn list_actions(
+        &self,
+        filter: ActionFilter,
+        page: PageRequest,
+    ) -> impl Future<Output = Result<Page<ActionView>, RepoError>> + Send;
+
+    fn get_action(&self, id: ActionId)
+    -> impl Future<Output = Result<ActionView, RepoError>> + Send;
 }

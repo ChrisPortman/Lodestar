@@ -3,19 +3,21 @@
 
 use uuid::Uuid;
 
+use crate::action::{Action, ActionId};
+
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
-    HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
+    ActionFilter, ActionRepository, ActionsQuery, HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository,
     ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, Transaction,
     UnitOfWork,
 };
-use crate::project::{ProjectId, ProjectName};
+use crate::project::{Description, ProjectId, ProjectName};
 use crate::test_support::{a_person, a_project};
 
 /// Everything a full store adapter provides.
-pub trait Store: UnitOfWork + PeopleQuery + ProjectsQuery + HistoryQuery {}
-impl<T: UnitOfWork + PeopleQuery + ProjectsQuery + HistoryQuery> Store for T {}
+pub trait Store: UnitOfWork + PeopleQuery + ProjectsQuery + ActionsQuery + HistoryQuery {}
+impl<T: UnitOfWork + PeopleQuery + ProjectsQuery + ActionsQuery + HistoryQuery> Store for T {}
 
 fn ctx() -> ChangeContext {
     ChangeContext::by(PersonId::new())
@@ -461,6 +463,145 @@ pub async fn project_members_are_saved_and_listed_by_name(store: impl Store) {
     );
 }
 
+/// Saves two People and a Project led by the first with both as Members.
+async fn a_saved_project_with(store: &impl Store, code: &str) -> (ProjectId, PersonId, PersonId) {
+    let ada = a_saved_person(store, "Ada").await;
+    let bob = a_saved_person(store, "Bob").await;
+    let project = a_project(ada).coded(code).build().with_member(bob);
+    let mut tx = store.begin().await.unwrap();
+    tx.projects().save(None, &project, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+    (project.id(), ada, bob)
+}
+
+fn an_action(project: ProjectId, reference: u32, assignee: Option<PersonId>) -> Action {
+    Action::create(
+        project,
+        reference,
+        Description::new(format!("Action {reference}\nsecond line")).unwrap(),
+        assignee,
+        Some("2030-01-31".parse().unwrap()),
+    )
+}
+
+pub async fn saved_action_can_be_loaded_updated_and_viewed(store: impl Store) {
+    let (project, _ada, bob) = a_saved_project_with(&store, "WEBR").await;
+    let v1 = an_action(project, 7, Some(bob));
+    let v2 = v1.closed_now();
+    let mut tx = store.begin().await.unwrap();
+    let created = tx
+        .actions()
+        .save(None, &v1, &ChangeContext::by(bob))
+        .await
+        .unwrap();
+    assert_eq!(tx.actions().load(v1.id()).await.unwrap(), v1);
+    tx.actions()
+        .save(Some(&v1), &v2, &ChangeContext::by(bob).caused_by(created))
+        .await
+        .unwrap();
+    assert_eq!(
+        tx.actions().save(Some(&v1), &v2, &ctx()).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.actions().load(ActionId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+    tx.commit().await.unwrap();
+
+    let view = store.get_action(v1.id()).await.unwrap();
+    assert_eq!(view.reference, "A-007");
+    assert_eq!(view.project_id, project);
+    assert_eq!(view.project_code, "WEBR");
+    assert_eq!(view.description, "Action 7\nsecond line");
+    let assignee = view.assignee.unwrap();
+    assert_eq!((assignee.id, assignee.display_name.as_str()), (bob, "Bob"));
+    assert_eq!(view.due_date, Some("2030-01-31".parse().unwrap()));
+    assert!(view.closed);
+    assert_eq!(view.version, 2);
+    assert_eq!(
+        store.get_action(ActionId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+
+    let history = store
+        .entity_history(EntityType::Action, v1.id().as_uuid(), PageRequest::first(10))
+        .await
+        .unwrap();
+    let [first, second] = history.items.as_slice() else {
+        panic!("expected two entries, got {:?}", history.items);
+    };
+    assert_eq!(first.project_id, Some(project.as_uuid()));
+    assert_eq!(first.after, snapshot(&v1));
+    assert_eq!(second.before, Some(snapshot(&v1)));
+    assert_eq!(second.caused_by, Some(created));
+}
+
+pub async fn open_actions_assigned_to_a_person_can_be_found(store: impl Store) {
+    let (project, ada, bob) = a_saved_project_with(&store, "WEBR").await;
+    let (other, _, _) = a_saved_project_with(&store, "OTHR").await;
+    let open = an_action(project, 1, Some(bob));
+    let closed = an_action(project, 2, Some(bob)).closed_now();
+    let adas = an_action(project, 3, Some(ada));
+    let elsewhere = an_action(other, 1, Some(bob));
+    let mut tx = store.begin().await.unwrap();
+    for a in [&open, &closed, &adas, &elsewhere] {
+        tx.actions().save(None, a, &ctx()).await.unwrap();
+    }
+    let found: Vec<_> = tx
+        .actions()
+        .open_assigned_to(project, bob)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|a| a.id())
+        .collect();
+    assert_eq!(found, [open.id()]);
+}
+
+pub async fn actions_are_listed_by_project_code_and_reference(store: impl Store) {
+    let (web, _, _) = a_saved_project_with(&store, "WEBR").await;
+    let (alpha, _, _) = a_saved_project_with(&store, "ALPH").await;
+    let mut tx = store.begin().await.unwrap();
+    for a in [
+        an_action(web, 10, None),
+        an_action(web, 2, None),
+        an_action(web, 3, None).closed_now(),
+        an_action(alpha, 1, None),
+    ] {
+        tx.actions().save(None, &a, &ctx()).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+
+    let labels = |page: crate::ports::Page<crate::action::ActionView>| -> Vec<String> {
+        page.items
+            .into_iter()
+            .map(|a| format!("{}/{}", a.project_code, a.reference))
+            .collect()
+    };
+    let open = store
+        .list_actions(ActionFilter::default(), PageRequest::first(10))
+        .await
+        .unwrap();
+    assert_eq!(open.total, 3);
+    assert_eq!(labels(open), ["ALPH/A-001", "WEBR/A-002", "WEBR/A-010"]);
+    let web_all = store
+        .list_actions(
+            ActionFilter {
+                project_id: Some(web),
+                include_closed: true,
+            },
+            PageRequest {
+                offset: 1,
+                limit: 5,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(web_all.total, 3);
+    assert_eq!(labels(web_all), ["WEBR/A-003", "WEBR/A-010"]);
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -489,7 +630,10 @@ macro_rules! port_contract_tests {
             each_project_save_writes_a_history_entry,
             projects_are_listed_without_archived_ones_by_default,
             project_codes_can_be_found_by_prefix,
-            project_members_are_saved_and_listed_by_name
+            project_members_are_saved_and_listed_by_name,
+            saved_action_can_be_loaded_updated_and_viewed,
+            open_actions_assigned_to_a_person_can_be_found,
+            actions_are_listed_by_project_code_and_reference
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {
