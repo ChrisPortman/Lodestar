@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 use tracing_subscriber::EnvFilter;
 
 /// Minimum session key length in bytes (cookie signing + encryption).
+pub const SESSION_KEY_MIN_LEN: usize = 32;
+/// Length in bytes of a generated session key.
 pub const SESSION_KEY_LEN: usize = 64;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -200,9 +202,9 @@ fn decode_key(encoded: &str) -> Result<Vec<u8>, String> {
     let bytes = BASE64
         .decode(encoded.trim())
         .map_err(|e| format!("not valid base64: {e}"))?;
-    if bytes.len() < SESSION_KEY_LEN {
+    if bytes.len() < SESSION_KEY_MIN_LEN {
         return Err(format!(
-            "must be at least {SESSION_KEY_LEN} bytes, got {}",
+            "must be at least {SESSION_KEY_MIN_LEN} bytes, got {}",
             bytes.len()
         ));
     }
@@ -375,7 +377,12 @@ mod tests {
             jail.set_env("LODESTAR_SESSION__KEY", BASE64.encode([1u8; 16]));
             let err = load_err(None);
             assert!(err.contains("session.key"), "{err}");
-            assert!(err.contains("at least 64 bytes"), "{err}");
+            assert!(err.contains("at least 32 bytes"), "{err}");
+            Ok(())
+        });
+        Jail::expect_with(|jail| {
+            jail.set_env("LODESTAR_SESSION__KEY", BASE64.encode([1u8; 32]));
+            assert!(load(None).is_ok());
             Ok(())
         });
     }

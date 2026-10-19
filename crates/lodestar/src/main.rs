@@ -75,7 +75,7 @@ async fn main() -> ExitCode {
         Ok(database) => database,
         Err(error) => {
             tracing::error!(%error, url = %config.database.url, "cannot open database");
-            return ExitCode::FAILURE;
+            return ExitCode::from(EX_CONFIG);
         }
     };
 

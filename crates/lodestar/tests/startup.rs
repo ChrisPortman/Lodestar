@@ -25,7 +25,7 @@ fn free_port() -> u16 {
 fn get_healthz(port: u16) -> Option<String> {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).ok()?;
     stream
-        .write_all(b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .write_all(b"GET /api/v1/healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
         .ok()?;
     let mut response = String::new();
     stream.read_to_string(&mut response).ok()?;
@@ -54,7 +54,7 @@ fn starts_and_serves_healthz_within_two_seconds() {
     child.kill().unwrap();
     child.wait().unwrap();
 
-    let response = response.expect("no /healthz response within 2s (NFR-42)");
+    let response = response.expect("no /api/v1/healthz response within 2s (NFR-42)");
     assert!(response.starts_with("HTTP/1.1 200"), "{response}");
     assert!(response.contains(r#""database":"reachable""#), "{response}");
     assert!(dir.path().join("lodestar.db").exists());
@@ -66,6 +66,17 @@ fn invalid_configuration_exits_with_ex_config() {
     let dir = tempfile::tempdir().unwrap();
     let status = lodestar(&dir)
         .env("LODESTAR_SERVER__PORT", "0")
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(78));
+}
+
+#[test]
+fn unopenable_database_exits_with_ex_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let status = lodestar(&dir)
+        .env("LODESTAR_SERVER__PORT", free_port().to_string())
+        .env("LODESTAR_DATABASE__URL", "sqlite://missing-dir/lodestar.db")
         .status()
         .unwrap();
     assert_eq!(status.code(), Some(78));

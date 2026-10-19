@@ -1,4 +1,4 @@
-//! `GET /healthz`: the process is running and the database is reachable.
+//! `GET /api/v1/healthz`: the process is running and the database is reachable.
 
 use std::sync::Arc;
 
@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 pub fn routes<H: HealthProbe>(probe: H) -> Router {
     Router::new()
-        .route("/healthz", get(healthz::<H>))
+        .route("/api/v1/healthz", get(healthz::<H>))
         .with_state(Arc::new(probe))
 }
 
