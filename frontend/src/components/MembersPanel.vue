@@ -70,11 +70,11 @@ async function addChosen() {
     </div>
 
     <p v-if="members.isPending.value" class="mt-4 text-muted">Loading…</p>
-    <ul v-else aria-label="Members" class="mt-4 divide-y divide-divider">
+    <ul v-else aria-label="Members" class="mt-4 grid gap-2">
       <li
         v-for="member in members.data.value"
         :key="member.id"
-        class="flex items-center gap-2 py-2"
+        class="flex items-center gap-2 rounded-md border border-l-3 border-border bg-surface px-4 py-3"
       >
         <span class="flex-1">
           {{ member.display_name }}

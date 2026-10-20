@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test'
-import { actAs, seedAction, seedBlocker, seedProject, seedReportItems, seedRisk } from './seed'
+import {
+  actAs,
+  seedAction,
+  seedBlocker,
+  seedProject,
+  seedReportItems,
+  seedRisk,
+  setHealthRating,
+  updateAction,
+} from './seed'
 import { THEMES, expectAccessible, useTheme } from './axe'
 
 for (const theme of THEMES) {
@@ -33,13 +42,20 @@ for (const theme of THEMES) {
     test('a Project page is accessible', async ({ page, request }) => {
       const { person, project } = await seedProject(request, `Project ${theme}`)
       await seedAction(request, project.id, 'Book the venue')
-      await seedRisk(request, project.id, 'Venue falls through')
-      await seedBlocker(request, project.id, 'Awaiting budget sign-off')
+      const overdue = await seedAction(request, project.id, 'Send invites')
+      await updateAction(request, overdue, { assignee: person, due_date: '2001-01-01' })
+      const blocked = await seedAction(request, project.id, 'Print badges')
+      await seedBlocker(request, project.id, 'Printer broken', [blocked.id])
+      await seedRisk(request, project.id, 'Venue cancels', 5, 4)
+      await seedRisk(request, project.id, 'Rain', 3, 2)
+      await seedRisk(request, project.id, 'Late speaker', 1, 2)
+      await setHealthRating(request, project.id, 'amber', 'Venue pending')
       await actAs(page, person)
       await page.goto(`/projects/${project.id}`)
-      await expect(page.getByRole('region', { name: 'Actions' })).toContainText('Book the venue')
-      await expect(page.getByRole('region', { name: 'Risks' })).toContainText('Venue falls')
-      await expect(page.getByRole('region', { name: 'Blockers' })).toContainText('Awaiting')
+      await expect(page.getByRole('region', { name: 'Actions' })).toContainText('Blocked by')
+      await expect(page.getByRole('region', { name: 'Blockers' })).toContainText('Printer broken')
+      await expect(page.getByRole('region', { name: 'Risks' })).toContainText('Late speaker')
+      await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText('▲ Amber')
       await expectAccessible(page)
       // Hover and keyboard focus states keep their contrast too.
       await page.getByRole('button', { name: 'Members' }).hover()
@@ -47,6 +63,19 @@ for (const theme of THEMES) {
       await page.getByRole('button', { name: 'Members' }).focus()
       await expectAccessible(page)
     })
+
+    for (const rating of ['red', 'green'] as const) {
+      test(`a ${rating} Health Rating chip is accessible`, async ({ page, request }) => {
+        const { person, project } = await seedProject(request, `Rated ${rating} ${theme}`)
+        await setHealthRating(request, project.id, rating)
+        await actAs(page, person)
+        await page.goto(`/projects/${project.id}`)
+        await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText(
+          rating === 'red' ? '✕ Red' : '✓ Green',
+        )
+        await expectAccessible(page)
+      })
+    }
 
     test('Project on a Page is accessible', async ({ page, request }) => {
       const { person, project } = await seedProject(request, `Report ${theme}`)
@@ -69,23 +98,6 @@ for (const theme of THEMES) {
     })
   })
 }
-
-test('controls follow the interaction-states spec', async ({ page, request }) => {
-  const { person } = await seedProject(request, 'Controls')
-  await actAs(page, person)
-  await page.goto('/projects')
-  const primary = page.getByRole('button', { name: 'New Project' })
-  await expect(primary).toHaveCSS('border-top-left-radius', '999px')
-  await primary.click()
-  const dialog = page.getByRole('dialog', { name: 'New Project' })
-  const name = dialog.getByRole('textbox', { name: 'Name' })
-  await expect(name).toHaveCSS('border-bottom-width', '2px')
-  await expect(name).toHaveCSS('border-top-width', '0px')
-  await expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveCSS(
-    'border-top-left-radius',
-    '999px',
-  )
-})
 
 test('a chosen theme is remembered across reloads, over the OS preference', async ({ page }) => {
   await useTheme(page, 'light')

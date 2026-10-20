@@ -77,6 +77,11 @@ async function add(description: string, done: () => void) {
   done()
 }
 
+/** Blockers with no one accountable are amber (#50). */
+function accent(blocker: Blocker) {
+  return !blocker.cleared && !blocker.accountable ? ('amber' as const) : undefined
+}
+
 const editingId = ref<string | null>(null)
 
 async function saveDescription(blocker: Blocker, description: string) {
@@ -107,6 +112,7 @@ function linkChosen(blocker: Blocker, event: Event) {
     finalised-label="Cleared"
     :can-add="writable"
     :expand-finalised="query.state === 'closed'"
+    :accent="accent"
   >
     <template #add="{ done }">
       <DescriptionEditor
@@ -132,88 +138,95 @@ function linkChosen(blocker: Blocker, event: Event) {
     <p v-if="blockers.isPending.value" class="mt-2 text-sm text-muted">Loading…</p>
 
     <template #item="{ item: blocker }">
-      <div
-        class="-mx-2 flex flex-wrap items-start gap-3 rounded px-2"
-        :class="{ 'bg-st-amber-bg/40': !blocker.cleared && !blocker.accountable }"
-        :data-unassigned="!blocker.cleared && !blocker.accountable ? '' : undefined"
-      >
-        <span class="w-14 shrink-0 font-mono text-sm text-muted">{{ blocker.reference }}</span>
-        <div class="min-w-0 flex-1">
-          <DescriptionEditor
-            v-if="editingId === blocker.id"
-            :initial="blocker.description"
-            :label="`Description of ${blocker.reference}`"
-            @save="(text) => saveDescription(blocker, text).catch(() => {})"
-            @cancel="editingId = null"
-          />
-          <p v-else class="whitespace-pre-line">{{ blocker.description }}</p>
-          <ul
-            :aria-label="`Actions blocked by ${blocker.reference}`"
-            class="mt-1 flex flex-wrap gap-1 text-sm"
-          >
-            <li
-              v-for="a in blocker.blocked_actions"
-              :key="a.id"
-              class="flex items-center gap-1 rounded bg-subtle px-2 py-0.5 font-mono"
-            >
-              {{ a.reference }}
-              <button
-                v-if="writable"
-                type="button"
-                :aria-label="`Unlink ${a.reference} from ${blocker.reference}`"
-                class="text-muted hover:text-danger-text"
-                @click="unlink.mutate({ blocker, actionId: a.id })"
-              >
-                ×
-              </button>
-            </li>
-          </ul>
+      <div :data-unassigned="!blocker.cleared && !blocker.accountable ? '' : undefined">
+        <div class="flex items-baseline gap-3">
+          <span class="shrink-0 font-mono text-sm text-muted">{{ blocker.reference }}</span>
+          <div class="min-w-0 flex-1">
+            <DescriptionEditor
+              v-if="editingId === blocker.id"
+              :initial="blocker.description"
+              :label="`Description of ${blocker.reference}`"
+              @save="(text) => saveDescription(blocker, text).catch(() => {})"
+              @cancel="editingId = null"
+            />
+            <p v-else class="whitespace-pre-line">{{ blocker.description }}</p>
+          </div>
         </div>
-        <select
-          :value="blocker.accountable?.id ?? ''"
-          :aria-label="`Accountable for ${blocker.reference}`"
-          :disabled="!writable"
-          class="field text-sm"
-          :class="{
-            'border-st-amber-solid text-st-amber-fg': !blocker.cleared && !blocker.accountable,
-          }"
-          @change="assign(blocker, $event)"
-        >
-          <option value="">Unassigned</option>
-          <option v-for="m in accountableOptions(blocker)" :key="m.id" :value="m.id">
-            {{ m.display_name }}
-          </option>
-        </select>
-        <template v-if="writable">
-          <select
-            value=""
-            :aria-label="`Link an Action to ${blocker.reference}`"
-            class="field text-sm"
-            @change="linkChosen(blocker, $event)"
-          >
-            <option value="">Link Action…</option>
-            <option v-for="a in linkable(blocker)" :key="a.id" :value="a.id">
-              {{ a.reference }}
-            </option>
-          </select>
-          <button
-            v-if="editingId !== blocker.id"
-            type="button"
-            :aria-label="`Edit ${blocker.reference}`"
-            class="btn"
-            @click="editingId = blocker.id"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            :aria-label="`${blocker.cleared ? 'Reopen' : 'Clear'} ${blocker.reference}`"
-            class="btn"
-            @click="clear.mutate({ blocker, cleared: !blocker.cleared })"
-          >
-            {{ blocker.cleared ? 'Reopen' : 'Clear' }}
-          </button>
-        </template>
+        <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <label class="flex items-center gap-2">
+            <span class="text-xs tracking-wide text-muted uppercase">Accountable</span>
+            <select
+              :value="blocker.accountable?.id ?? ''"
+              :aria-label="`Accountable for ${blocker.reference}`"
+              :disabled="!writable"
+              class="field text-sm"
+              :class="{
+                'border-st-amber-solid text-st-amber-fg': !blocker.cleared && !blocker.accountable,
+              }"
+              @change="assign(blocker, $event)"
+            >
+              <option value="">Unassigned</option>
+              <option v-for="m in accountableOptions(blocker)" :key="m.id" :value="m.id">
+                {{ m.display_name }}
+              </option>
+            </select>
+          </label>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs tracking-wide text-muted uppercase">Blocks</span>
+            <ul
+              :aria-label="`Actions blocked by ${blocker.reference}`"
+              class="flex flex-wrap gap-1"
+            >
+              <li
+                v-for="a in blocker.blocked_actions"
+                :key="a.id"
+                class="flex items-center gap-1 rounded bg-subtle px-2 py-0.5 font-mono"
+              >
+                {{ a.reference }}
+                <button
+                  v-if="writable"
+                  type="button"
+                  :aria-label="`Unlink ${a.reference} from ${blocker.reference}`"
+                  class="text-muted hover:text-danger-text"
+                  @click="unlink.mutate({ blocker, actionId: a.id })"
+                >
+                  ×
+                </button>
+              </li>
+            </ul>
+            <select
+              v-if="writable"
+              value=""
+              :aria-label="`Link an Action to ${blocker.reference}`"
+              class="field text-sm"
+              @change="linkChosen(blocker, $event)"
+            >
+              <option value="">Link Action…</option>
+              <option v-for="a in linkable(blocker)" :key="a.id" :value="a.id">
+                {{ a.reference }}
+              </option>
+            </select>
+          </div>
+          <div v-if="writable" class="ml-auto flex gap-2">
+            <button
+              v-if="editingId !== blocker.id"
+              type="button"
+              :aria-label="`Edit ${blocker.reference}`"
+              class="btn"
+              @click="editingId = blocker.id"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              :aria-label="`${blocker.cleared ? 'Reopen' : 'Clear'} ${blocker.reference}`"
+              class="btn"
+              @click="clear.mutate({ blocker, cleared: !blocker.cleared })"
+            >
+              {{ blocker.cleared ? 'Reopen' : 'Clear' }}
+            </button>
+          </div>
+        </div>
       </div>
       <CommentsSection target-type="blocker" :target-id="blocker.id" :label="blocker.reference" />
     </template>

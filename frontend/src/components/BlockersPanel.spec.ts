@@ -101,6 +101,8 @@ describe('Blockers panel', () => {
     await waitFor(async () => expect(await openBlockers()).toHaveLength(1))
     const [row] = await openBlockers()
     expect(row!.querySelector('[data-unassigned]')).not.toBeNull()
+    expect(row!.dataset.accent).toBe('amber')
+    expect(within(row!).getByText('Accountable')).toBeTruthy()
 
     await userEvent.selectOptions(
       await within(row!).findByLabelText('Accountable for B-001'),

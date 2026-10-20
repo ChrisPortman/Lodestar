@@ -60,6 +60,14 @@ async function add(description: string, done: () => void) {
   done()
 }
 
+/** Overdue or blocked Actions are red, unassigned ones amber (#50). */
+function accent(action: Action) {
+  if (action.closed) return undefined
+  if (isOverdue(action) || action.blocked_by.length > 0) return 'red' as const
+  if (!action.assignee) return 'amber' as const
+  return undefined
+}
+
 const editingId = ref<string | null>(null)
 
 async function saveDescription(action: Action, description: string) {
@@ -87,6 +95,7 @@ function setDue(action: Action, event: Event) {
     :finalised="closed"
     :can-add="writable"
     :expand-finalised="query.state === 'closed'"
+    :accent="accent"
   >
     <template #add="{ done }">
       <DescriptionEditor
@@ -111,71 +120,79 @@ function setDue(action: Action, event: Event) {
     <p v-if="actions.isPending.value" class="mt-2 text-sm text-muted">Loading…</p>
 
     <template #item="{ item: action }">
-      <div
-        class="-mx-2 flex flex-wrap items-start gap-3 rounded px-2"
-        :class="{ 'bg-st-amber-bg/40': !action.closed && !action.assignee }"
-        :data-unassigned="!action.closed && !action.assignee ? '' : undefined"
-      >
-        <span class="w-14 shrink-0 font-mono text-sm text-muted">{{ action.reference }}</span>
-        <div class="min-w-0 flex-1">
-          <DescriptionEditor
-            v-if="editingId === action.id"
-            :initial="action.description"
-            :label="`Description of ${action.reference}`"
-            @save="(text) => saveDescription(action, text).catch(() => {})"
-            @cancel="editingId = null"
-          />
-          <p v-else class="whitespace-pre-line">{{ action.description }}</p>
+      <div :data-unassigned="!action.closed && !action.assignee ? '' : undefined">
+        <div class="flex items-baseline gap-3">
+          <span class="shrink-0 font-mono text-sm text-muted">{{ action.reference }}</span>
+          <div class="min-w-0 flex-1">
+            <DescriptionEditor
+              v-if="editingId === action.id"
+              :initial="action.description"
+              :label="`Description of ${action.reference}`"
+              @save="(text) => saveDescription(action, text).catch(() => {})"
+              @cancel="editingId = null"
+            />
+            <p v-else class="whitespace-pre-line">{{ action.description }}</p>
+          </div>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <p
             v-if="action.blocked_by.length > 0"
-            class="mt-1 text-sm font-semibold text-danger-text"
+            class="font-semibold text-danger-text"
             data-blocked
           >
             Blocked by {{ action.blocked_by.map((b) => b.reference).join(', ') }}
           </p>
+          <label class="flex items-center gap-2">
+            <span class="text-xs tracking-wide text-muted uppercase">Assignee</span>
+            <select
+              :value="action.assignee?.id ?? ''"
+              :aria-label="`Assignee of ${action.reference}`"
+              :disabled="!writable"
+              class="field text-sm"
+              :class="{
+                'border-st-amber-solid text-st-amber-fg': !action.closed && !action.assignee,
+              }"
+              @change="assign(action, $event)"
+            >
+              <option value="">Unassigned</option>
+              <option v-for="m in assigneeOptions(action)" :key="m.id" :value="m.id">
+                {{ m.display_name }}
+              </option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2">
+            <span class="text-xs tracking-wide text-muted uppercase">Due</span>
+            <input
+              type="date"
+              :value="action.due_date ?? ''"
+              :aria-label="`Due date of ${action.reference}`"
+              :disabled="!writable"
+              :data-overdue="String(isOverdue(action))"
+              class="field text-sm tabular-nums"
+              :class="{ 'border-danger font-semibold text-danger-text': isOverdue(action) }"
+              @change="setDue(action, $event)"
+            />
+          </label>
+          <div v-if="writable" class="ml-auto flex gap-2">
+            <button
+              v-if="editingId !== action.id"
+              type="button"
+              :aria-label="`Edit ${action.reference}`"
+              class="btn"
+              @click="editingId = action.id"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              :aria-label="`${action.closed ? 'Reopen' : 'Close'} ${action.reference}`"
+              class="btn"
+              @click="close.mutate({ action, closed: !action.closed })"
+            >
+              {{ action.closed ? 'Reopen' : 'Close' }}
+            </button>
+          </div>
         </div>
-        <select
-          :value="action.assignee?.id ?? ''"
-          :aria-label="`Assignee of ${action.reference}`"
-          :disabled="!writable"
-          class="field text-sm"
-          :class="{ 'border-st-amber-solid text-st-amber-fg': !action.closed && !action.assignee }"
-          @change="assign(action, $event)"
-        >
-          <option value="">Unassigned</option>
-          <option v-for="m in assigneeOptions(action)" :key="m.id" :value="m.id">
-            {{ m.display_name }}
-          </option>
-        </select>
-        <input
-          type="date"
-          :value="action.due_date ?? ''"
-          :aria-label="`Due date of ${action.reference}`"
-          :disabled="!writable"
-          :data-overdue="String(isOverdue(action))"
-          class="field text-sm"
-          :class="{ 'border-danger font-semibold text-danger-text': isOverdue(action) }"
-          @change="setDue(action, $event)"
-        />
-        <template v-if="writable">
-          <button
-            v-if="editingId !== action.id"
-            type="button"
-            :aria-label="`Edit ${action.reference}`"
-            class="btn"
-            @click="editingId = action.id"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            :aria-label="`${action.closed ? 'Reopen' : 'Close'} ${action.reference}`"
-            class="btn"
-            @click="close.mutate({ action, closed: !action.closed })"
-          >
-            {{ action.closed ? 'Reopen' : 'Close' }}
-          </button>
-        </template>
       </div>
       <CommentsSection target-type="action" :target-id="action.id" :label="action.reference" />
     </template>

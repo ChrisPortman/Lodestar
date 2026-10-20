@@ -41,6 +41,12 @@ const SEVERITY_CLASS = {
   high: 'bg-st-red-bg text-st-red-fg',
 } as const
 
+/** High-score Risks are red, medium ones amber (#50). */
+function accent(risk: Risk) {
+  const s = severity(risk.score)
+  return s === 'high' ? ('red' as const) : s === 'medium' ? ('amber' as const) : undefined
+}
+
 const newLikelihood = ref(3)
 const newImpact = ref(3)
 
@@ -75,6 +81,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
     :finalised="closed"
     :can-add="writable"
     :expand-finalised="query.state === 'closed'"
+    :accent="accent"
   >
     <template #add="{ done }">
       <DescriptionEditor
@@ -108,8 +115,8 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
     <p v-if="risks.isPending.value" class="mt-2 text-sm text-muted">Loading…</p>
 
     <template #item="{ item: risk }">
-      <div class="flex flex-wrap items-start gap-3">
-        <span class="w-14 shrink-0 font-mono text-sm text-muted">{{ risk.reference }}</span>
+      <div class="flex items-baseline gap-3">
+        <span class="shrink-0 font-mono text-sm text-muted">{{ risk.reference }}</span>
         <div class="min-w-0 flex-1">
           <DescriptionEditor
             v-if="editingId === risk.id"
@@ -120,8 +127,18 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
           />
           <p v-else class="whitespace-pre-line">{{ risk.description }}</p>
         </div>
-        <label class="flex items-center gap-1 text-sm">
-          <span aria-hidden="true">L</span>
+        <span
+          aria-label="Score"
+          :data-severity="severity(risk.score)"
+          class="min-w-10 shrink-0 rounded px-2 py-0.5 text-center text-sm font-semibold tabular-nums"
+          :class="SEVERITY_CLASS[severity(risk.score)]"
+        >
+          {{ risk.score }}
+        </span>
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <label class="flex items-center gap-2">
+          <span class="text-xs tracking-wide text-muted uppercase">Likelihood</span>
           <select
             :value="risk.likelihood"
             :aria-label="`Likelihood of ${risk.reference}`"
@@ -132,8 +149,8 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
           </select>
         </label>
-        <label class="flex items-center gap-1 text-sm">
-          <span aria-hidden="true">I</span>
+        <label class="flex items-center gap-2">
+          <span class="text-xs tracking-wide text-muted uppercase">Impact</span>
           <select
             :value="risk.impact"
             :aria-label="`Impact of ${risk.reference}`"
@@ -144,15 +161,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
           </select>
         </label>
-        <span
-          aria-label="Score"
-          :data-severity="severity(risk.score)"
-          class="w-10 rounded px-2 py-0.5 text-center text-sm font-semibold"
-          :class="SEVERITY_CLASS[severity(risk.score)]"
-        >
-          {{ risk.score }}
-        </span>
-        <template v-if="writable">
+        <div v-if="writable" class="ml-auto flex gap-2">
           <button
             v-if="editingId !== risk.id"
             type="button"
@@ -170,7 +179,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
           >
             {{ risk.closed ? 'Reopen' : 'Close' }}
           </button>
-        </template>
+        </div>
       </div>
       <CommentsSection target-type="risk" :target-id="risk.id" :label="risk.reference" />
     </template>

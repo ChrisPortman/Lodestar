@@ -87,6 +87,59 @@ export async function updateAction(
   )
 }
 
+export async function seedRisk(
+  request: APIRequestContext,
+  projectId: string,
+  description: string,
+  likelihood: number,
+  impact: number,
+) {
+  return ok<{ id: string }>(
+    await request.post('/api/v1/risks', {
+      data: { project_id: projectId, description, likelihood, impact },
+    }),
+  )
+}
+
+/** A Blocker with no one accountable, blocking `actionIds`. */
+export async function seedBlocker(
+  request: APIRequestContext,
+  projectId: string,
+  description: string,
+  actionIds: string[] = [],
+) {
+  let blocker = await ok<{ id: string; version: number }>(
+    await request.post('/api/v1/blockers', {
+      data: { project_id: projectId, description, accountable: null },
+    }),
+  )
+  for (const action_id of actionIds)
+    blocker = await ok(
+      await request.post(`/api/v1/blockers/${blocker.id}/blocked_actions`, {
+        headers: { 'If-Match': `"${blocker.version}"` },
+        data: { action_id },
+      }),
+    )
+  return blocker
+}
+
+export async function setHealthRating(
+  request: APIRequestContext,
+  projectId: string,
+  rating: 'red' | 'amber' | 'green',
+  comment: string | null = null,
+) {
+  const project = await ok<Project & { version: number }>(
+    await request.get(`/api/v1/projects/${projectId}`),
+  )
+  return ok(
+    await request.put(`/api/v1/projects/${projectId}`, {
+      headers: { 'If-Match': `"${project.version}"` },
+      data: { ...project, health_rating: { rating, comment } },
+    }),
+  )
+}
+
 /** Gives the browser a session as `person`, skipping the picker. */
 export async function actAs(page: Page, person: Person) {
   await ok(await page.request.post('/api/v1/session', { data: { person_id: person.id } }))

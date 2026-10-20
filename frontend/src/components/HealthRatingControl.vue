@@ -14,6 +14,13 @@ const LABELS: Record<Choice, string> = {
   green: 'Green',
   none: 'Not rated',
 }
+/** Each rating's symbol, so it never relies on colour alone (#56). */
+const SYMBOLS: Record<Choice, string> = {
+  red: '✕',
+  amber: '▲',
+  green: '✓',
+  none: '–',
+}
 const BADGE: Record<Choice, string> = {
   red: 'bg-st-red-bg text-st-red-fg',
   amber: 'bg-st-amber-bg text-st-amber-fg',
@@ -54,9 +61,10 @@ async function submit() {
       <span
         role="status"
         aria-label="Health Rating"
-        class="rounded px-2 py-0.5 text-sm font-medium"
+        class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-sm font-medium"
         :class="BADGE[current()]"
       >
+        <span aria-hidden="true">{{ SYMBOLS[current()] }}</span>
         {{ LABELS[current()] }}
       </span>
       <button

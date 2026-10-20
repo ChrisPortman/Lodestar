@@ -3,6 +3,13 @@
 // demand, and finalised items in a collapsed list at the bottom.
 import { ref } from 'vue'
 
+type Accent = 'red' | 'amber'
+
+const ACCENT_CLASS: Record<Accent, string> = {
+  red: 'border-l-st-red-solid',
+  amber: 'border-l-st-amber-solid',
+}
+
 const props = withDefaults(
   defineProps<{
     /** The panel heading, e.g. "Risks"; also its accessible name. */
@@ -16,8 +23,10 @@ const props = withDefaults(
     canAdd?: boolean
     /** Show the finalised list expanded, e.g. when filtered to it. */
     expandFinalised?: boolean
+    /** The card's state accent (#50): red or amber, or none. Never the only cue. */
+    accent?: (item: T) => Accent | undefined
   }>(),
-  { finalisedLabel: 'Closed', canAdd: true, expandFinalised: false },
+  { finalisedLabel: 'Closed', canAdd: true, expandFinalised: false, accent: () => undefined },
 )
 
 defineSlots<{
@@ -25,6 +34,13 @@ defineSlots<{
   add(props: { done: () => void }): unknown
   default(): unknown
 }>()
+
+const CARD = 'rounded-md border border-l-3 border-border bg-surface px-4 py-3'
+
+function accentClass(item: T) {
+  const a = props.accent(item)
+  return a ? ACCENT_CLASS[a] : 'border-l-border'
+}
 
 const adding = ref(false)
 const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
@@ -48,8 +64,13 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
       <slot name="add" :done="() => (adding = false)" />
     </div>
     <slot />
-    <ul :aria-label="`Open ${title}`" class="mt-2 divide-y divide-divider">
-      <li v-for="item in open" :key="item.id" class="py-2">
+    <ul :aria-label="`Open ${title}`" class="mt-3 grid gap-2">
+      <li
+        v-for="item in open"
+        :key="item.id"
+        :data-accent="accent(item)"
+        :class="[CARD, accentClass(item)]"
+      >
         <slot name="item" :item="item" />
       </li>
     </ul>
@@ -58,8 +79,8 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
       <summary class="cursor-pointer text-sm text-muted">
         {{ finalisedLabel }} ({{ finalised.length }})
       </summary>
-      <ul :aria-label="`${finalisedLabel} ${title}`" class="divide-y divide-divider opacity-75">
-        <li v-for="item in finalised" :key="item.id" class="py-2">
+      <ul :aria-label="`${finalisedLabel} ${title}`" class="mt-2 grid gap-2 opacity-75">
+        <li v-for="item in finalised" :key="item.id" :class="[CARD, 'border-l-border']">
           <slot name="item" :item="item" />
         </li>
       </ul>
