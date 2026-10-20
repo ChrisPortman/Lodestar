@@ -1,0 +1,291 @@
+<!doctype html>
+<!--
+  PROTOTYPE: throwaway. Wayfinder ticket "Which colour scheme: pastel light and dark palettes,
+  including status colours?" (ChrisPortman/Lodestar#48), on the map "Jazz up the UI" (#45).
+  Four palettes (?variant=A|B|C|D), each with light and dark (?theme=light|dark), and two
+  status-colour sets (?status=classic|safe). Switch with the floating bar or the keys:
+  ← → palette, D theme, S status set, V colour-blind simulation, P screen.
+  The contrast panel recomputes WCAG ratios for the live palette on every switch.
+  Layout and type are deliberately left as today's app; only colour changes.
+  To run: open this file in a browser.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE: Palette</title>
+<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+<style>
+[v-cloak]{display:none}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);transition:background .15s,color .15s}
+a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+.mono{font-family:ui-monospace,monospace}
+.muted{color:var(--muted)} .small{font-size:.875rem} .xs{font-size:.75rem}
+
+/* App chrome, mirroring AppHeader + the main column */
+.appbar{background:var(--chrome);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;gap:1.5rem;align-items:center}
+.appbar .brand{font-weight:700;color:var(--chrome-text)}
+.appbar a{color:var(--chrome-text);opacity:.8} .appbar a.on{opacity:1;font-weight:600}
+main{max-width:64rem;margin:0 auto;padding:1.5rem 1.5rem 8rem}
+h1{font-size:1.5rem;font-weight:600;margin:0}
+h2{font-size:1.125rem;font-weight:600;margin:0}
+.row{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:.375rem;padding:1rem}
+.btn{border:1px solid var(--border-strong);background:var(--surface);color:var(--text);border-radius:.25rem;padding:.25rem .75rem;font-size:.875rem;cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn-primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);padding:.5rem 1rem;font-size:1rem}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.chip{border-radius:.25rem;padding:.125rem .5rem;font-size:.75rem}
+.chip-neutral{background:var(--subtle);color:var(--muted)}
+.warn{background:var(--st-amber-bg);color:var(--st-amber-fg);border-radius:.25rem;padding:.125rem .5rem;font-size:.875rem}
+ul.list{list-style:none;margin:1rem 0 0;padding:0}
+ul.list>li{display:flex;gap:.75rem;padding:.75rem 0;border-top:1px solid var(--divider)}
+ul.list>li:first-child{border-top:0}
+input,select,textarea{background:var(--input);color:var(--text);border:1px solid var(--border-strong);border-radius:.25rem;padding:.25rem .5rem;font:inherit;font-size:.875rem}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.grid{display:grid;gap:1.5rem;margin-top:1.5rem}
+table{width:100%;border-collapse:collapse;font-size:.875rem;margin-top:.5rem}
+th{text-align:left;color:var(--muted);font-weight:500;padding:.25rem .5rem;border-bottom:1px solid var(--border)}
+td{padding:.25rem .5rem;border-bottom:1px solid var(--divider)}
+tr:hover td{background:var(--hover)}
+.overdue{color:var(--danger-text);font-weight:600}
+
+/* Status (Health Rating). Each carries a symbol too, so colour is never the only cue. */
+.rag{display:inline-flex;align-items:center;gap:.35rem;border-radius:999px;padding:.125rem .6rem;font-size:.8rem;font-weight:600;border:1px solid}
+.rag .dot{width:.6rem;height:.6rem;border-radius:999px}
+.rag-Red{background:var(--st-red-bg);color:var(--st-red-fg);border-color:var(--st-red-solid)} .rag-Red .dot{background:var(--st-red-solid)}
+.rag-Amber{background:var(--st-amber-bg);color:var(--st-amber-fg);border-color:var(--st-amber-solid)} .rag-Amber .dot{background:var(--st-amber-solid)}
+.rag-Green{background:var(--st-green-bg);color:var(--st-green-fg);border-color:var(--st-green-solid)} .rag-Green .dot{background:var(--st-green-solid)}
+.rag-None{background:var(--subtle);color:var(--muted);border-color:var(--border)} .rag-None .dot{background:var(--muted)}
+
+/* Prototype-only chrome: deliberately not themed */
+.proto{position:fixed;left:50%;bottom:1rem;transform:translateX(-50%);background:#111;color:#fff;border-radius:999px;padding:.4rem .6rem;display:flex;gap:.4rem;align-items:center;font:13px system-ui;box-shadow:0 6px 24px rgba(0,0,0,.35);z-index:10;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 1rem)}
+.proto button{background:#333;color:#fff;border:0;border-radius:999px;padding:.3rem .7rem;cursor:pointer;font:inherit}
+.proto button:hover{background:#555} .proto .lbl{min-width:11rem;text-align:center;font-weight:600}
+.contrast{position:fixed;right:1rem;top:4rem;width:17rem;background:#fff;color:#111;border:1px solid #ccc;border-radius:.5rem;font:12px system-ui;padding:.6rem;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:10}
+.contrast table{margin:0;font-size:12px} .contrast td,.contrast th{padding:.1rem .25rem;border-color:#eee;color:#111} .contrast tr:hover td{background:none}
+.contrast .ok{color:#06603a} .contrast .bad{color:#b00020;font-weight:700}
+.swatch{display:inline-block;width:.8rem;height:.8rem;border:1px solid #999;vertical-align:middle;margin-right:.25rem}
+@media (max-width:80rem){.contrast{position:static;width:auto;margin:1rem}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <filter id="deuteranopia"><feColorMatrix type="matrix" values="0.367 0.861 -0.228 0 0  0.280 0.673 0.047 0 0  -0.012 0.043 0.969 0 0  0 0 0 1 0"/></filter>
+  <filter id="protanopia"><feColorMatrix type="matrix" values="0.152 1.053 -0.205 0 0  0.115 0.786 0.099 0 0  -0.004 -0.048 1.052 0 0  0 0 0 1 0"/></filter>
+  <filter id="tritanopia"><feColorMatrix type="matrix" values="1.256 -0.077 -0.179 0 0  -0.078 0.931 0.148 0 0  0.005 0.691 0.304 0 0  0 0 0 1 0"/></filter>
+  <filter id="greyscale"><feColorMatrix type="saturate" values="0"/></filter>
+</svg>
+<div id="app" v-cloak>
+  <div :style="{filter: sim === 'none' ? 'none' : `url(#${sim})`}">
+    <nav class="appbar">
+      <span class="brand">Lodestar</span>
+      <a href="#" :class="{on: screen==='projects'}" @click.prevent="screen='projects'">Projects</a>
+      <a href="#" :class="{on: screen==='project'}" @click.prevent="screen='project'">Project view</a>
+      <a href="#">People</a>
+    </nav>
+
+    <!-- ============ Projects list (ProjectsView) ============ -->
+    <main v-if="screen==='projects'">
+      <div class="row">
+        <h1 style="flex:1">Projects</h1>
+        <label class="row small"><input type="checkbox"> Show archived</label>
+        <button class="btn btn-primary">New Project</button>
+      </div>
+      <ul class="list" aria-label="Projects">
+        <li v-for="p in projects" :key="p.code">
+          <span class="mono small muted" style="width:6rem;flex-shrink:0">{{ p.code }}</span>
+          <div style="flex:1">
+            <a href="#" @click.prevent="screen='project'" style="font-weight:500">{{ p.name }}</a>
+            <span v-if="p.archived" class="chip chip-neutral" style="margin-left:.5rem">Archived</span>
+            <p class="small muted" style="margin:.1rem 0">{{ p.desc }}</p>
+            <p class="xs muted" style="margin:0">Leader: {{ p.leader || 'none' }}</p>
+          </div>
+          <span :class="`rag rag-${p.health}`"><span class="dot"></span>{{ ragLabel(p.health) }}</span>
+          <button class="btn">Edit</button>
+        </li>
+      </ul>
+    </main>
+
+    <!-- ============ Project view (ProjectView) ============ -->
+    <main v-else>
+      <header style="display:grid;gap:.5rem">
+        <div class="row">
+          <h1 style="flex:1"><span class="mono muted" style="margin-right:.5rem">WEBR</span>Website Redesign</h1>
+          <span class="warn">No Project Leader</span>
+          <span class="small muted">Acting as <strong style="color:var(--text)">Chris</strong></span>
+          <button class="btn">Project on a Page</button>
+          <button class="btn">Members</button>
+          <button class="btn">Export</button>
+        </div>
+        <div class="row small">
+          <span class="muted">Health Rating</span>
+          <span v-for="h in ['Red','Amber','Green']" :key="h" :class="`rag rag-${h}`" :style="{opacity: health===h ? 1 : .45, cursor:'pointer'}" @click="health=h"><span class="dot"></span>{{ ragLabel(h) }}</span>
+          <input placeholder="Comment (optional)" value="Vendor slipped two weeks" style="width:16rem">
+        </div>
+      </header>
+      <div class="grid">
+        <section v-for="panel in panels" :key="panel.title" class="panel">
+          <div class="row"><h2 style="flex:1">{{ panel.title }}</h2><button class="btn">+ Add</button></div>
+          <table>
+            <thead><tr><th>Ref</th><th>Title</th><th>Owner</th><th>{{ panel.col }}</th></tr></thead>
+            <tbody>
+              <tr v-for="r in panel.rows" :key="r[0]">
+                <td class="mono muted">{{ r[0] }}</td><td><a href="#">{{ r[1] }}</a></td><td>{{ r[2] }}</td>
+                <td :class="{overdue: r[4]}">{{ r[3] }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <details style="margin-top:.75rem"><summary class="small muted" style="cursor:pointer">Closed (3)</summary></details>
+        </section>
+        <section class="panel">
+          <h2>Project Comments</h2>
+          <div style="margin-top:.75rem;border-left:3px solid var(--accent-soft);padding-left:.75rem">
+            <p class="xs muted" style="margin:0">Sam · 2 days ago</p>
+            <p class="small" style="margin:.2rem 0">Sign-off from legal is still pending; flagging in case it blocks launch.</p>
+          </div>
+          <p role="alert" class="small" style="color:var(--danger-text)">Couldn't save: example error text</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Contrast readout for the live palette (WCAG 2.x ratios; AA is 4.5 for text, 3 for UI) -->
+  <aside class="contrast">
+    <b>{{ palettes[variant].name }} · {{ theme }} · {{ statusSet }}</b>
+    <table>
+      <tr><th>pair</th><th>ratio</th></tr>
+      <tr v-for="c in contrasts" :key="c.label">
+        <td><span class="swatch" :style="{background:c.bg}"></span><span class="swatch" :style="{background:c.fg}"></span>{{ c.label }}</td>
+        <td :class="c.ratio >= c.min ? 'ok' : 'bad'">{{ c.ratio.toFixed(2) }}</td>
+      </tr>
+    </table>
+    <p style="margin:.4rem 0 0;color:#555">Red/Amber/Green solid lightness (L*): {{ statusLightness }}</p>
+  </aside>
+
+  <div class="proto">
+    <button @click="cycle(-1)">←</button>
+    <span class="lbl">{{ variant }} ({{ palettes[variant].name }})</span>
+    <button @click="cycle(1)">→</button>
+    <button @click="theme = theme==='light' ? 'dark' : 'light'">{{ theme === 'light' ? '☀ light' : '☾ dark' }}</button>
+    <button @click="statusSet = statusSet==='classic' ? 'safe' : 'classic'">status: {{ statusSet }}</button>
+    <button @click="cycleSim">sim: {{ sim }}</button>
+  </div>
+</div>
+
+<script>
+// Each palette: light and dark neutral + accent tokens. Status sets are separate so they can mix.
+const palettes = {
+  A: { name: 'Sage', light: {
+      bg:'#f6f8f5', surface:'#ffffff', subtle:'#e9efe7', hover:'#eef3ec', input:'#ffffff', chrome:'#dfe9dc', 'chrome-text':'#24372a',
+      text:'#1f2a22', muted:'#5b6b5f', border:'#d5dfd2', 'border-strong':'#b9c8b5', divider:'#e6ece4',
+      accent:'#4d7c5f', 'accent-hover':'#3f6a50', 'on-accent':'#ffffff', 'accent-soft':'#b5d3bf', link:'#3c6b4e', focus:'#6a9e7d', 'danger-text':'#a3352b' },
+    dark: {
+      bg:'#141a16', surface:'#1c241f', subtle:'#26302a', hover:'#232c26', input:'#18201b', chrome:'#1a231d', 'chrome-text':'#cfe3d3',
+      text:'#e3ebe4', muted:'#9aab9e', border:'#2f3b33', 'border-strong':'#435247', divider:'#28322b',
+      accent:'#8cc3a0', 'accent-hover':'#a3d3b4', 'on-accent':'#10231a', 'accent-soft':'#3f5e4a', link:'#9fd0b0', focus:'#8cc3a0', 'danger-text':'#f19a8f' } },
+  B: { name: 'Lavender', light: {
+      bg:'#f7f6fb', surface:'#ffffff', subtle:'#ecebf6', hover:'#f0eff8', input:'#ffffff', chrome:'#e6e3f5', 'chrome-text':'#2e2a4a',
+      text:'#24223a', muted:'#615e7a', border:'#dcd9ec', 'border-strong':'#c2bedb', divider:'#e9e7f3',
+      accent:'#6556b8', 'accent-hover':'#54469f', 'on-accent':'#ffffff', 'accent-soft':'#c9c1ef', link:'#5546a8', focus:'#8a7ce0', 'danger-text':'#a8323a' },
+    dark: {
+      bg:'#16151f', surface:'#1e1d2a', subtle:'#292838', hover:'#252433', input:'#1a1925', chrome:'#1c1b28', 'chrome-text':'#dcd8f5',
+      text:'#e6e4f2', muted:'#a19db8', border:'#33314a', 'border-strong':'#48455f', divider:'#2a2939',
+      accent:'#b1a6f2', 'accent-hover':'#c4bbf7', 'on-accent':'#1b1636', 'accent-soft':'#4b4380', link:'#bdb3f6', focus:'#b1a6f2', 'danger-text':'#f3a0a6' } },
+  C: { name: 'Apricot', light: {
+      bg:'#fbf7f3', surface:'#ffffff', subtle:'#f4ebe2', hover:'#f7f0e9', input:'#ffffff', chrome:'#f6e4d6', 'chrome-text':'#4a2f20',
+      text:'#2e241e', muted:'#6f6158', border:'#ebded3', 'border-strong':'#d6c4b5', divider:'#f1e8df',
+      accent:'#a8553a', 'accent-hover':'#94472e', 'on-accent':'#ffffff', 'accent-soft':'#f0c7b2', link:'#9c4f30', focus:'#d98a68', 'danger-text':'#a3292f' },
+    dark: {
+      bg:'#1b1714', surface:'#24201c', subtle:'#302a25', hover:'#2b2621', input:'#201c18', chrome:'#221d19', 'chrome-text':'#f0dccd',
+      text:'#efe6de', muted:'#b0a397', border:'#3a332c', 'border-strong':'#51483f', divider:'#2f2924',
+      accent:'#f0a988', 'accent-hover':'#f6bea4', 'on-accent':'#2c1509', 'accent-soft':'#6a4232', link:'#f4b597', focus:'#f0a988', 'danger-text':'#f5a3a0' } },
+  D: { name: 'Mist', light: {
+      bg:'#f5f7fa', surface:'#ffffff', subtle:'#e8edf4', hover:'#eef2f7', input:'#ffffff', chrome:'#ffffff', 'chrome-text':'#1e2b3c',
+      text:'#1d2633', muted:'#5a6677', border:'#d9e0ea', 'border-strong':'#bcc7d6', divider:'#e7ecf2',
+      accent:'#3f6fb0', 'accent-hover':'#335d96', 'on-accent':'#ffffff', 'accent-soft':'#bcd2ef', link:'#335f9c', focus:'#6b9ae0', 'danger-text':'#a8323a' },
+    dark: {
+      bg:'#12161c', surface:'#1a2028', subtle:'#252d38', hover:'#212833', input:'#161b22', chrome:'#1a2028', 'chrome-text':'#d6e2f2',
+      text:'#e2e8f0', muted:'#97a3b4', border:'#2c3542', 'border-strong':'#414c5c', divider:'#252d38',
+      accent:'#8fb6ec', 'accent-hover':'#a9c8f2', 'on-accent':'#0e1a2c', 'accent-soft':'#36507a', link:'#9cc0f0', focus:'#8fb6ec', 'danger-text':'#f3a0a6' } },
+}
+// classic: pastel red/amber/green hues. safe: red pushed to vermilion-rose, green to blue-teal,
+// so deuteranopes/protanopes separate them by hue (blue vs orange) and all three by lightness.
+const statusSets = {
+  classic: {
+    light: { 'st-red-bg':'#fbe1df','st-red-fg':'#8a1f1a','st-red-solid':'#d9534a', 'st-amber-bg':'#fcefd2','st-amber-fg':'#7a4d00','st-amber-solid':'#e0a12b', 'st-green-bg':'#dcf1e1','st-green-fg':'#1d5e31','st-green-solid':'#3f9a5c' },
+    dark:  { 'st-red-bg':'#4a1f1d','st-red-fg':'#ffc9c4','st-red-solid':'#e8766d', 'st-amber-bg':'#4a3a14','st-amber-fg':'#fde1a6','st-amber-solid':'#e8b54d', 'st-green-bg':'#1d3d27','st-green-fg':'#bfe9cb','st-green-solid':'#5fc07e' } },
+  safe: {
+    light: { 'st-red-bg':'#fde0db','st-red-fg':'#8c1d0f','st-red-solid':'#c8412b', 'st-amber-bg':'#fff1c7','st-amber-fg':'#6b4a00','st-amber-solid':'#f2c12e', 'st-green-bg':'#d6eef0','st-green-fg':'#0f4f5c','st-green-solid':'#2b8a9e' },
+    dark:  { 'st-red-bg':'#4d1d14','st-red-fg':'#ffc4b8','st-red-solid':'#e86a52', 'st-amber-bg':'#4a3d10','st-amber-fg':'#ffe7a0','st-amber-solid':'#f2c94c', 'st-green-bg':'#14393f','st-green-fg':'#b5e6ee','st-green-solid':'#4fb3c6' } },
+}
+
+function lum(hex){ const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4); return .2126*c[0]+.7152*c[1]+.0722*c[2] }
+function ratio(a,b){ const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p); return (x+.05)/(y+.05) }
+function lstar(hex){ const Y=lum(hex); return Math.round(Y>216/24389 ? 116*Math.cbrt(Y)-16 : Y*24389/27) }
+
+const params = new URLSearchParams(location.search)
+const keys = Object.keys(palettes)
+const sims = ['none','deuteranopia','protanopia','tritanopia','greyscale']
+
+Vue.createApp({
+  data: () => ({
+    palettes,
+    variant: keys.includes(params.get('variant')) ? params.get('variant') : 'A',
+    theme: params.get('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+    statusSet: params.get('status') === 'classic' ? 'classic' : 'safe',
+    screen: params.get('screen') === 'project' ? 'project' : 'projects',
+    sim: 'none',
+    health: 'Amber',
+    projects: [
+      { code:'WEBR', name:'Website Redesign', desc:'Refresh the public site and move it to the new CMS.', leader:null, health:'Amber' },
+      { code:'PAY2', name:'Payments Platform v2', desc:'Replace the legacy gateway integration.', leader:'Priya Shah', health:'Red' },
+      { code:'HRIS', name:'HR System Upgrade', desc:'', leader:'Sam Lee', health:'Green' },
+      { code:'DWH', name:'Data Warehouse', desc:'Consolidate reporting into one warehouse.', leader:'Alex Ng', health:'Green' },
+      { code:'OFFM', name:'Office Move', desc:'Relocate to Level 4.', leader:'Jo Park', health:'None', archived:true },
+    ],
+    panels: [
+      { title:'Actions', col:'Due', rows:[['A-12','Draft content migration plan','Sam','2026-10-14',true],['A-15','Book user testing sessions','Priya','2026-10-28'],['A-16','Confirm hosting costs','Chris','2026-11-03']] },
+      { title:'Blockers', col:'Raised', rows:[['B-3','Legal sign-off on privacy copy','Alex','2026-10-02']] },
+      { title:'Risks', col:'Rating', rows:[['R-4','CMS vendor may slip delivery','Jo','High'],['R-7','Accessibility audit capacity','Sam','Medium']] },
+    ],
+  }),
+  computed: {
+    tokens(){ return { ...palettes[this.variant][this.theme], ...statusSets[this.statusSet][this.theme] } },
+    contrasts(){
+      const t=this.tokens
+      return [
+        ['text / bg','bg','text',4.5],['muted / surface','surface','muted',4.5],['link / surface','surface','link',4.5],
+        ['on-accent / accent','accent','on-accent',4.5],['danger / surface','surface','danger-text',4.5],['border-strong / surface','surface','border-strong',1.5],
+        ['Red fg / bg','st-red-bg','st-red-fg',4.5],['Amber fg / bg','st-amber-bg','st-amber-fg',4.5],['Green fg / bg','st-green-bg','st-green-fg',4.5],
+        ['Red dot / surface','surface','st-red-solid',3],['Amber dot / surface','surface','st-amber-solid',1.5],['Green dot / surface','surface','st-green-solid',3],
+      ].map(([label,b,f,min])=>({label,bg:t[b],fg:t[f],min,ratio:ratio(t[b],t[f])}))
+    },
+    statusLightness(){ const t=this.tokens; return ['st-red-solid','st-amber-solid','st-green-solid'].map(k=>lstar(t[k])).join(' / ') },
+  },
+  watch: {
+    tokens: { immediate:true, handler(t){ for (const [k,v] of Object.entries(t)) document.documentElement.style.setProperty(`--${k}`, v) } },
+    variant(){ this.sync() }, theme(){ this.sync() }, statusSet(){ this.sync() }, screen(){ this.sync() },
+  },
+  methods: {
+    ragLabel(h){ return { Red:'▲ Red', Amber:'● Amber', Green:'✓ Green', None:'— Not rated' }[h] },
+    cycle(d){ this.variant = keys[(keys.indexOf(this.variant)+d+keys.length)%keys.length] },
+    cycleSim(){ this.sim = sims[(sims.indexOf(this.sim)+1)%sims.length] },
+    sync(){ const p=new URLSearchParams({variant:this.variant,theme:this.theme,status:this.statusSet,screen:this.screen}); history.replaceState(null,'',`?${p}`) },
+  },
+  mounted(){
+    addEventListener('keydown', e => {
+      if (e.target.closest('input,textarea,select,[contenteditable]')) return
+      if (e.key==='ArrowLeft') this.cycle(-1)
+      else if (e.key==='ArrowRight') this.cycle(1)
+      else if (e.key==='d') this.theme = this.theme==='light' ? 'dark' : 'light'
+      else if (e.key==='s') this.statusSet = this.statusSet==='classic' ? 'safe' : 'classic'
+      else if (e.key==='v') this.cycleSim()
+      else if (e.key==='p') this.screen = this.screen==='projects' ? 'project' : 'projects'
+    })
+  },
+}).mount('#app')
+</script>
+</body>
+</html>
