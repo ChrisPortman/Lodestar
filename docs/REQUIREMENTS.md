@@ -115,7 +115,20 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 
 | ID | Pri | Requirement |
 |----|-----|-------------|
-| FR-110 | S | A **Project** can be exported as JSON: its current state, plus its **Change History**. |
+| FR-110 | S | A **Project** can be exported as JSON: its current state, including all its **Comments** (deleted ones too, with their original text), plus its **Change History**. |
+
+### 1.13 Comments
+
+| ID | Pri | Requirement |
+|----|-----|-------------|
+| FR-120 | S | A **Member** can add a **Comment** to an **Action**, **Risk** or **Blocker** (open or closed), or to the **Project** as a whole. Each Comment records its author and when it was created. |
+| FR-121 | S | **Comments** are plain text, up to 4,000 characters, and can't be empty. Markdown is accepted but shown as typed, with line breaks kept. |
+| FR-122 | S | Only the author can edit or delete a **Comment**, and only while they're a **Member**. An edited Comment keeps its created time and also shows `edited: <datetime>` in a subtle typeface. |
+| FR-123 | S | Deleting a **Comment** can't be undone. The Comment is kept and shows as *Comment deleted by author*, and the API no longer returns its text. |
+| FR-124 | S | No **Comments** can be added, edited or deleted on an archived **Project**. |
+| FR-125 | S | Adding, editing and deleting a **Comment** are recorded in the **Change History** as changes to the Comment. They don't count as changes to the item or **Project** it's about. |
+| FR-126 | S | **Comments** are shown with the item or **Project** they're about, in a list that's collapsed by default, oldest first. |
+| FR-127 | S | A collapsed **Comment** list, and the item's row in the Project view, are marked when they hold new Comments: ones created by someone else since the user last opened that **Project** in this browser. Edits don't make a Comment new. If the browser has no record of a last visit, no Comments count as new. |
 
 ## 2. Non-functional requirements
 
@@ -199,4 +212,5 @@ Priority uses MoSCoW: **M** = must, **S** = should, **C** = could. Anything not 
 ## 4. Decisions to revisit
 
 - **Risks** have no owner in the MVP. This may change based on user feedback.
+- The time a user last viewed a **Project** (FR-127) is kept in the browser's local storage, so it's lost when local storage is cleared or another browser is used. Once **User Accounts** exist, it could be stored on the server.
 - **Projects** have no reporting date. The **Project on a Page** shows when it was generated.

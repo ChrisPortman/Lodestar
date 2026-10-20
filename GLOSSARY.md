@@ -59,6 +59,10 @@ _Avoid_: Backup, dump, report
 The short, human-readable label shown for an Action, Risk or Blocker, made of a type prefix and a number (e.g. A-001, R-001, B-001). It is numbered within its Project and never reused.
 _Avoid_: ID, key, number
 
+**Comment**:
+A dated, plain-text note written by a Member about an Action, Risk, Blocker or the Project as a whole. Only its author can edit or delete it. A deleted Comment is kept and shown as deleted by its author. Comment changes are recorded in Change History as changes to the Comment, not to the thing it is about.
+_Avoid_: Note, update, remark
+
 **Change History**:
 The recorded sequence of every change made to an Action, Risk, Blocker or Health Rating. Each entry records the Acting Person who made the change. It is used for reporting only, never to rebuild current state.
 _Avoid_: Audit log, updates
