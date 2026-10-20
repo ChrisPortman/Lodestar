@@ -41,35 +41,35 @@ provideComments({
 
 <template>
   <section>
-    <p v-if="project.isPending.value" class="text-gray-600">Loading…</p>
-    <p v-else-if="project.error.value" role="alert" class="text-red-700">
+    <p v-if="project.isPending.value" class="text-muted">Loading…</p>
+    <p v-else-if="project.error.value" role="alert" class="text-danger-text">
       Couldn't load the Project: {{ project.error.value.message }}
     </p>
     <template v-else-if="project.data.value">
       <header class="grid gap-2">
         <div class="flex flex-wrap items-center gap-3">
           <h1 class="flex-1 text-2xl font-semibold">
-            <span class="mr-2 font-mono text-gray-600">{{ project.data.value.project_code }}</span>
+            <span class="mr-2 font-mono text-muted">{{ project.data.value.project_code }}</span>
             {{ project.data.value.name }}
           </h1>
           <span
             v-if="!project.data.value.project_leader"
-            class="rounded bg-amber-100 px-2 py-0.5 text-sm text-amber-900"
+            class="rounded bg-st-amber-bg px-2 py-0.5 text-sm text-st-amber-fg"
           >
             No Project Leader
           </span>
-          <span v-if="session.data.value" class="text-sm text-gray-600">
+          <span v-if="session.data.value" class="text-sm text-muted">
             Acting as <strong>{{ session.data.value.person.display_name }}</strong>
           </span>
           <RouterLink
             :to="`/projects/${id}/report`"
-            class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
           >
             Project on a Page
           </RouterLink>
           <button
             type="button"
-            class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
             :aria-expanded="showMembers"
             @click="showMembers = !showMembers"
           >
@@ -87,10 +87,10 @@ provideComments({
         <RisksPanel :project="project.data.value" />
         <section
           aria-labelledby="project-comments"
-          class="rounded border border-gray-200 bg-white p-4"
+          class="rounded border border-border bg-surface p-4"
         >
           <h2 id="project-comments" class="text-lg font-semibold">Project Comments</h2>
-          <p v-if="comments.error.value" role="alert" class="text-sm text-red-700">
+          <p v-if="comments.error.value" role="alert" class="text-sm text-danger-text">
             Couldn't load Comments: {{ comments.error.value.message }}
           </p>
           <CommentsSection target-type="project" :target-id="id" label="the Project" />

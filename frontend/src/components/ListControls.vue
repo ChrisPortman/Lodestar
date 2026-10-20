@@ -33,14 +33,14 @@ function toggleUnassigned() {
     <select
       v-model="query.sort"
       :aria-label="`Sort ${title}`"
-      class="rounded border border-gray-300 text-sm"
+      class="rounded border border-control-border text-sm"
     >
       <option v-for="s in sorts" :key="s.value" :value="s.value">Sort: {{ s.label }}</option>
     </select>
     <select
       v-model="query.state"
       :aria-label="`Filter ${title} by state`"
-      class="rounded border border-gray-300 text-sm"
+      class="rounded border border-control-border text-sm"
     >
       <option value="all">Open and {{ finalisedLabel.toLowerCase() }}</option>
       <option value="open">Open only</option>
@@ -50,7 +50,7 @@ function toggleUnassigned() {
       <select
         v-model="query.assignee"
         :aria-label="`Filter ${title} by ${personLabel}`"
-        class="rounded border border-gray-300 text-sm"
+        class="rounded border border-control-border text-sm"
       >
         <option value="">Any {{ personLabel }}</option>
         <option value="unassigned">Unassigned</option>
@@ -62,8 +62,8 @@ function toggleUnassigned() {
         class="rounded border px-2 py-0.5"
         :class="
           unassignedOnly()
-            ? 'border-amber-400 bg-amber-50 text-amber-900'
-            : 'border-gray-300 hover:bg-gray-100'
+            ? 'border-st-amber-solid bg-st-amber-bg text-st-amber-fg'
+            : 'border-control-border hover:bg-subtle'
         "
         @click="toggleUnassigned"
       >
@@ -72,7 +72,11 @@ function toggleUnassigned() {
     </template>
     <label v-if="showDue" class="flex items-center gap-1">
       Due by
-      <input v-model="query.dueBy" type="date" class="rounded border border-gray-300 text-sm" />
+      <input
+        v-model="query.dueBy"
+        type="date"
+        class="rounded border border-control-border text-sm"
+      />
     </label>
   </div>
 </template>

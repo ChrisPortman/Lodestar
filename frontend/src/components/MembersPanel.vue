@@ -61,22 +61,22 @@ async function addChosen() {
   <aside
     role="dialog"
     aria-labelledby="members-title"
-    class="fixed inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-gray-300 bg-white p-4 shadow-lg"
+    class="fixed inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-control-border bg-surface p-4 shadow-lg"
     @keydown.esc="emit('close')"
   >
     <div class="flex items-center">
       <h2 id="members-title" class="flex-1 text-lg font-semibold">Members</h2>
       <button
         type="button"
-        class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+        class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
         @click="emit('close')"
       >
         Close
       </button>
     </div>
 
-    <p v-if="members.isPending.value" class="mt-4 text-gray-600">Loading…</p>
-    <ul v-else aria-label="Members" class="mt-4 divide-y divide-gray-200">
+    <p v-if="members.isPending.value" class="mt-4 text-muted">Loading…</p>
+    <ul v-else aria-label="Members" class="mt-4 divide-y divide-divider">
       <li
         v-for="member in members.data.value"
         :key="member.id"
@@ -86,11 +86,11 @@ async function addChosen() {
           {{ member.display_name }}
           <span
             v-if="project.project_leader?.id === member.id"
-            class="ml-1 rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800"
+            class="ml-1 rounded bg-accent-soft px-2 py-0.5 text-xs text-link"
           >
             Leader
           </span>
-          <span class="block text-xs text-gray-600" data-open-items>
+          <span class="block text-xs text-muted" data-open-items>
             {{ openItemsLabel(member.id) }}
           </span>
         </span>
@@ -98,7 +98,7 @@ async function addChosen() {
           <button
             v-if="project.project_leader?.id !== member.id"
             type="button"
-            class="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-xs hover:bg-subtle"
             :aria-label="`Make ${member.display_name} leader`"
             @click="lead.mutate({ project, leader: member })"
           >
@@ -106,7 +106,7 @@ async function addChosen() {
           </button>
           <button
             type="button"
-            class="rounded border border-gray-300 px-2 py-0.5 text-xs hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-xs hover:bg-subtle"
             :aria-label="`Remove ${member.display_name}`"
             @click="remove.mutate({ project, personId: member.id })"
           >
@@ -121,7 +121,7 @@ async function addChosen() {
       <select
         id="add-member"
         v-model="chosen"
-        class="flex-1 rounded border border-gray-300 px-2 py-1"
+        class="flex-1 rounded border border-control-border px-2 py-1"
       >
         <option value="" disabled>Choose a person…</option>
         <option v-for="person in candidates" :key="person.id" :value="person.id">
@@ -130,13 +130,13 @@ async function addChosen() {
       </select>
       <button
         type="submit"
-        class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
+        class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
         :disabled="!chosen"
       >
         Add
       </button>
     </form>
-    <p v-if="error" role="alert" class="mt-2 text-red-700">
+    <p v-if="error" role="alert" class="mt-2 text-danger-text">
       Couldn't change Members: {{ error.message }}
     </p>
   </aside>

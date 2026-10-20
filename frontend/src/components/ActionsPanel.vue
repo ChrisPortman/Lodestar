@@ -105,18 +105,18 @@ function setDue(action: Action, event: Event) {
       :people="members.data.value ?? []"
       show-due
     />
-    <p v-if="error" role="alert" class="mt-2 text-sm text-red-700">
+    <p v-if="error" role="alert" class="mt-2 text-sm text-danger-text">
       Couldn't save: {{ error.message }}
     </p>
-    <p v-if="actions.isPending.value" class="mt-2 text-sm text-gray-600">Loading…</p>
+    <p v-if="actions.isPending.value" class="mt-2 text-sm text-muted">Loading…</p>
 
     <template #item="{ item: action }">
       <div
         class="-mx-2 flex flex-wrap items-start gap-3 rounded px-2"
-        :class="{ 'bg-amber-50': !action.closed && !action.assignee }"
+        :class="{ 'bg-st-amber-bg/40': !action.closed && !action.assignee }"
         :data-unassigned="!action.closed && !action.assignee ? '' : undefined"
       >
-        <span class="w-14 shrink-0 font-mono text-sm text-gray-700">{{ action.reference }}</span>
+        <span class="w-14 shrink-0 font-mono text-sm text-muted">{{ action.reference }}</span>
         <div class="min-w-0 flex-1">
           <DescriptionEditor
             v-if="editingId === action.id"
@@ -128,7 +128,7 @@ function setDue(action: Action, event: Event) {
           <p v-else class="whitespace-pre-line">{{ action.description }}</p>
           <p
             v-if="action.blocked_by.length > 0"
-            class="mt-1 text-sm font-semibold text-red-700"
+            class="mt-1 text-sm font-semibold text-danger-text"
             data-blocked
           >
             Blocked by {{ action.blocked_by.map((b) => b.reference).join(', ') }}
@@ -138,8 +138,8 @@ function setDue(action: Action, event: Event) {
           :value="action.assignee?.id ?? ''"
           :aria-label="`Assignee of ${action.reference}`"
           :disabled="!writable"
-          class="rounded border border-gray-300 text-sm"
-          :class="{ 'border-amber-400 text-amber-900': !action.closed && !action.assignee }"
+          class="rounded border border-control-border text-sm"
+          :class="{ 'border-st-amber-solid text-st-amber-fg': !action.closed && !action.assignee }"
           @change="assign(action, $event)"
         >
           <option value="">Unassigned</option>
@@ -153,8 +153,8 @@ function setDue(action: Action, event: Event) {
           :aria-label="`Due date of ${action.reference}`"
           :disabled="!writable"
           :data-overdue="String(isOverdue(action))"
-          class="rounded border border-gray-300 text-sm"
-          :class="{ 'border-red-400 font-semibold text-red-700': isOverdue(action) }"
+          class="rounded border border-control-border text-sm"
+          :class="{ 'border-danger font-semibold text-danger-text': isOverdue(action) }"
           @change="setDue(action, $event)"
         />
         <template v-if="writable">
@@ -162,7 +162,7 @@ function setDue(action: Action, event: Event) {
             v-if="editingId !== action.id"
             type="button"
             :aria-label="`Edit ${action.reference}`"
-            class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
             @click="editingId = action.id"
           >
             Edit
@@ -170,7 +170,7 @@ function setDue(action: Action, event: Event) {
           <button
             type="button"
             :aria-label="`${action.closed ? 'Reopen' : 'Close'} ${action.reference}`"
-            class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
             @click="close.mutate({ action, closed: !action.closed })"
           >
             {{ action.closed ? 'Reopen' : 'Close' }}

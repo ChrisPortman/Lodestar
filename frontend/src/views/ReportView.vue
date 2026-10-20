@@ -21,17 +21,17 @@ const openRisks = computed(() =>
 )
 
 const RATING = {
-  red: { label: 'Red', badge: 'bg-red-600 text-white' },
-  amber: { label: 'Amber', badge: 'bg-amber-400 text-gray-900' },
-  green: { label: 'Green', badge: 'bg-green-600 text-white' },
-  none: { label: 'Not rated', badge: 'bg-gray-200 text-gray-700' },
+  red: { label: 'Red', badge: 'bg-st-red-bg text-st-red-fg' },
+  amber: { label: 'Amber', badge: 'bg-st-amber-bg text-st-amber-fg' },
+  green: { label: 'Green', badge: 'bg-st-green-bg text-st-green-fg' },
+  none: { label: 'Not rated', badge: 'bg-active text-muted' },
 } as const
 const rating = computed(() => RATING[project.data.value?.health_rating?.rating ?? 'none'])
 
 const SEVERITY_CLASS = {
-  low: 'bg-green-100 text-green-800',
-  medium: 'bg-amber-100 text-amber-900',
-  high: 'bg-red-100 text-red-800',
+  low: 'bg-st-green-bg text-st-green-fg',
+  medium: 'bg-st-amber-bg text-st-amber-fg',
+  high: 'bg-st-red-bg text-st-red-fg',
 } as const
 
 const refs = (items: { reference: string }[]) => items.map((i) => i.reference).join(', ')
@@ -39,14 +39,14 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
 
 <template>
   <article class="report text-sm">
-    <p v-if="project.isPending.value" class="text-gray-600">Loading…</p>
-    <p v-else-if="project.error.value" role="alert" class="text-red-700">
+    <p v-if="project.isPending.value" class="text-muted">Loading…</p>
+    <p v-else-if="project.error.value" role="alert" class="text-danger-text">
       Couldn't load the Project: {{ project.error.value.message }}
     </p>
     <template v-else-if="project.data.value">
-      <header class="flex flex-wrap items-start gap-4 border-b-2 border-gray-800 pb-3">
+      <header class="flex flex-wrap items-start gap-4 border-b-2 border-text pb-3">
         <div class="flex-1">
-          <p class="font-mono text-xs text-gray-600">
+          <p class="font-mono text-xs text-muted">
             {{ project.data.value.project_code }} · Project on a Page
           </p>
           <h1 class="text-2xl font-semibold">{{ project.data.value.name }}</h1>
@@ -56,12 +56,12 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
           <span class="rounded px-3 py-1 font-semibold" :class="rating.badge">{{
             rating.label
           }}</span>
-          <p class="mt-1 text-xs text-gray-600">Generated {{ generated }}</p>
+          <p class="mt-1 text-xs text-muted">Generated {{ generated }}</p>
         </div>
       </header>
       <blockquote
         v-if="project.data.value.health_rating?.comment"
-        class="mt-3 border-l-4 border-gray-300 pl-3 italic"
+        class="mt-3 border-l-4 border-control-border pl-3 italic"
       >
         “{{ project.data.value.health_rating.comment }}”
       </blockquote>
@@ -74,7 +74,7 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
           Open Actions
         </caption>
         <thead>
-          <tr class="border-b border-gray-400 text-left">
+          <tr class="border-b border-control-border text-left">
             <th class="pr-2">Ref</th>
             <th class="pr-2">Description</th>
             <th class="pr-2">Assignee</th>
@@ -88,7 +88,10 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
             <td class="pr-2 whitespace-pre-line">{{ a.description }}</td>
             <td class="pr-2">
               <span v-if="a.assignee">{{ a.assignee.display_name }}</span>
-              <span v-else data-unassigned="true" class="rounded bg-amber-100 px-1 text-amber-900"
+              <span
+                v-else
+                data-unassigned="true"
+                class="rounded bg-st-amber-bg px-1 text-st-amber-fg"
                 >Unassigned</span
               >
             </td>
@@ -96,7 +99,7 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
               <span
                 v-if="a.due_date"
                 :data-overdue="String(isOverdue(a, generated))"
-                :class="{ 'font-semibold text-red-700': isOverdue(a, generated) }"
+                :class="{ 'font-semibold text-danger-text': isOverdue(a, generated) }"
                 >{{ a.due_date }}</span
               >
             </td>
@@ -110,7 +113,7 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
           Open Blockers
         </caption>
         <thead>
-          <tr class="border-b border-gray-400 text-left">
+          <tr class="border-b border-control-border text-left">
             <th class="pr-2">Ref</th>
             <th class="pr-2">Description</th>
             <th class="pr-2">Accountable</th>
@@ -132,7 +135,7 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
           Open Risks
         </caption>
         <thead>
-          <tr class="border-b border-gray-400 text-left">
+          <tr class="border-b border-control-border text-left">
             <th class="pr-2">Ref</th>
             <th class="pr-2">Description</th>
             <th class="pr-2">L</th>

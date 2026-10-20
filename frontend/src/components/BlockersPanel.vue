@@ -126,18 +126,18 @@ function linkChosen(blocker: Blocker, event: Event) {
       person-label="accountable"
       finalised-label="Cleared"
     />
-    <p v-if="error" role="alert" class="mt-2 text-sm text-red-700">
+    <p v-if="error" role="alert" class="mt-2 text-sm text-danger-text">
       Couldn't save: {{ error.message }}
     </p>
-    <p v-if="blockers.isPending.value" class="mt-2 text-sm text-gray-600">Loading…</p>
+    <p v-if="blockers.isPending.value" class="mt-2 text-sm text-muted">Loading…</p>
 
     <template #item="{ item: blocker }">
       <div
         class="-mx-2 flex flex-wrap items-start gap-3 rounded px-2"
-        :class="{ 'bg-amber-50': !blocker.cleared && !blocker.accountable }"
+        :class="{ 'bg-st-amber-bg/40': !blocker.cleared && !blocker.accountable }"
         :data-unassigned="!blocker.cleared && !blocker.accountable ? '' : undefined"
       >
-        <span class="w-14 shrink-0 font-mono text-sm text-gray-700">{{ blocker.reference }}</span>
+        <span class="w-14 shrink-0 font-mono text-sm text-muted">{{ blocker.reference }}</span>
         <div class="min-w-0 flex-1">
           <DescriptionEditor
             v-if="editingId === blocker.id"
@@ -154,14 +154,14 @@ function linkChosen(blocker: Blocker, event: Event) {
             <li
               v-for="a in blocker.blocked_actions"
               :key="a.id"
-              class="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 font-mono"
+              class="flex items-center gap-1 rounded bg-subtle px-2 py-0.5 font-mono"
             >
               {{ a.reference }}
               <button
                 v-if="writable"
                 type="button"
                 :aria-label="`Unlink ${a.reference} from ${blocker.reference}`"
-                class="text-gray-600 hover:text-red-700"
+                class="text-muted hover:text-danger-text"
                 @click="unlink.mutate({ blocker, actionId: a.id })"
               >
                 ×
@@ -173,8 +173,10 @@ function linkChosen(blocker: Blocker, event: Event) {
           :value="blocker.accountable?.id ?? ''"
           :aria-label="`Accountable for ${blocker.reference}`"
           :disabled="!writable"
-          class="rounded border border-gray-300 text-sm"
-          :class="{ 'border-amber-400 text-amber-900': !blocker.cleared && !blocker.accountable }"
+          class="rounded border border-control-border text-sm"
+          :class="{
+            'border-st-amber-solid text-st-amber-fg': !blocker.cleared && !blocker.accountable,
+          }"
           @change="assign(blocker, $event)"
         >
           <option value="">Unassigned</option>
@@ -186,7 +188,7 @@ function linkChosen(blocker: Blocker, event: Event) {
           <select
             value=""
             :aria-label="`Link an Action to ${blocker.reference}`"
-            class="rounded border border-gray-300 text-sm"
+            class="rounded border border-control-border text-sm"
             @change="linkChosen(blocker, $event)"
           >
             <option value="">Link Action…</option>
@@ -198,7 +200,7 @@ function linkChosen(blocker: Blocker, event: Event) {
             v-if="editingId !== blocker.id"
             type="button"
             :aria-label="`Edit ${blocker.reference}`"
-            class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
             @click="editingId = blocker.id"
           >
             Edit
@@ -206,7 +208,7 @@ function linkChosen(blocker: Blocker, event: Event) {
           <button
             type="button"
             :aria-label="`${blocker.cleared ? 'Reopen' : 'Clear'} ${blocker.reference}`"
-            class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
             @click="clear.mutate({ blocker, cleared: !blocker.cleared })"
           >
             {{ blocker.cleared ? 'Reopen' : 'Clear' }}

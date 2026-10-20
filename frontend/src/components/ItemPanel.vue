@@ -31,14 +31,14 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
 </script>
 
 <template>
-  <section :aria-labelledby="headingId" class="rounded border border-gray-200 bg-white p-4">
+  <section :aria-labelledby="headingId" class="rounded border border-border bg-surface p-4">
     <div class="flex items-center gap-2">
       <h2 :id="headingId" class="flex-1 text-lg font-semibold">{{ title }}</h2>
       <button
         v-if="canAdd && !adding"
         type="button"
         :aria-label="`Add ${itemLabel}`"
-        class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+        class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
         @click="adding = true"
       >
         + Add
@@ -48,17 +48,17 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
       <slot name="add" :done="() => (adding = false)" />
     </div>
     <slot />
-    <ul :aria-label="`Open ${title}`" class="mt-2 divide-y divide-gray-100">
+    <ul :aria-label="`Open ${title}`" class="mt-2 divide-y divide-divider">
       <li v-for="item in open" :key="item.id" class="py-2">
         <slot name="item" :item="item" />
       </li>
     </ul>
-    <p v-if="open.length === 0" class="text-sm text-gray-500">No open {{ title }}.</p>
+    <p v-if="open.length === 0" class="text-sm text-muted">No open {{ title }}.</p>
     <details v-if="finalised.length > 0" class="mt-3" :open="expandFinalised">
-      <summary class="cursor-pointer text-sm text-gray-600">
+      <summary class="cursor-pointer text-sm text-muted">
         {{ finalisedLabel }} ({{ finalised.length }})
       </summary>
-      <ul :aria-label="`${finalisedLabel} ${title}`" class="divide-y divide-gray-100 opacity-75">
+      <ul :aria-label="`${finalisedLabel} ${title}`" class="divide-y divide-divider opacity-75">
         <li v-for="item in finalised" :key="item.id" class="py-2">
           <slot name="item" :item="item" />
         </li>

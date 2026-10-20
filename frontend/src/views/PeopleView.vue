@@ -38,8 +38,8 @@ async function save(person: Person) {
   <section>
     <h1 class="text-2xl font-semibold">People</h1>
 
-    <p v-if="people.isPending.value" class="mt-4 text-gray-600">Loading…</p>
-    <ul v-else aria-label="People" class="mt-4 divide-y divide-gray-200">
+    <p v-if="people.isPending.value" class="mt-4 text-muted">Loading…</p>
+    <ul v-else aria-label="People" class="mt-4 divide-y divide-divider">
       <li v-for="person in people.data.value" :key="person.id" class="flex items-center gap-2 py-2">
         <form
           v-if="editingId === person.id"
@@ -53,14 +53,17 @@ async function save(person: Person) {
             :id="`name-${person.id}`"
             v-model="draft"
             maxlength="100"
-            class="flex-1 rounded border border-gray-300 px-3 py-1"
+            class="flex-1 rounded border border-control-border px-3 py-1"
           />
-          <button type="submit" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
+          <button
+            type="submit"
+            class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
+          >
             Save
           </button>
           <button
             type="button"
-            class="rounded border border-gray-300 px-3 py-1"
+            class="rounded border border-control-border px-3 py-1"
             @click="editingId = null"
           >
             Cancel
@@ -70,7 +73,7 @@ async function save(person: Person) {
           <span class="flex-1">{{ person.display_name }}</span>
           <button
             type="button"
-            class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
             :aria-label="`Rename ${person.display_name}`"
             @click="startEditing(person)"
           >
@@ -79,7 +82,7 @@ async function save(person: Person) {
         </template>
       </li>
     </ul>
-    <p v-if="rename.error.value" role="alert" class="mt-2 text-red-700">
+    <p v-if="rename.error.value" role="alert" class="mt-2 text-danger-text">
       Couldn't rename: {{ rename.error.value.message }}
     </p>
 
@@ -90,13 +93,16 @@ async function save(person: Person) {
         v-model="newName"
         maxlength="100"
         placeholder="Display name"
-        class="flex-1 rounded border border-gray-300 px-3 py-2"
+        class="flex-1 rounded border border-control-border px-3 py-2"
       />
-      <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+      <button
+        type="submit"
+        class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
+      >
         Add
       </button>
     </form>
-    <p v-if="create.error.value" role="alert" class="mt-2 text-red-700">
+    <p v-if="create.error.value" role="alert" class="mt-2 text-danger-text">
       Couldn't add: {{ create.error.value.message }}
     </p>
   </section>

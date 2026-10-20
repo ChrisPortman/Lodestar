@@ -1,6 +1,228 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
 
-/* Project on a Page prints on A4 portrait (FR-101). */
+/* Theme switch: public/theme.js sets data-theme on <html> before first paint (#54). */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/*
+ * Semantic tokens (#47, #48, #52). Components use the utilities these map to
+ * (bg-surface, text-muted, border-control-border, bg-st-red-bg, ...) and never
+ * need `dark:`. Light is the default and the print palette.
+ */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --subtle: #e8edf4;
+  --hover: #eef2f7;
+  --active: #e1e8f1;
+  --input: #ffffff;
+  --chrome: #ffffff;
+  --chrome-text: #1e2b3c;
+  --text: #1d2633;
+  --muted: #5a6677;
+  --border: #d9e0ea;
+  --border-strong: #bcc7d6; /* decorative only, never a control boundary */
+  --divider: #e7ecf2;
+  --control-border: #7d8a9c;
+  --control-border-hover: #5a6677;
+  --accent: #3f6fb0;
+  --accent-hover: #335d96;
+  --accent-active: #2b4f80;
+  --on-accent: #ffffff;
+  --accent-soft: #bcd2ef;
+  --link: #335f9c;
+  --focus: #3f6fb0;
+  --danger: #b23a3f;
+  --danger-hover: #9a2f34;
+  --on-danger: #ffffff;
+  --danger-soft: #fbe1df;
+  --danger-text: #a8323a;
+  --st-red-bg: #fbe1df;
+  --st-red-fg: #8a1f1a;
+  --st-red-solid: #d9534a;
+  --st-amber-bg: #fcefd2;
+  --st-amber-fg: #7a4d00;
+  --st-amber-solid: #e0a12b;
+  --st-green-bg: #dcf1e1;
+  --st-green-fg: #1d5e31;
+  --st-green-solid: #3f9a5c;
+}
+
+@media screen {
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --bg: #12161c;
+    --surface: #1a2028;
+    --subtle: #252d38;
+    --hover: #212833;
+    --active: #2a333f;
+    --input: #161b22;
+    --chrome: #1a2028;
+    --chrome-text: #d6e2f2;
+    --text: #e2e8f0;
+    --muted: #97a3b4;
+    --border: #2c3542;
+    --border-strong: #414c5c;
+    --divider: #252d38;
+    --control-border: #6b7889;
+    --control-border-hover: #97a3b4;
+    --accent: #8fb6ec;
+    --accent-hover: #a9c8f2;
+    --accent-active: #c3d9f6;
+    --on-accent: #0e1a2c;
+    --accent-soft: #36507a;
+    --link: #9cc0f0;
+    --focus: #8fb6ec;
+    --danger: #e8766d;
+    --danger-hover: #f0938b;
+    --on-danger: #1f0b0a;
+    --danger-soft: #4a1f1d;
+    --danger-text: #f3a0a6;
+    --st-red-bg: #4a1f1d;
+    --st-red-fg: #ffc9c4;
+    --st-red-solid: #e8766d;
+    --st-amber-bg: #4a3a14;
+    --st-amber-fg: #fde1a6;
+    --st-amber-solid: #e8b54d;
+    --st-green-bg: #1d3d27;
+    --st-green-fg: #bfe9cb;
+    --st-green-solid: #5fc07e;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-input: var(--input);
+  --color-chrome: var(--chrome);
+  --color-chrome-text: var(--chrome-text);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-divider: var(--divider);
+  --color-control-border: var(--control-border);
+  --color-control-border-hover: var(--control-border-hover);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-on-accent: var(--on-accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-link: var(--link);
+  --color-focus: var(--focus);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-on-danger: var(--on-danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-text: var(--danger-text);
+  --color-st-red-bg: var(--st-red-bg);
+  --color-st-red-fg: var(--st-red-fg);
+  --color-st-red-solid: var(--st-red-solid);
+  --color-st-amber-bg: var(--st-amber-bg);
+  --color-st-amber-fg: var(--st-amber-fg);
+  --color-st-amber-solid: var(--st-amber-solid);
+  --color-st-green-bg: var(--st-green-bg);
+  --color-st-green-fg: var(--st-green-fg);
+  --color-st-green-solid: var(--st-green-solid);
+
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Type scale: major third at a 15px base (#49). */
+@theme {
+  --text-xs: 12px;
+  --text-xs--line-height: 1.55;
+  --text-xs--letter-spacing: 0.01em;
+  --text-sm: 13.5px;
+  --text-sm--line-height: 1.55;
+  --text-base: 15px;
+  --text-base--line-height: 1.55;
+  --text-md: 16px;
+  --text-md--line-height: 1.55;
+  --text-lg: 19px;
+  --text-lg--line-height: 1.25;
+  --text-2xl: 29px;
+  --text-2xl--line-height: 1.25;
+  --spacing: 4px;
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01', 'cv05';
+    line-height: 1.55;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-weight: 650;
+    line-height: 1.25;
+    letter-spacing: -0.022em;
+  }
+
+  strong,
+  b {
+    font-weight: 550;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+  }
+
+  a {
+    color: var(--color-link);
+  }
+
+  input,
+  select,
+  textarea {
+    background: var(--color-input);
+    color: var(--color-text);
+    border-color: var(--color-control-border);
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--color-accent);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-surface),
+      0 0 0 4px var(--color-focus);
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  time,
+  td {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Project on a Page prints on A4 portrait (FR-101), always in the light palette. */
 @page {
   size: A4 portrait;
   margin: 12mm;
