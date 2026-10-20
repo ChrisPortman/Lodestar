@@ -132,3 +132,50 @@ fn sigterm_shuts_down_cleanly() {
         "no longer listening"
     );
 }
+
+/// `lodestar --local` with its data directory and home under `dir`, and a
+/// browser that does nothing.
+#[cfg(target_os = "linux")]
+fn lodestar_local(dir: &tempfile::TempDir) -> Command {
+    let mut cmd = lodestar(dir);
+    cmd.arg("--local")
+        .env("HOME", dir.path())
+        .env("XDG_DATA_HOME", dir.path().join("data"))
+        .env("BROWSER", "true")
+        .env("LODESTAR_SERVER__PORT", "1")
+        .stdout(Stdio::piped());
+    cmd
+}
+
+#[cfg(target_os = "linux")]
+fn read_url(stdout: impl Read) -> String {
+    use std::io::BufRead;
+    std::io::BufReader::new(stdout)
+        .lines()
+        .map_while(Result::ok)
+        .find_map(|line| Some(line.strip_prefix("Lodestar is running at ")?.to_owned()))
+        .expect("no URL printed")
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn local_mode_serves_from_the_data_dir_and_a_second_launch_reuses_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut child = lodestar_local(&dir).spawn().unwrap();
+    let url = read_url(child.stdout.take().unwrap());
+    let port: u16 = url.rsplit(':').next().unwrap().parse().unwrap();
+    assert_ne!(port, 1, "--local must ignore LODESTAR_SERVER__PORT");
+    let healthz = get_healthz(port);
+
+    let second = lodestar_local(&dir).output().unwrap();
+    child.kill().unwrap();
+    child.wait().unwrap();
+
+    assert!(healthz.unwrap().starts_with("HTTP/1.1 200"));
+    let data = dir.path().join("data/lodestar");
+    assert!(data.join("lodestar.db").exists());
+    assert!(data.join("lodestar-session.key").exists());
+    assert!(!dir.path().join("lodestar.db").exists());
+    assert_eq!(second.status.code(), Some(0));
+    assert_eq!(read_url(second.stdout.as_slice()), url);
+}

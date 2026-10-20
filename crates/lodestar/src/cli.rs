@@ -1,9 +1,9 @@
-//! Command line: `--config <path>`, `--help`, `--version`, and `openapi [path]`.
+//! Command line: `--config <path>`, `--local`, `--help`, `--version`, and `openapi [path]`.
 
 use std::{ffi::OsString, path::PathBuf};
 
 pub const HELP: &str = "\
-Usage: lodestar [--config <path>]
+Usage: lodestar [--config <path>] [--local]
        lodestar openapi [<path>]
 
 Commands:
@@ -11,6 +11,9 @@ Commands:
 
 Options:
   --config <path>  Configuration file (or LODESTAR_CONFIG; default ./lodestar.toml if present)
+  --local          Run on this machine only: loopback on a random port, plain HTTP, no
+                   sign-in, data in the per-user data directory, and open the browser.
+                   Anyone with an account on this machine can reach it.
   -h, --help       Print help
   -V, --version    Print version
 
@@ -19,8 +22,13 @@ Settings can also be given as LODESTAR_* environment variables, e.g. LODESTAR_SE
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
-    Run { config: Option<PathBuf> },
-    OpenApi { out: PathBuf },
+    Run {
+        config: Option<PathBuf>,
+        local: bool,
+    },
+    OpenApi {
+        out: PathBuf,
+    },
     Help,
     Version,
 }
@@ -38,10 +46,12 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, String
         return Ok(Command::OpenApi { out });
     }
     let mut config = None;
+    let mut local = false;
     while let Some(arg) = args.next() {
         match arg.to_str() {
             Some("-h" | "--help") => return Ok(Command::Help),
             Some("-V" | "--version") => return Ok(Command::Version),
+            Some("--local") => local = true,
             Some("--config") => {
                 let path = args.next().ok_or("--config needs a path")?;
                 config = Some(PathBuf::from(path));
@@ -52,7 +62,7 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, String
             _ => return Err(format!("unexpected argument {arg:?}")),
         }
     }
-    Ok(Command::Run { config })
+    Ok(Command::Run { config, local })
 }
 
 #[cfg(test)]
@@ -65,17 +75,32 @@ mod tests {
 
     #[test]
     fn parses_config_help_and_version() {
-        assert_eq!(parse_strs(&[]), Ok(Command::Run { config: None }));
+        assert_eq!(
+            parse_strs(&[]),
+            Ok(Command::Run {
+                config: None,
+                local: false
+            })
+        );
         assert_eq!(
             parse_strs(&["--config", "a.toml"]),
             Ok(Command::Run {
-                config: Some("a.toml".into())
+                config: Some("a.toml".into()),
+                local: false
             })
         );
         assert_eq!(
             parse_strs(&["--config=b.toml"]),
             Ok(Command::Run {
-                config: Some("b.toml".into())
+                config: Some("b.toml".into()),
+                local: false
+            })
+        );
+        assert_eq!(
+            parse_strs(&["--local", "--config", "c.toml"]),
+            Ok(Command::Run {
+                config: Some("c.toml".into()),
+                local: true
             })
         );
         assert_eq!(parse_strs(&["--help"]), Ok(Command::Help));

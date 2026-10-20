@@ -132,26 +132,83 @@ fn config_file(cli: Option<&Path>) -> Result<Option<PathBuf>, ConfigError> {
 
 /// Loads and validates the configuration.
 pub fn load(cli: Option<&Path>) -> Result<Config, ConfigError> {
-    let mut figment = Figment::from(Serialized::defaults(Config::default()));
+    let figment = figment(cli, Config::default())?;
+    let config = extract(&figment)?;
+    validate_with_origin(&config, &figment)?;
+    Ok(config)
+}
+
+/// Settings that local mode owns: values for them from a file or the
+/// environment are ignored.
+pub const LOCAL_KEYS: [&str; 5] = [
+    "server.bind",
+    "server.port",
+    "database.url",
+    "session.key",
+    "session.key_file",
+];
+
+/// Loads the configuration for local mode: like [`load`], but logs default to
+/// `pretty`, and the [`LOCAL_KEYS`] are forced to loopback, any free port
+/// (`server.port` 0) and files in `data_dir`. Also returns the forced keys that
+/// a file or the environment tried to set, so the caller can warn about them.
+pub fn load_local(
+    cli: Option<&Path>,
+    data_dir: &Path,
+) -> Result<(Config, Vec<&'static str>), ConfigError> {
+    let mut defaults = Config::default();
+    defaults.log.format = LogFormat::Pretty;
+    let figment = figment(cli, defaults)?;
+    let mut config = extract(&figment)?;
+    // `Serialized` names its source after the serialized type, so a key whose
+    // metadata has that name came from the defaults rather than a file or env.
+    let default_source = std::any::type_name::<Config>();
+    let ignored = LOCAL_KEYS
+        .into_iter()
+        .filter(|key| {
+            figment
+                .find_metadata(key)
+                .is_some_and(|metadata| metadata.name != default_source)
+        })
+        .collect();
+
+    config.server = Config::default().server;
+    config.database.url = format!("sqlite://{}", data_dir.join("lodestar.db").display());
+    config.session = Session {
+        key: None,
+        key_file: data_dir.join("lodestar-session.key"),
+    };
+    validate_with_origin(&config, &figment)?;
+    config.server.port = 0;
+    Ok((config, ignored))
+}
+
+fn figment(cli: Option<&Path>, defaults: Config) -> Result<Figment, ConfigError> {
+    let mut figment = Figment::from(Serialized::defaults(defaults));
     if let Some(file) = config_file(cli)? {
         figment = figment.merge(Toml::file_exact(file));
     }
-    let figment = figment.merge(
+    Ok(figment.merge(
         Env::prefixed("LODESTAR_")
             .ignore(&["CONFIG"])
             .split("__")
             .lowercase(true),
-    );
-    let config: Config = figment.extract().map_err(|e| from_figment(&e))?;
-    validate(&config).map_err(|(key, message)| ConfigError::Invalid {
+    ))
+}
+
+fn extract(figment: &Figment) -> Result<Config, ConfigError> {
+    figment.extract().map_err(|e| from_figment(&e))
+}
+
+fn validate_with_origin(config: &Config, figment: &Figment) -> Result<(), ConfigError> {
+    validate(config).map_err(|(key, message)| ConfigError::Invalid {
         origin: figment
             .find_metadata(key)
             .map(describe)
             .unwrap_or_else(|| "unknown".to_owned()),
         key: key.to_owned(),
         message,
-    })?;
-    Ok(config)
+    })
 }
 
 fn from_figment(error: &figment::Error) -> ConfigError {
@@ -296,6 +353,38 @@ mod tests {
             assert_eq!(config.server.bind.to_string(), "0.0.0.0");
             assert_eq!(config.log.format, LogFormat::Pretty);
             assert_eq!(config.log.level, "info");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn local_mode_forces_network_and_files_and_reports_what_it_ignored() {
+        Jail::expect_with(|jail| {
+            jail.create_file(
+                "lodestar.toml",
+                "[server]\nport = 0\nbind = \"0.0.0.0\"\n[log]\nlevel = \"debug\"\n",
+            )?;
+            jail.set_env("LODESTAR_DATABASE__URL", "sqlite://elsewhere.db");
+            let data = Path::new("/data/lodestar");
+            let (config, ignored) = load_local(None, data).unwrap();
+            assert_eq!(config.server.bind, IpAddr::V4(Ipv4Addr::LOCALHOST));
+            assert_eq!(config.server.port, 0);
+            assert_eq!(config.database.url, "sqlite:///data/lodestar/lodestar.db");
+            assert_eq!(config.session.key_file, data.join("lodestar-session.key"));
+            assert_eq!(config.log.level, "debug");
+            assert_eq!(config.log.format, LogFormat::Pretty);
+            assert_eq!(ignored, ["server.bind", "server.port", "database.url"]);
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn local_mode_ignores_nothing_by_default_and_honours_log_format() {
+        Jail::expect_with(|jail| {
+            jail.set_env("LODESTAR_LOG__FORMAT", "json");
+            let (config, ignored) = load_local(None, Path::new("/d")).unwrap();
+            assert!(ignored.is_empty(), "{ignored:?}");
+            assert_eq!(config.log.format, LogFormat::Json);
             Ok(())
         });
     }

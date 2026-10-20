@@ -17,6 +17,8 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json", "fm
 base64 = "0.23.1"
 getrandom = "0.4.3"
 thiserror = "2.0.21"
+dirs = "7.0.0"
+webbrowser = "1.2.4"
 
 [dev-dependencies]
 figment = { version = "0.10.19", features = ["test"] }
