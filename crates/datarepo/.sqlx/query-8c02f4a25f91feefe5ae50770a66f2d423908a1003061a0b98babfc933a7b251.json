@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO comments\n                        (id, project_id, target_type, target_id, author_id, body, created_at,\n                         edited_at, deleted, version)\n                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "8c02f4a25f91feefe5ae50770a66f2d423908a1003061a0b98babfc933a7b251"
+}

@@ -5,23 +5,31 @@ use uuid::Uuid;
 
 use crate::action::{Action, ActionId};
 use crate::blocker::{Blocker, BlockerId};
+use crate::comment::{CommentBody, CommentId, Target, TargetType};
 
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
 use crate::person::PersonId;
 use crate::ports::{
     ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
-    BlockerSort, BlockersQuery, ClearedFilter, ClosedFilter, HistoryQuery, PageRequest,
-    PeopleQuery, PeopleSort, PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery,
-    ReferenceCounter, ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery,
-    Transaction, UnitOfWork,
+    BlockerSort, BlockersQuery, ClearedFilter, ClosedFilter, CommentFilter, CommentRepository,
+    CommentsQuery, HistoryQuery, PageRequest, PeopleQuery, PeopleSort, PersonRepository,
+    ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError,
+    RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
 use crate::project::{Description, Project, ProjectId, ProjectName};
 use crate::risk::{Rating, RiskId};
-use crate::test_support::{a_person, a_project, a_risk};
+use crate::test_support::{a_comment, a_person, a_project, a_risk};
 
 /// Everything a full store adapter provides.
 pub trait Store:
-    UnitOfWork + PeopleQuery + ProjectsQuery + RisksQuery + ActionsQuery + BlockersQuery + HistoryQuery
+    UnitOfWork
+    + PeopleQuery
+    + ProjectsQuery
+    + RisksQuery
+    + ActionsQuery
+    + BlockersQuery
+    + CommentsQuery
+    + HistoryQuery
 {
 }
 impl<
@@ -31,6 +39,7 @@ impl<
         + RisksQuery
         + ActionsQuery
         + BlockersQuery
+        + CommentsQuery
         + HistoryQuery,
 > Store for T
 {
@@ -998,6 +1007,145 @@ pub async fn blockers_are_listed_by_project_code_and_reference(store: impl Store
     assert_eq!(labels(web_all), ["WEBR/B-003", "WEBR/B-010"]);
 }
 
+pub async fn saved_comment_can_be_loaded_updated_and_deleted(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let ada = project.project_leader().unwrap();
+    let v1 = a_comment(project.id(), ada)
+        .saying("  **Late**\nagain  ")
+        .build();
+    let v2 = v1.edited(CommentBody::new("Later").unwrap());
+    let v3 = v2.deleted();
+    let mut tx = store.begin().await.unwrap();
+    tx.comments().save(None, &v1, &ctx()).await.unwrap();
+    assert_eq!(tx.comments().load(v1.id()).await.unwrap(), v1);
+    tx.comments().save(Some(&v1), &v2, &ctx()).await.unwrap();
+    tx.comments().save(Some(&v2), &v3, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    let stored = tx.comments().load(v1.id()).await.unwrap();
+    assert_eq!(stored, v3);
+    assert_eq!(stored.body().as_str(), "Later");
+    assert_eq!(
+        tx.comments().load(CommentId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+    assert_eq!(
+        tx.comments()
+            .save(Some(&v1), &v2, &ctx())
+            .await
+            .unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.comments().save(None, &v1, &ctx()).await.unwrap_err(),
+        RepoError::Conflict
+    );
+}
+
+pub async fn each_comment_save_writes_a_history_entry(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let ada = project.project_leader().unwrap();
+    let v1 = a_comment(project.id(), ada).build();
+    let v2 = v1.deleted();
+    let mut tx = store.begin().await.unwrap();
+    tx.comments()
+        .save(None, &v1, &ChangeContext::by(ada))
+        .await
+        .unwrap();
+    tx.comments()
+        .save(Some(&v1), &v2, &ChangeContext::by(ada))
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let history = store
+        .entity_history(
+            EntityType::Comment,
+            v1.id().as_uuid(),
+            PageRequest::first(10),
+        )
+        .await
+        .unwrap();
+    let [first, second] = history.items.as_slice() else {
+        panic!("expected two entries, got {:?}", history.items);
+    };
+    assert_eq!(first.change_kind, ChangeKind::Created);
+    assert_eq!(first.project_id, Some(project.id().as_uuid()));
+    assert_eq!(first.after, snapshot(&v1));
+    assert_eq!(second.change_kind, ChangeKind::Updated);
+    assert_eq!(second.before, Some(snapshot(&v1)));
+    assert_eq!(second.after, snapshot(&v2));
+}
+
+pub async fn comments_are_listed_oldest_first_by_project_and_target(store: impl Store) {
+    let web = a_saved_project(&store, "WEBR").await;
+    let other = a_saved_project(&store, "OTHR").await;
+    let ada = web.project_leader().unwrap();
+    let risk = a_risk(web.id(), 1).build();
+    let first = a_comment(web.id(), ada).saying("First").build();
+    let on_risk = a_comment(web.id(), ada)
+        .on(TargetType::Risk, risk.id().as_uuid())
+        .saying("On risk")
+        .build();
+    let gone = a_comment(web.id(), ada).saying("Gone").build();
+    let elsewhere = a_comment(other.id(), other.project_leader().unwrap())
+        .saying("Elsewhere")
+        .build();
+    let mut tx = store.begin().await.unwrap();
+    tx.risks().save(None, &risk, &ctx()).await.unwrap();
+    for c in [&first, &on_risk, &gone, &elsewhere] {
+        tx.comments().save(None, c, &ctx()).await.unwrap();
+    }
+    tx.comments()
+        .save(Some(&gone), &gone.deleted(), &ctx())
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let bodies = |page: crate::ports::Page<crate::comment::CommentView>| -> (u64, Vec<String>) {
+        (page.total, page.items.into_iter().map(|c| c.body).collect())
+    };
+    let in_web = CommentFilter {
+        project_id: Some(web.id()),
+        target: None,
+    };
+    let all = PageRequest::first(10);
+    assert_eq!(
+        bodies(store.list_comments(in_web, all).await.unwrap()),
+        (3, vec!["First".into(), "On risk".into(), "Gone".into()])
+    );
+    let on_project = CommentFilter {
+        target: Some(Target {
+            kind: TargetType::Project,
+            id: web.id().as_uuid(),
+        }),
+        ..in_web
+    };
+    let paged = PageRequest {
+        offset: 1,
+        limit: 1,
+    };
+    assert_eq!(
+        bodies(store.list_comments(on_project, paged).await.unwrap()),
+        (2, vec!["Gone".into()])
+    );
+
+    let view = store.get_comment(gone.id()).await.unwrap();
+    assert_eq!(view.project_id, web.id());
+    assert_eq!(view.target, gone.target());
+    assert_eq!(view.author.id, ada);
+    assert_eq!(view.author.display_name, "Ada");
+    assert_eq!(view.created_at, gone.created_at());
+    assert_eq!(view.edited_at, None);
+    assert!(view.deleted);
+    assert_eq!(view.version, 2);
+    assert_eq!(
+        store.get_comment(CommentId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -1037,7 +1185,10 @@ macro_rules! port_contract_tests {
             actions_show_the_open_blockers_blocking_them,
             open_blockers_a_person_is_accountable_for_can_be_found,
             blockers_are_listed_by_project_code_and_reference,
-            project_history_holds_the_project_and_its_items_in_time_order
+            project_history_holds_the_project_and_its_items_in_time_order,
+            saved_comment_can_be_loaded_updated_and_deleted,
+            each_comment_save_writes_a_history_entry,
+            comments_are_listed_oldest_first_by_project_and_target
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

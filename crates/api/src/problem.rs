@@ -9,8 +9,8 @@ use axum::{
 };
 use lodestar_core::{
     action::use_cases::ActionError, blocker::use_cases::BlockerError,
-    person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
-    risk::use_cases::RiskError,
+    comment::use_cases::CommentError, person::use_cases::PersonError, ports::RepoError,
+    project::use_cases::ProjectError, risk::use_cases::RiskError,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -191,6 +191,23 @@ impl From<ActionError> for Problem {
             | ActionError::UnknownProject => Self::invalid(error.to_string()),
             ActionError::Archived => Self::new(StatusCode::CONFLICT).detail(error.to_string()),
             ActionError::Repo(e) => e.into(),
+        }
+    }
+}
+
+impl From<CommentError> for Problem {
+    fn from(error: CommentError) -> Self {
+        match error {
+            CommentError::InvalidBody(_)
+            | CommentError::UnknownProject
+            | CommentError::UnknownTarget => Self::invalid(error.to_string()),
+            CommentError::NotAMember | CommentError::NotTheAuthor => {
+                Self::new(StatusCode::FORBIDDEN).detail(error.to_string())
+            }
+            CommentError::Archived | CommentError::Deleted => {
+                Self::new(StatusCode::CONFLICT).detail(error.to_string())
+            }
+            CommentError::Repo(e) => e.into(),
         }
     }
 }

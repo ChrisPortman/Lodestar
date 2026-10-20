@@ -2,6 +2,7 @@
 
 pub mod action;
 pub mod blocker;
+pub mod comment;
 pub mod health;
 pub mod history;
 pub mod person;
