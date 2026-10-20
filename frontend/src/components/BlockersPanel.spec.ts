@@ -84,7 +84,10 @@ describe('Blockers panel', () => {
       blocker({ id: 'k2', reference: 'B-002', description: 'Old', cleared: true }),
     ])
     await waitFor(async () => expect(await openBlockers()).toHaveLength(1))
-    const order = screen.getAllByRole('region').map((r) => r.getAttribute('aria-labelledby'))
+    const order = screen
+      .getAllByRole('region')
+      .map((r) => r.getAttribute('aria-labelledby'))
+      .filter((id) => id?.startsWith('panel-'))
     expect(order).toEqual(['panel-actions', 'panel-blockers', 'panel-risks'])
     const cleared = within(await panel()).getByText('Cleared (1)')
     expect(cleared.closest('details')!.open).toBe(false)

@@ -1,19 +1,42 @@
 <script setup lang="ts">
-import { ref, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ActionsPanel from '../components/ActionsPanel.vue'
 import BlockersPanel from '../components/BlockersPanel.vue'
+import CommentsSection from '../components/CommentsSection.vue'
 import ExportControl from '../components/ExportControl.vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
 import MembersPanel from '../components/MembersPanel.vue'
 import RisksPanel from '../components/RisksPanel.vue'
+import { markViewed, provideComments, useComments } from '../comments'
+import { useMembers } from '../members'
 import { useProject } from '../projects'
 import { useSession } from '../session'
 
 const props = defineProps<{ id: string }>()
-const project = useProject(toRef(props, 'id'))
+const projectId = toRef(props, 'id')
+const project = useProject(projectId)
 const session = useSession()
+const members = useMembers(projectId)
+const comments = useComments(projectId)
 const showMembers = ref(false)
+
+// Highlighting compares against the previous visit for the whole page visit.
+const since = ref<string | null>(null)
+watch(projectId, (id) => (since.value = markViewed(id)), { immediate: true })
+
+const actingId = computed(() => session.data.value?.person.id ?? null)
+provideComments({
+  projectId,
+  comments: computed(() => comments.data.value ?? []),
+  since,
+  actingId,
+  canComment: computed(
+    () =>
+      !project.data.value?.archived &&
+      (members.data.value ?? []).some((m) => m.id === actingId.value),
+  ),
+})
 </script>
 
 <template>
@@ -62,6 +85,16 @@ const showMembers = ref(false)
         <ActionsPanel :project="project.data.value" />
         <BlockersPanel :project="project.data.value" />
         <RisksPanel :project="project.data.value" />
+        <section
+          aria-labelledby="project-comments"
+          class="rounded border border-gray-200 bg-white p-4"
+        >
+          <h2 id="project-comments" class="text-lg font-semibold">Project Comments</h2>
+          <p v-if="comments.error.value" role="alert" class="text-sm text-red-700">
+            Couldn't load Comments: {{ comments.error.value.message }}
+          </p>
+          <CommentsSection target-type="project" :target-id="id" label="the Project" />
+        </section>
       </div>
     </template>
   </section>

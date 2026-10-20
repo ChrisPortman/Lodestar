@@ -26,7 +26,7 @@ test('pick a person, create a Project, add an Action and change its Health Ratin
 
   await page.getByRole('button', { name: 'Edit Health Rating' }).click()
   await page.getByRole('radio', { name: 'Amber' }).check()
-  await page.getByLabel('Comment').fill('Venue not yet confirmed')
+  await page.getByLabel('Comment', { exact: true }).fill('Venue not yet confirmed')
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText('Amber')
   await expect(page.getByText('Venue not yet confirmed')).toBeVisible()
