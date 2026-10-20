@@ -64,9 +64,13 @@ for (const theme of THEMES) {
       await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText('● Amber')
       await expectAccessible(page)
       // Hover and keyboard focus states keep their contrast too.
-      await page.getByRole('button', { name: 'Members' }).hover()
+      const menu = page.getByRole('button', { name: 'Project menu' })
+      await menu.hover()
       await expectAccessible(page)
-      await page.getByRole('button', { name: 'Members' }).focus()
+      await menu.focus()
+      await expectAccessible(page)
+      await menu.click()
+      await expect(page.getByRole('dialog', { name: 'Project menu' })).toBeVisible()
       await expectAccessible(page)
     })
 
