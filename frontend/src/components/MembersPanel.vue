@@ -9,7 +9,6 @@ import type { PersonRef } from '../api/members'
 import NewPersonField from './NewPersonField.vue'
 
 const props = defineProps<{ project: Project }>()
-const emit = defineEmits<{ close: [] }>()
 
 const projectId = toRef(() => props.project.id)
 const members = useMembers(projectId)
@@ -65,17 +64,7 @@ async function addChosen() {
 </script>
 
 <template>
-  <aside
-    role="dialog"
-    aria-labelledby="members-title"
-    class="fixed inset-y-0 right-0 z-10 w-full max-w-sm overflow-y-auto border-l border-control-border bg-surface p-4 shadow-lg"
-    @keydown.esc="emit('close')"
-  >
-    <div class="flex items-center">
-      <h2 id="members-title" class="flex-1 text-lg font-semibold">Members</h2>
-      <button type="button" class="btn" @click="emit('close')">Close</button>
-    </div>
-
+  <div>
     <p v-if="members.isPending.value" class="mt-4 text-muted">Loading…</p>
     <ul v-else aria-label="Members" class="mt-4 grid gap-2">
       <li
@@ -142,5 +131,5 @@ async function addChosen() {
     <p v-if="error" role="alert" class="mt-2 text-danger-text">
       Couldn't change Members: {{ error.message }}
     </p>
-  </aside>
+  </div>
 </template>
