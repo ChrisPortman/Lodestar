@@ -173,7 +173,7 @@ function linkChosen(blocker: Blocker, event: Event) {
           :value="blocker.accountable?.id ?? ''"
           :aria-label="`Accountable for ${blocker.reference}`"
           :disabled="!writable"
-          class="rounded border border-control-border text-sm"
+          class="field text-sm"
           :class="{
             'border-st-amber-solid text-st-amber-fg': !blocker.cleared && !blocker.accountable,
           }"
@@ -188,7 +188,7 @@ function linkChosen(blocker: Blocker, event: Event) {
           <select
             value=""
             :aria-label="`Link an Action to ${blocker.reference}`"
-            class="rounded border border-control-border text-sm"
+            class="field text-sm"
             @change="linkChosen(blocker, $event)"
           >
             <option value="">Link Action…</option>
@@ -200,7 +200,7 @@ function linkChosen(blocker: Blocker, event: Event) {
             v-if="editingId !== blocker.id"
             type="button"
             :aria-label="`Edit ${blocker.reference}`"
-            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+            class="btn"
             @click="editingId = blocker.id"
           >
             Edit
@@ -208,7 +208,7 @@ function linkChosen(blocker: Blocker, event: Event) {
           <button
             type="button"
             :aria-label="`${blocker.cleared ? 'Reopen' : 'Clear'} ${blocker.reference}`"
-            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+            class="btn"
             @click="clear.mutate({ blocker, cleared: !blocker.cleared })"
           >
             {{ blocker.cleared ? 'Reopen' : 'Clear' }}

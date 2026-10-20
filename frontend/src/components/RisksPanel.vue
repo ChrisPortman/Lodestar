@@ -87,13 +87,13 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1">
             Likelihood
-            <select v-model.number="newLikelihood" class="rounded border border-control-border">
+            <select v-model.number="newLikelihood" class="field">
               <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
             </select>
           </label>
           <label class="flex items-center gap-1">
             Impact
-            <select v-model.number="newImpact" class="rounded border border-control-border">
+            <select v-model.number="newImpact" class="field">
               <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
             </select>
           </label>
@@ -126,7 +126,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             :value="risk.likelihood"
             :aria-label="`Likelihood of ${risk.reference}`"
             :disabled="!writable"
-            class="rounded border border-control-border"
+            class="field"
             @change="rate(risk, 'likelihood', $event)"
           >
             <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
@@ -138,7 +138,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             :value="risk.impact"
             :aria-label="`Impact of ${risk.reference}`"
             :disabled="!writable"
-            class="rounded border border-control-border"
+            class="field"
             @change="rate(risk, 'impact', $event)"
           >
             <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
@@ -157,7 +157,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             v-if="editingId !== risk.id"
             type="button"
             :aria-label="`Edit ${risk.reference}`"
-            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+            class="btn"
             @click="editingId = risk.id"
           >
             Edit
@@ -165,7 +165,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
           <button
             type="button"
             :aria-label="`${risk.closed ? 'Reopen' : 'Close'} ${risk.reference}`"
-            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+            class="btn"
             @click="close.mutate({ risk, closed: !risk.closed })"
           >
             {{ risk.closed ? 'Reopen' : 'Close' }}

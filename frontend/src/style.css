@@ -222,6 +222,115 @@
   }
 }
 
+/* Interaction states (#52): pill buttons and soft-fill fields with a 3:1 bottom rule. */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: var(--text-sm);
+    font-weight: 550;
+    line-height: 1.4;
+    text-decoration: none;
+    background: var(--color-subtle);
+    color: var(--color-text);
+    transition:
+      background-color 120ms,
+      border-color 120ms,
+      color 120ms,
+      box-shadow 120ms;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--color-active);
+    border-color: var(--color-control-border);
+  }
+  .btn:active:not(:disabled) {
+    background: var(--color-accent-soft);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-lg {
+    padding: 7px 18px;
+  }
+  .btn-sm {
+    padding: 2px 10px;
+    font-size: var(--text-xs);
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    border-color: transparent;
+  }
+  .btn-primary:active:not(:disabled) {
+    background: var(--color-accent-active);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-link);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--color-hover);
+    border-color: transparent;
+    text-decoration: underline;
+  }
+  .btn-danger {
+    background: var(--color-danger-soft);
+    color: var(--color-danger-text);
+    border-color: var(--color-danger);
+  }
+  .btn-danger:hover:not(:disabled),
+  .btn-danger:active:not(:disabled) {
+    background: var(--color-danger);
+    color: var(--color-on-danger);
+    border-color: var(--color-danger);
+  }
+
+  .field {
+    border: 0;
+    border-bottom: 2px solid var(--color-control-border);
+    border-radius: 5px 5px 0 0;
+    background: var(--color-subtle);
+    color: var(--color-text);
+    padding: 4px 8px;
+    transition:
+      background-color 120ms,
+      border-color 120ms,
+      box-shadow 120ms;
+  }
+  .field:hover:not(:disabled) {
+    background: var(--color-active);
+    border-bottom-color: var(--color-control-border-hover);
+  }
+  .field:focus-visible {
+    border-bottom-color: var(--color-focus);
+  }
+  .field[aria-invalid='true'] {
+    background: var(--color-danger-soft);
+    border-bottom-color: var(--color-st-red-solid);
+  }
+  .field:disabled {
+    opacity: 0.45;
+    border-bottom-style: dotted;
+    cursor: not-allowed;
+  }
+  .field-error {
+    color: var(--color-danger-text);
+    font-size: var(--text-xs);
+    font-weight: 550;
+  }
+  .field-error::before {
+    content: '▲ ';
+  }
+}
+
 /* Project on a Page prints on A4 portrait (FR-101), always in the light palette. */
 @page {
   size: A4 portrait;

@@ -53,6 +53,26 @@ export async function seedAction(
   )
 }
 
+export async function seedRisk(request: APIRequestContext, projectId: string, description: string) {
+  return ok(
+    await request.post('/api/v1/risks', {
+      data: { project_id: projectId, description, likelihood: 4, impact: 4 },
+    }),
+  )
+}
+
+export async function seedBlocker(
+  request: APIRequestContext,
+  projectId: string,
+  description: string,
+) {
+  return ok(
+    await request.post('/api/v1/blockers', {
+      data: { project_id: projectId, description, accountable: null },
+    }),
+  )
+}
+
 /** Changes an Action as another client would, bumping its version. */
 export async function updateAction(
   request: APIRequestContext,

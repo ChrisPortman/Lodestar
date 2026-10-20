@@ -138,7 +138,7 @@ function setDue(action: Action, event: Event) {
           :value="action.assignee?.id ?? ''"
           :aria-label="`Assignee of ${action.reference}`"
           :disabled="!writable"
-          class="rounded border border-control-border text-sm"
+          class="field text-sm"
           :class="{ 'border-st-amber-solid text-st-amber-fg': !action.closed && !action.assignee }"
           @change="assign(action, $event)"
         >
@@ -153,7 +153,7 @@ function setDue(action: Action, event: Event) {
           :aria-label="`Due date of ${action.reference}`"
           :disabled="!writable"
           :data-overdue="String(isOverdue(action))"
-          class="rounded border border-control-border text-sm"
+          class="field text-sm"
           :class="{ 'border-danger font-semibold text-danger-text': isOverdue(action) }"
           @change="setDue(action, $event)"
         />
@@ -162,7 +162,7 @@ function setDue(action: Action, event: Event) {
             v-if="editingId !== action.id"
             type="button"
             :aria-label="`Edit ${action.reference}`"
-            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+            class="btn"
             @click="editingId = action.id"
           >
             Edit
@@ -170,7 +170,7 @@ function setDue(action: Action, event: Event) {
           <button
             type="button"
             :aria-label="`${action.closed ? 'Reopen' : 'Close'} ${action.reference}`"
-            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+            class="btn"
             @click="close.mutate({ action, closed: !action.closed })"
           >
             {{ action.closed ? 'Reopen' : 'Close' }}
