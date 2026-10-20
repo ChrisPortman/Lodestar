@@ -19,8 +19,6 @@ const href = computed(
       <input v-model="includeHistory" type="checkbox" />
       Include history
     </label>
-    <a :href="href" download class="rounded border border-control-border px-3 py-1 hover:bg-subtle">
-      Export
-    </a>
+    <a :href="href" download class="btn"> Export </a>
   </span>
 </template>

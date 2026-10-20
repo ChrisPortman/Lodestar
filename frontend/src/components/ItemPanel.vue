@@ -38,7 +38,7 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
         v-if="canAdd && !adding"
         type="button"
         :aria-label="`Add ${itemLabel}`"
-        class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
+        class="btn"
         @click="adding = true"
       >
         + Add

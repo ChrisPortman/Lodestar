@@ -27,7 +27,7 @@ function save() {
       required
       maxlength="4000"
       rows="3"
-      class="rounded border border-control-border px-3 py-1"
+      class="field"
       @keydown.ctrl.enter.prevent="save"
       @keydown.esc.prevent="emit('cancel')"
     />
@@ -37,19 +37,10 @@ function save() {
     </p>
     <slot />
     <div class="flex gap-2">
-      <button
-        type="submit"
-        class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
-      >
+      <button type="submit" class="btn btn-primary">
         {{ saveLabel ?? 'Save' }}
       </button>
-      <button
-        type="button"
-        class="rounded border border-control-border px-3 py-1"
-        @click="emit('cancel')"
-      >
-        Cancel
-      </button>
+      <button type="button" class="btn" @click="emit('cancel')">Cancel</button>
     </div>
   </form>
 </template>

@@ -61,15 +61,10 @@ provideComments({
           <span v-if="session.data.value" class="text-sm text-muted">
             Acting as <strong>{{ session.data.value.person.display_name }}</strong>
           </span>
-          <RouterLink
-            :to="`/projects/${id}/report`"
-            class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
-          >
-            Project on a Page
-          </RouterLink>
+          <RouterLink :to="`/projects/${id}/report`" class="btn"> Project on a Page </RouterLink>
           <button
             type="button"
-            class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
+            class="btn"
             :aria-expanded="showMembers"
             @click="showMembers = !showMembers"
           >

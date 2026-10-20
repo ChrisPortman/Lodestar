@@ -95,13 +95,7 @@ function toggleArchived(project: Project) {
         <input v-model="showArchived" type="checkbox" />
         Show archived
       </label>
-      <button
-        type="button"
-        class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
-        @click="openCreate"
-      >
-        New Project
-      </button>
+      <button type="button" class="btn btn-primary btn-lg" @click="openCreate">New Project</button>
     </div>
 
     <div
@@ -119,7 +113,7 @@ function toggleArchived(project: Project) {
             v-model="newName"
             required
             maxlength="100"
-            class="rounded border border-control-border px-3 py-2"
+            class="field px-3 py-2"
           />
         </label>
         <label class="grid gap-1">
@@ -130,7 +124,7 @@ function toggleArchived(project: Project) {
             maxlength="10"
             pattern="[A-Z][A-Z0-9]{1,9}"
             title="An uppercase letter followed by 1–9 uppercase letters or digits"
-            class="rounded border border-control-border px-3 py-2 font-mono uppercase"
+            class="field px-3 py-2 font-mono uppercase"
             aria-describedby="new-project-code-hint"
             @input="codeEdited = true"
           />
@@ -140,30 +134,14 @@ function toggleArchived(project: Project) {
         </p>
         <label class="grid gap-1">
           <span class="text-sm font-medium">Description</span>
-          <textarea
-            v-model="newDescription"
-            maxlength="4000"
-            rows="3"
-            class="rounded border border-control-border px-3 py-2"
-          />
+          <textarea v-model="newDescription" maxlength="4000" rows="3" class="field px-3 py-2" />
         </label>
         <p v-if="create.error.value" role="alert" class="text-danger-text">
           Couldn't create: {{ create.error.value.message }}
         </p>
         <div class="flex gap-2">
-          <button
-            type="submit"
-            class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
-          >
-            Create
-          </button>
-          <button
-            type="button"
-            class="rounded border border-control-border px-4 py-2"
-            @click="creating = false"
-          >
-            Cancel
-          </button>
+          <button type="submit" class="btn btn-primary btn-lg">Create</button>
+          <button type="button" class="btn btn-lg" @click="creating = false">Cancel</button>
         </div>
       </form>
     </div>
@@ -178,12 +156,7 @@ function toggleArchived(project: Project) {
           @submit.prevent="save(project).catch(() => {})"
         >
           <label class="sr-only" :for="`name-${project.id}`">Name for {{ project.name }}</label>
-          <input
-            :id="`name-${project.id}`"
-            v-model="draftName"
-            maxlength="100"
-            class="rounded border border-control-border px-3 py-1"
-          />
+          <input :id="`name-${project.id}`" v-model="draftName" maxlength="100" class="field" />
           <label class="sr-only" :for="`description-${project.id}`">
             Description for {{ project.name }}
           </label>
@@ -192,22 +165,11 @@ function toggleArchived(project: Project) {
             v-model="draftDescription"
             maxlength="4000"
             rows="2"
-            class="rounded border border-control-border px-3 py-1"
+            class="field"
           />
           <div class="flex gap-2">
-            <button
-              type="submit"
-              class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              class="rounded border border-control-border px-3 py-1"
-              @click="editingId = null"
-            >
-              Cancel
-            </button>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn" @click="editingId = null">Cancel</button>
           </div>
         </form>
         <template v-else>
@@ -232,7 +194,7 @@ function toggleArchived(project: Project) {
             <button
               v-if="!project.archived"
               type="button"
-              class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
+              class="btn"
               :aria-label="`Edit ${project.name}`"
               @click="startEditing(project)"
             >
@@ -240,7 +202,7 @@ function toggleArchived(project: Project) {
             </button>
             <button
               type="button"
-              class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
+              class="btn"
               :aria-label="`${project.archived ? 'Unarchive' : 'Archive'} ${project.name}`"
               @click="toggleArchived(project)"
             >

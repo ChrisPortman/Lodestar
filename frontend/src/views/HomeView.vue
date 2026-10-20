@@ -54,14 +54,9 @@ async function createAndPick() {
         v-model="newName"
         maxlength="100"
         placeholder="Your name"
-        class="flex-1 rounded border border-control-border px-3 py-2"
+        class="field flex-1 px-3 py-2"
       />
-      <button
-        type="submit"
-        class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
-      >
-        I'm new
-      </button>
+      <button type="submit" class="btn btn-primary btn-lg">I'm new</button>
     </form>
     <p v-if="start.error.value || create.error.value" role="alert" class="mt-4 text-danger-text">
       {{ (start.error.value ?? create.error.value)?.message }}

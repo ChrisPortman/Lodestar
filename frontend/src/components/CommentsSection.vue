@@ -103,16 +103,20 @@ async function confirmDelete(comment: Comment) {
             <span>Delete this Comment?</span>
             <button
               type="button"
-              class="text-danger-text underline"
+              class="btn btn-danger btn-sm"
               @click="confirmDelete(comment).catch(() => {})"
             >
               Yes, delete
             </button>
-            <button type="button" class="underline" @click="confirmingId = null">Keep</button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="confirmingId = null">
+              Keep
+            </button>
           </template>
           <template v-else>
-            <button type="button" class="underline" @click="editingId = comment.id">Edit</button>
-            <button type="button" class="underline" @click="confirmingId = comment.id">
+            <button type="button" class="btn btn-ghost btn-sm" @click="editingId = comment.id">
+              Edit
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" @click="confirmingId = comment.id">
               Delete
             </button>
           </template>
@@ -128,16 +132,11 @@ async function confirmDelete(comment: Comment) {
         :aria-label="`Add a Comment on ${label}`"
         maxlength="4000"
         rows="2"
-        class="rounded border border-control-border px-2 py-1"
+        class="field"
         @keydown.ctrl.enter.prevent="add().catch(() => {})"
       />
       <div>
-        <button
-          type="submit"
-          class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
-        >
-          Comment
-        </button>
+        <button type="submit" class="btn btn-primary">Comment</button>
       </div>
     </form>
   </details>

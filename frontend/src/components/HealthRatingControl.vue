@@ -63,7 +63,7 @@ async function submit() {
         v-if="!project.archived && !editing"
         type="button"
         aria-label="Edit Health Rating"
-        class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
+        class="btn"
         @click="startEditing"
       >
         Edit
@@ -92,26 +92,15 @@ async function submit() {
           :disabled="draftRating === 'none'"
           maxlength="4000"
           rows="2"
-          class="rounded border border-control-border px-3 py-1"
+          class="field"
         />
       </label>
       <p v-if="save.error.value" role="alert" class="text-danger-text">
         Couldn't save: {{ save.error.value.message }}
       </p>
       <div class="flex gap-2">
-        <button
-          type="submit"
-          class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
-        >
-          Save
-        </button>
-        <button
-          type="button"
-          class="rounded border border-control-border px-3 py-1"
-          @click="editing = false"
-        >
-          Cancel
-        </button>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" class="btn" @click="editing = false">Cancel</button>
       </div>
     </form>
   </div>

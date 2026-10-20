@@ -49,31 +49,15 @@ async function save(person: Person) {
           <label class="sr-only" :for="`name-${person.id}`">
             Display name for {{ person.display_name }}
           </label>
-          <input
-            :id="`name-${person.id}`"
-            v-model="draft"
-            maxlength="100"
-            class="flex-1 rounded border border-control-border px-3 py-1"
-          />
-          <button
-            type="submit"
-            class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            class="rounded border border-control-border px-3 py-1"
-            @click="editingId = null"
-          >
-            Cancel
-          </button>
+          <input :id="`name-${person.id}`" v-model="draft" maxlength="100" class="field flex-1" />
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn" @click="editingId = null">Cancel</button>
         </form>
         <template v-else>
           <span class="flex-1">{{ person.display_name }}</span>
           <button
             type="button"
-            class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
+            class="btn"
             :aria-label="`Rename ${person.display_name}`"
             @click="startEditing(person)"
           >
@@ -93,14 +77,9 @@ async function save(person: Person) {
         v-model="newName"
         maxlength="100"
         placeholder="Display name"
-        class="flex-1 rounded border border-control-border px-3 py-2"
+        class="field flex-1 px-3 py-2"
       />
-      <button
-        type="submit"
-        class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
-      >
-        Add
-      </button>
+      <button type="submit" class="btn btn-primary btn-lg">Add</button>
     </form>
     <p v-if="create.error.value" role="alert" class="mt-2 text-danger-text">
       Couldn't add: {{ create.error.value.message }}

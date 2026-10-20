@@ -31,13 +31,15 @@ function switchTo(event: Event) {
             >Acting as <strong data-testid="acting-person">{{ acting.display_name }}</strong></span
           >
           <label class="sr-only" for="switch-person">Switch Acting Person</label>
-          <select id="switch-person" :value="acting.id" @change="switchTo">
+          <select id="switch-person" class="field text-sm" :value="acting.id" @change="switchTo">
             <option v-for="person in people.data.value" :key="person.id" :value="person.id">
               {{ person.display_name }}
             </option>
           </select>
         </div>
-        <button type="button" :aria-pressed="theme === 'dark'" @click="toggle">Dark mode</button>
+        <button type="button" class="btn" :aria-pressed="theme === 'dark'" @click="toggle">
+          Dark mode
+        </button>
       </div>
     </div>
   </header>
