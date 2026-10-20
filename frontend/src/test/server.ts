@@ -3,11 +3,12 @@ import { setupServer } from 'msw/node'
 import type { components } from '../api/schema'
 import { fakeActions, type Action } from './actions-backend'
 import { fakeBlockers, type Blocker } from './blockers-backend'
+import { fakeComments, type Comment } from './comments-backend'
 import { fakeRisks, type Risk } from './risks-backend'
 
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
-export type { Action, Blocker, Risk }
+export type { Action, Blocker, Comment, Risk }
 type Schemas = components['schemas']
 
 export const api = (path: string) => `${location.origin}/api/v1${path}`
@@ -42,6 +43,7 @@ export function fakeBackend(
   initialRisks: Risk[] = [],
   initialActions: Action[] = [],
   initialBlockers: Blocker[] = [],
+  initialComments: Comment[] = [],
 ) {
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
@@ -223,6 +225,8 @@ export function fakeBackend(
   handlers.push(...actions.handlers)
   const blockers = fakeBlockers(projects, members, personRef, actions.actions, initialBlockers)
   handlers.push(...blockers.handlers)
+  const comments = fakeComments(projects, members, personRef, () => acting, initialComments)
+  handlers.push(...comments.handlers)
   return {
     handlers,
     people,
@@ -231,6 +235,7 @@ export function fakeBackend(
     risks: risks.risks,
     actions: actions.actions,
     blockers: blockers.blockers,
+    comments: comments.comments,
     acting: () => acting,
   }
 }

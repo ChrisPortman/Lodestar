@@ -11,6 +11,7 @@ import {
   type Risk,
   type Action,
   type Blocker,
+  type Comment,
 } from './server'
 
 /** Renders the whole app at `path` against an in-memory backend. */
@@ -22,8 +23,9 @@ export async function renderApp(
   risks: Risk[] = [],
   actions: Action[] = [],
   blockers: Blocker[] = [],
+  comments: Comment[] = [],
 ) {
-  const backend = fakeBackend(people, actingId, projects, risks, actions, blockers)
+  const backend = fakeBackend(people, actingId, projects, risks, actions, blockers, comments)
   server.use(...backend.handlers)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createAppRouter(createMemoryHistory(), queryClient)

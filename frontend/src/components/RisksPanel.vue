@@ -6,6 +6,7 @@ import type { Project } from '../api/client'
 import type { Risk } from '../api/risks'
 import { severity, useCreateRisk, useRisks, useSetRiskClosed, useUpdateRisk } from '../risks'
 import DescriptionEditor from './DescriptionEditor.vue'
+import CommentsSection from './CommentsSection.vue'
 import ItemPanel from './ItemPanel.vue'
 import ListControls from './ListControls.vue'
 import { applyQuery, useListQuery } from '../listControls'
@@ -171,6 +172,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
           </button>
         </template>
       </div>
+      <CommentsSection target-type="risk" :target-id="risk.id" :label="risk.reference" />
     </template>
   </ItemPanel>
 </template>

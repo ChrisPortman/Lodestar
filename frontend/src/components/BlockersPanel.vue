@@ -16,6 +16,7 @@ import {
 } from '../blockers'
 import { useMembers } from '../members'
 import DescriptionEditor from './DescriptionEditor.vue'
+import CommentsSection from './CommentsSection.vue'
 import ItemPanel from './ItemPanel.vue'
 import ListControls from './ListControls.vue'
 import { applyQuery, useListQuery } from '../listControls'
@@ -212,6 +213,7 @@ function linkChosen(blocker: Blocker, event: Event) {
           </button>
         </template>
       </div>
+      <CommentsSection target-type="blocker" :target-id="blocker.id" :label="blocker.reference" />
     </template>
   </ItemPanel>
 </template>
