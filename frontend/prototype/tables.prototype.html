@@ -99,7 +99,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:var(--sm);margin-top
 </style>
 </head>
 <body>
-<div id="app" v-cloak :class="'v'+variant" :style="{'--py': densities[density]+'px'}">
+<div id="app" v-cloak><div :class="'v'+variant" :style="{'--py': densities[density]+'px'}">
   <nav class="appbar">
     <span class="brand">Lodestar</span>
     <a href="#" :class="{on: screen==='projects'}" @click.prevent="screen='projects'">Projects</a>
@@ -227,6 +227,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:var(--sm);margin-top
     <button @click="cycleDensity">density: {{ density }}</button>
     <button @click="theme = theme==='light' ? 'dark' : 'light'">{{ theme==='light' ? '☀ light' : '☾ dark' }}</button>
   </div>
+</div>
 </div>
 
 <script>
