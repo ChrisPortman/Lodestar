@@ -64,9 +64,9 @@ async function confirmDelete(comment: Comment) {
 
 <template>
   <details class="mt-1 text-sm">
-    <summary class="cursor-pointer text-gray-600">
+    <summary class="cursor-pointer text-muted">
       Comments ({{ comments.length }})
-      <span v-if="hasNew" class="ml-1 font-semibold text-blue-700">• new</span>
+      <span v-if="hasNew" class="ml-1 font-semibold text-link">• new</span>
     </summary>
     <ul :aria-label="`Comments on ${label}`" class="mt-1 grid gap-2">
       <li
@@ -74,17 +74,17 @@ async function confirmDelete(comment: Comment) {
         :key="comment.id"
         :data-new="isNew || undefined"
         class="rounded border-l-2 py-1 pl-2"
-        :class="isNew ? 'border-blue-500 bg-blue-50' : 'border-gray-200'"
+        :class="isNew ? 'border-accent bg-hover' : 'border-border'"
       >
-        <div class="flex flex-wrap items-baseline gap-2 text-xs text-gray-600">
-          <strong class="text-gray-800">{{ comment.author.display_name }}</strong>
+        <div class="flex flex-wrap items-baseline gap-2 text-xs text-muted">
+          <strong class="text-text">{{ comment.author.display_name }}</strong>
           <time :datetime="comment.created_at">{{ when(comment.created_at) }}</time>
-          <span v-if="comment.edited_at && !comment.deleted" class="italic text-gray-500">
+          <span v-if="comment.edited_at && !comment.deleted" class="italic text-muted">
             edited: <time :datetime="comment.edited_at">{{ when(comment.edited_at) }}</time>
           </span>
-          <span v-if="isNew" class="font-semibold text-blue-700">new</span>
+          <span v-if="isNew" class="font-semibold text-link">new</span>
         </div>
-        <p v-if="comment.deleted" class="italic text-gray-500">Comment deleted by author</p>
+        <p v-if="comment.deleted" class="italic text-muted">Comment deleted by author</p>
         <DescriptionEditor
           v-else-if="editingId === comment.id"
           :initial="comment.body"
@@ -103,7 +103,7 @@ async function confirmDelete(comment: Comment) {
             <span>Delete this Comment?</span>
             <button
               type="button"
-              class="text-red-700 underline"
+              class="text-danger-text underline"
               @click="confirmDelete(comment).catch(() => {})"
             >
               Yes, delete
@@ -119,18 +119,23 @@ async function confirmDelete(comment: Comment) {
         </div>
       </li>
     </ul>
-    <p v-if="error" role="alert" class="mt-1 text-red-700">Couldn't save: {{ error.message }}</p>
+    <p v-if="error" role="alert" class="mt-1 text-danger-text">
+      Couldn't save: {{ error.message }}
+    </p>
     <form v-if="canComment" class="mt-2 grid gap-1" @submit.prevent="add().catch(() => {})">
       <textarea
         v-model="draft"
         :aria-label="`Add a Comment on ${label}`"
         maxlength="4000"
         rows="2"
-        class="rounded border border-gray-300 px-2 py-1"
+        class="rounded border border-control-border px-2 py-1"
         @keydown.ctrl.enter.prevent="add().catch(() => {})"
       />
       <div>
-        <button type="submit" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
+        <button
+          type="submit"
+          class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
+        >
           Comment
         </button>
       </div>

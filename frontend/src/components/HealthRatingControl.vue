@@ -15,10 +15,10 @@ const LABELS: Record<Choice, string> = {
   none: 'Not rated',
 }
 const BADGE: Record<Choice, string> = {
-  red: 'bg-red-600 text-white',
-  amber: 'bg-amber-400 text-gray-900',
-  green: 'bg-green-600 text-white',
-  none: 'bg-gray-200 text-gray-700',
+  red: 'bg-st-red-bg text-st-red-fg',
+  amber: 'bg-st-amber-bg text-st-amber-fg',
+  green: 'bg-st-green-bg text-st-green-fg',
+  none: 'bg-active text-muted',
 }
 const CHOICES: Choice[] = ['red', 'amber', 'green', 'none']
 
@@ -63,13 +63,13 @@ async function submit() {
         v-if="!project.archived && !editing"
         type="button"
         aria-label="Edit Health Rating"
-        class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+        class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
         @click="startEditing"
       >
         Edit
       </button>
     </div>
-    <p v-if="project.health_rating?.comment && !editing" class="text-sm text-gray-700">
+    <p v-if="project.health_rating?.comment && !editing" class="text-sm text-muted">
       {{ project.health_rating.comment }}
     </p>
     <form
@@ -92,19 +92,22 @@ async function submit() {
           :disabled="draftRating === 'none'"
           maxlength="4000"
           rows="2"
-          class="rounded border border-gray-300 px-3 py-1"
+          class="rounded border border-control-border px-3 py-1"
         />
       </label>
-      <p v-if="save.error.value" role="alert" class="text-red-700">
+      <p v-if="save.error.value" role="alert" class="text-danger-text">
         Couldn't save: {{ save.error.value.message }}
       </p>
       <div class="flex gap-2">
-        <button type="submit" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
+        <button
+          type="submit"
+          class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
+        >
           Save
         </button>
         <button
           type="button"
-          class="rounded border border-gray-300 px-3 py-1"
+          class="rounded border border-control-border px-3 py-1"
           @click="editing = false"
         >
           Cancel

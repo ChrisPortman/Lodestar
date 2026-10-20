@@ -36,9 +36,9 @@ const error = computed(() => update.error.value ?? close.error.value ?? create.e
 
 const RATINGS = [1, 2, 3, 4, 5]
 const SEVERITY_CLASS = {
-  low: 'bg-green-100 text-green-800',
-  medium: 'bg-amber-100 text-amber-900',
-  high: 'bg-red-100 text-red-800',
+  low: 'bg-st-green-bg text-st-green-fg',
+  medium: 'bg-st-amber-bg text-st-amber-fg',
+  high: 'bg-st-red-bg text-st-red-fg',
 } as const
 
 const newLikelihood = ref(3)
@@ -87,13 +87,13 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1">
             Likelihood
-            <select v-model.number="newLikelihood" class="rounded border border-gray-300">
+            <select v-model.number="newLikelihood" class="rounded border border-control-border">
               <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
             </select>
           </label>
           <label class="flex items-center gap-1">
             Impact
-            <select v-model.number="newImpact" class="rounded border border-gray-300">
+            <select v-model.number="newImpact" class="rounded border border-control-border">
               <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
             </select>
           </label>
@@ -102,14 +102,14 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
     </template>
 
     <ListControls title="Risks" :query="query" :sorts="SORTS" />
-    <p v-if="error" role="alert" class="mt-2 text-sm text-red-700">
+    <p v-if="error" role="alert" class="mt-2 text-sm text-danger-text">
       Couldn't save: {{ error.message }}
     </p>
-    <p v-if="risks.isPending.value" class="mt-2 text-sm text-gray-600">Loading…</p>
+    <p v-if="risks.isPending.value" class="mt-2 text-sm text-muted">Loading…</p>
 
     <template #item="{ item: risk }">
       <div class="flex flex-wrap items-start gap-3">
-        <span class="w-14 shrink-0 font-mono text-sm text-gray-700">{{ risk.reference }}</span>
+        <span class="w-14 shrink-0 font-mono text-sm text-muted">{{ risk.reference }}</span>
         <div class="min-w-0 flex-1">
           <DescriptionEditor
             v-if="editingId === risk.id"
@@ -126,7 +126,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             :value="risk.likelihood"
             :aria-label="`Likelihood of ${risk.reference}`"
             :disabled="!writable"
-            class="rounded border border-gray-300"
+            class="rounded border border-control-border"
             @change="rate(risk, 'likelihood', $event)"
           >
             <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
@@ -138,7 +138,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             :value="risk.impact"
             :aria-label="`Impact of ${risk.reference}`"
             :disabled="!writable"
-            class="rounded border border-gray-300"
+            class="rounded border border-control-border"
             @change="rate(risk, 'impact', $event)"
           >
             <option v-for="n in RATINGS" :key="n" :value="n">{{ n }}</option>
@@ -157,7 +157,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
             v-if="editingId !== risk.id"
             type="button"
             :aria-label="`Edit ${risk.reference}`"
-            class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
             @click="editingId = risk.id"
           >
             Edit
@@ -165,7 +165,7 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
           <button
             type="button"
             :aria-label="`${risk.closed ? 'Reopen' : 'Close'} ${risk.reference}`"
-            class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+            class="rounded border border-control-border px-2 py-0.5 text-sm hover:bg-subtle"
             @click="close.mutate({ risk, closed: !risk.closed })"
           >
             {{ risk.closed ? 'Reopen' : 'Close' }}

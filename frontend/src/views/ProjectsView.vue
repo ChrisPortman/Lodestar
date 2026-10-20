@@ -97,7 +97,7 @@ function toggleArchived(project: Project) {
       </label>
       <button
         type="button"
-        class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+        class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
         @click="openCreate"
       >
         New Project
@@ -108,7 +108,7 @@ function toggleArchived(project: Project) {
       v-if="creating"
       role="dialog"
       aria-labelledby="new-project-title"
-      class="mt-4 max-w-xl rounded border border-gray-300 bg-white p-4 shadow"
+      class="mt-4 max-w-xl rounded border border-control-border bg-surface p-4 shadow"
     >
       <h2 id="new-project-title" class="text-lg font-semibold">New Project</h2>
       <form class="mt-2 grid gap-3" @submit.prevent="submitCreate().catch(() => {})">
@@ -119,7 +119,7 @@ function toggleArchived(project: Project) {
             v-model="newName"
             required
             maxlength="100"
-            class="rounded border border-gray-300 px-3 py-2"
+            class="rounded border border-control-border px-3 py-2"
           />
         </label>
         <label class="grid gap-1">
@@ -130,12 +130,12 @@ function toggleArchived(project: Project) {
             maxlength="10"
             pattern="[A-Z][A-Z0-9]{1,9}"
             title="An uppercase letter followed by 1–9 uppercase letters or digits"
-            class="rounded border border-gray-300 px-3 py-2 font-mono uppercase"
+            class="rounded border border-control-border px-3 py-2 font-mono uppercase"
             aria-describedby="new-project-code-hint"
             @input="codeEdited = true"
           />
         </label>
-        <p id="new-project-code-hint" class="-mt-2 text-xs text-gray-600">
+        <p id="new-project-code-hint" class="-mt-2 text-xs text-muted">
           Suggested from the name. It can't be changed later.
         </p>
         <label class="grid gap-1">
@@ -144,19 +144,22 @@ function toggleArchived(project: Project) {
             v-model="newDescription"
             maxlength="4000"
             rows="3"
-            class="rounded border border-gray-300 px-3 py-2"
+            class="rounded border border-control-border px-3 py-2"
           />
         </label>
-        <p v-if="create.error.value" role="alert" class="text-red-700">
+        <p v-if="create.error.value" role="alert" class="text-danger-text">
           Couldn't create: {{ create.error.value.message }}
         </p>
         <div class="flex gap-2">
-          <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+          <button
+            type="submit"
+            class="rounded bg-accent px-4 py-2 text-on-accent hover:bg-accent-hover"
+          >
             Create
           </button>
           <button
             type="button"
-            class="rounded border border-gray-300 px-4 py-2"
+            class="rounded border border-control-border px-4 py-2"
             @click="creating = false"
           >
             Cancel
@@ -165,12 +168,10 @@ function toggleArchived(project: Project) {
       </form>
     </div>
 
-    <p v-if="projects.isPending.value" class="mt-4 text-gray-600">Loading…</p>
-    <ul v-else aria-label="Projects" class="mt-4 divide-y divide-gray-200">
+    <p v-if="projects.isPending.value" class="mt-4 text-muted">Loading…</p>
+    <ul v-else aria-label="Projects" class="mt-4 divide-y divide-divider">
       <li v-for="project in projects.data.value" :key="project.id" class="flex gap-3 py-3">
-        <span class="w-24 shrink-0 font-mono text-sm text-gray-700">{{
-          project.project_code
-        }}</span>
+        <span class="w-24 shrink-0 font-mono text-sm text-muted">{{ project.project_code }}</span>
         <form
           v-if="editingId === project.id"
           class="grid flex-1 gap-2"
@@ -181,7 +182,7 @@ function toggleArchived(project: Project) {
             :id="`name-${project.id}`"
             v-model="draftName"
             maxlength="100"
-            class="rounded border border-gray-300 px-3 py-1"
+            class="rounded border border-control-border px-3 py-1"
           />
           <label class="sr-only" :for="`description-${project.id}`">
             Description for {{ project.name }}
@@ -191,18 +192,18 @@ function toggleArchived(project: Project) {
             v-model="draftDescription"
             maxlength="4000"
             rows="2"
-            class="rounded border border-gray-300 px-3 py-1"
+            class="rounded border border-control-border px-3 py-1"
           />
           <div class="flex gap-2">
             <button
               type="submit"
-              class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
+              class="rounded bg-accent px-3 py-1 text-on-accent hover:bg-accent-hover"
             >
               Save
             </button>
             <button
               type="button"
-              class="rounded border border-gray-300 px-3 py-1"
+              class="rounded border border-control-border px-3 py-1"
               @click="editingId = null"
             >
               Cancel
@@ -216,14 +217,14 @@ function toggleArchived(project: Project) {
             </RouterLink>
             <span
               v-if="project.archived"
-              class="ml-2 rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700"
+              class="ml-2 rounded bg-active px-2 py-0.5 text-xs text-muted"
             >
               Archived
             </span>
-            <p v-if="project.description" class="text-sm text-gray-600">
+            <p v-if="project.description" class="text-sm text-muted">
               {{ project.description }}
             </p>
-            <p class="text-xs text-gray-500">
+            <p class="text-xs text-muted">
               Leader: {{ project.project_leader?.display_name ?? 'none' }}
             </p>
           </div>
@@ -231,7 +232,7 @@ function toggleArchived(project: Project) {
             <button
               v-if="!project.archived"
               type="button"
-              class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+              class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
               :aria-label="`Edit ${project.name}`"
               @click="startEditing(project)"
             >
@@ -239,7 +240,7 @@ function toggleArchived(project: Project) {
             </button>
             <button
               type="button"
-              class="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+              class="rounded border border-control-border px-3 py-1 text-sm hover:bg-subtle"
               :aria-label="`${project.archived ? 'Unarchive' : 'Archive'} ${project.name}`"
               @click="toggleArchived(project)"
             >
@@ -249,10 +250,10 @@ function toggleArchived(project: Project) {
         </template>
       </li>
     </ul>
-    <p v-if="update.error.value" role="alert" class="mt-2 text-red-700">
+    <p v-if="update.error.value" role="alert" class="mt-2 text-danger-text">
       Couldn't save: {{ update.error.value.message }}
     </p>
-    <p v-if="archive.error.value" role="alert" class="mt-2 text-red-700">
+    <p v-if="archive.error.value" role="alert" class="mt-2 text-danger-text">
       Couldn't change archiving: {{ archive.error.value.message }}
     </p>
   </section>
