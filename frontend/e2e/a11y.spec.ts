@@ -4,6 +4,7 @@ import {
   seedAction,
   seedBlocker,
   seedProject,
+  seedReportItems,
   seedRisk,
   setHealthRating,
   updateAction,
@@ -74,9 +75,12 @@ for (const theme of THEMES) {
     test('Project on a Page is accessible', async ({ page, request }) => {
       const { person, project } = await seedProject(request, `Report ${theme}`)
       await seedAction(request, project.id, 'Print the agenda')
+      await seedReportItems(request, project)
       await actAs(page, person)
       await page.goto(`/projects/${project.id}/report`)
-      await expect(page.getByRole('table', { name: /Actions/ })).toBeVisible()
+      await expect(page.getByRole('table', { name: /Actions/ })).toContainText('▲ Overdue')
+      await expect(page.getByText('▲ Red')).toBeVisible()
+      await expect(page.getByText('▲ High 20')).toBeVisible()
       await expectAccessible(page)
     })
 

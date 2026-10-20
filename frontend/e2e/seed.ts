@@ -124,3 +124,39 @@ export async function setHealthRating(
 export async function actAs(page: Page, person: Person) {
   await ok(await page.request.post('/api/v1/session', { data: { person_id: person.id } }))
 }
+
+/**
+ * Fills a Project with every status Project on a Page styles: a Red Health
+ * Rating, an overdue Action, a Blocker and a high-scoring Risk.
+ */
+export async function seedReportItems(request: APIRequestContext, project: Project) {
+  const current = await ok<Project & { version: number }>(
+    await request.get(`/api/v1/projects/${project.id}`),
+  )
+  await ok(
+    await request.put(`/api/v1/projects/${project.id}`, {
+      headers: { 'If-Match': `"${current.version}"` },
+      data: { ...current, health_rating: { rating: 'red', comment: 'Venue fell through' } },
+    }),
+  )
+  await ok(
+    await request.post('/api/v1/actions', {
+      data: {
+        project_id: project.id,
+        description: 'Confirm caterer',
+        assignee: null,
+        due_date: '2001-01-01',
+      },
+    }),
+  )
+  await ok(
+    await request.post('/api/v1/blockers', {
+      data: { project_id: project.id, description: 'No budget', accountable: null },
+    }),
+  )
+  await ok(
+    await request.post('/api/v1/risks', {
+      data: { project_id: project.id, description: 'Storm', likelihood: 4, impact: 5 },
+    }),
+  )
+}
