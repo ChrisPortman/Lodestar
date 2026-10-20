@@ -1,0 +1,282 @@
+<!doctype html>
+<!--
+  PROTOTYPE: throwaway. Wayfinder ticket "How should Project on a Page be typeset for print?" (ChrisPortman/Lodestar#51),
+  on the map "Jazz up the UI" (#45).
+  Three typeset treatments of Project on a Page on an A4 portrait sheet (?variant=A|B|C):
+    A Cards    - the on-screen two-line cards (#50) carried onto paper, outline only, left accent rule
+    B Ledger   - typeset tables with hairline rules (booktabs style), no fills, no vertical lines
+    C Brief    - a newspaper-ish two-column brief: Actions full width, Blockers and Risks side by side
+  Second axis ?font=inter|serif: Inter throughout, or Source Serif 4 for body text with Inter for headings and labels.
+  ?grey=1 previews the sheet in greyscale (CSS filter). Ctrl+P / the Print button prints the real thing.
+  Fixed: Mist light palette + classic status fg/solid only, no background colour anywhere (#48); Inter scale (#49).
+  Keys: ← → variant, F font, G greyscale.
+  To run: open this file in a browser.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE: Project on a Page print</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.3.0/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/jetbrains-mono@5.3.0/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/source-serif-4@5.3.0/index.css">
+<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+<style>
+[v-cloak]{display:none}
+*{box-sizing:border-box}
+:root{
+  --text:#1d2633;--muted:#5a6677;--border:#d9e0ea;--border-strong:#bcc7d6;--rule:#1d2633;--accent:#3f6fb0;
+  --st-red-fg:#8a1f1a;--st-red-solid:#d9534a;--st-amber-fg:#7a4d00;--st-amber-solid:#e0a12b;--st-green-fg:#1d5e31;--st-green-solid:#3f9a5c;
+  --font:"Inter Variable",system-ui,sans-serif;--mono:"JetBrains Mono Variable",ui-monospace,monospace;--serif:"Source Serif 4 Variable",Georgia,serif;
+  /* print scale: the UI scale in points, nudged down one step for paper */
+  --xs:8pt;--sm:9pt;--base:10pt;--lg:12.5pt;--xl:20pt;
+}
+body{margin:0;background:#8a929c;font-family:var(--font);color:var(--text);font-feature-settings:"cv11","ss01","cv05";-webkit-font-smoothing:antialiased}
+.sheet{width:210mm;min-height:297mm;margin:24px auto 120px;background:#fff;padding:16mm 15mm;box-shadow:0 4px 24px rgba(0,0,0,.35);font-size:var(--base);line-height:1.45}
+.grey .sheet{filter:grayscale(1)}
+.body-font{font-family:var(--font)} .serif .body-font{font-family:var(--serif);font-size:1.04em}
+h1,h2{margin:0;font-weight:650;letter-spacing:-.022em;line-height:1.2}
+h1{font-size:var(--xl)} h2{font-size:var(--lg)}
+p{margin:0}
+.mono{font-family:var(--mono);font-size:.92em} .num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .xs{font-size:var(--xs)} .sm{font-size:var(--sm)}
+.label{font-size:var(--xs);font-weight:550;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+section{margin-top:7mm;break-inside:auto}
+.item{break-inside:avoid}
+
+/* Status: colour on text and strokes only, always with a symbol and a word. */
+.hr{display:inline-flex;align-items:center;gap:.4em;font-weight:650;border:1.5pt solid;border-radius:999px;padding:1pt 9pt}
+.hr-Red{color:var(--st-red-fg);border-color:var(--st-red-solid)}
+.hr-Amber{color:var(--st-amber-fg);border-color:var(--st-amber-solid);border-style:dashed}
+.hr-Green{color:var(--st-green-fg);border-color:var(--st-green-solid);border-style:dotted}
+.hr-None{color:var(--muted);border-color:var(--border-strong)}
+.overdue{color:var(--st-red-fg);font-weight:650}
+.unassigned{color:var(--st-amber-fg);font-weight:550;font-style:italic}
+.blocked{color:var(--st-red-fg);font-weight:550}
+.sev{font-weight:650;white-space:nowrap}
+.sev-high{color:var(--st-red-fg)} .sev-medium{color:var(--st-amber-fg)} .sev-low{color:var(--st-green-fg)}
+
+/* Header, shared */
+.head{display:flex;gap:6mm;align-items:flex-start;padding-bottom:4mm;border-bottom:1.5pt solid var(--rule)}
+.head .grow{flex:1}
+.comment{margin-top:4mm;padding-left:4mm;border-left:2pt solid var(--border-strong);font-style:italic;max-width:65ch}
+.desc{margin-top:3mm;max-width:65ch}
+
+/* A Cards */
+.vA .card{border:.75pt solid var(--border-strong);border-left:3pt solid var(--border-strong);border-radius:4pt;padding:2.5mm 4mm;margin-top:2mm}
+.vA .card.st-red{border-left-color:var(--st-red-solid)}
+.vA .card.st-amber{border-left-color:var(--st-amber-solid);border-left-style:dashed}
+.vA .l1{display:flex;gap:4mm;align-items:baseline}
+.vA .l1 .grow{flex:1}
+.vA .l2{display:flex;flex-wrap:wrap;gap:1mm 5mm;margin-top:1.5mm;font-size:var(--sm)}
+.vA h2{margin-bottom:1mm}
+
+/* B Ledger */
+.vB table{width:100%;border-collapse:collapse;margin-top:2mm;font-size:var(--sm)}
+.vB th{text-align:left;font-size:var(--xs);font-weight:550;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:1.5mm 3mm 1.5mm 0;border-bottom:.75pt solid var(--rule)}
+.vB td{padding:2mm 3mm 2mm 0;vertical-align:top;border-bottom:.4pt solid var(--border)}
+.vB tbody tr:last-child td{border-bottom:.75pt solid var(--rule)}
+.vB h2{padding-bottom:1mm}
+.vB .count{font-weight:400;color:var(--muted);font-size:var(--sm);margin-left:2mm}
+
+/* C Brief */
+.vC .head{border-bottom:none;border-top:4pt solid var(--rule);padding-top:4mm;flex-direction:column;gap:2mm}
+.vC .verdict{display:flex;gap:5mm;align-items:center;border-top:.75pt solid var(--rule);border-bottom:.75pt solid var(--rule);padding:2.5mm 0;margin-top:2mm}
+.vC .cols{display:grid;grid-template-columns:1fr 1fr;gap:8mm}
+.vC h2{font-size:var(--xs);text-transform:uppercase;letter-spacing:.1em;border-bottom:.75pt solid var(--rule);padding-bottom:1mm}
+.vC .entry{display:grid;grid-template-columns:11mm 1fr;gap:0 2mm;padding:2mm 0;border-bottom:.4pt dotted var(--border-strong)}
+.vC .entry .meta{grid-column:2;font-size:var(--sm);color:var(--muted);margin-top:.5mm}
+
+.foot{margin-top:8mm;padding-top:2mm;border-top:.4pt solid var(--border);display:flex;justify-content:space-between}
+
+.bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#1d2633;color:#e2e8f0;border-radius:10px;padding:8px 12px;display:flex;gap:10px;align-items:center;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.4);z-index:10}
+.bar button{background:#2c3542;color:inherit;border:0;border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+.bar button.on{background:#8fb6ec;color:#0e1a2c;font-weight:600}
+.bar .sep{width:1px;height:20px;background:#414c5c}
+
+@page{size:A4 portrait;margin:0}
+@media print{
+  body{background:#fff}
+  .bar{display:none}
+  .sheet{margin:0;box-shadow:none;filter:none!important}
+}
+</style>
+</head>
+<body>
+<div id="app" v-cloak><div :class="{grey, serif: font==='serif'}">
+  <article class="sheet" :class="'v'+variant">
+
+    <!-- Header -->
+    <header class="head">
+      <div class="grow">
+        <p class="label"><span class="mono">{{p.code}}</span> · Project on a Page</p>
+        <h1>{{p.name}}</h1>
+        <p class="sm" v-if="variant!=='C'">Project Leader: {{p.leader}}</p>
+      </div>
+      <div v-if="variant!=='C'" style="text-align:right">
+        <span class="hr" :class="'hr-'+p.health">{{rag(p.health)}}</span>
+        <p class="xs muted num" style="margin-top:2mm">Generated {{generated}}</p>
+      </div>
+    </header>
+    <div v-if="variant==='C'" class="verdict">
+      <span class="label">Health</span>
+      <span class="hr" :class="'hr-'+p.health">{{rag(p.health)}}</span>
+      <span class="sm"><span class="label">Leader</span> {{p.leader}}</span>
+      <span class="xs muted num" style="margin-left:auto">Generated {{generated}}</span>
+    </div>
+    <blockquote class="comment body-font" style="margin-left:0;margin-right:0">“{{p.comment}}”</blockquote>
+    <p class="desc body-font">{{p.desc}}</p>
+
+    <!-- A Cards -->
+    <template v-if="variant==='A'">
+      <section>
+        <h2>Open Actions</h2>
+        <div v-for="a in actions" class="card item" :class="a.overdue||a.blockedBy ? 'st-red' : !a.who ? 'st-amber' : ''">
+          <div class="l1"><span class="mono muted">{{a.ref}}</span><span class="grow body-font">{{a.desc}}</span></div>
+          <div class="l2">
+            <span><span class="label">Assignee</span> <span v-if="a.who">{{a.who}}</span><span v-else class="unassigned">Unassigned</span></span>
+            <span v-if="a.due"><span class="label">Due</span> <span class="num" :class="{overdue:a.overdue}">{{a.due}}<template v-if="a.overdue"> · overdue</template></span></span>
+            <span v-if="a.blockedBy" class="blocked">Blocked by <span class="mono">{{a.blockedBy}}</span></span>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h2>Open Blockers</h2>
+        <div v-for="b in blockers" class="card item st-red">
+          <div class="l1"><span class="mono muted">{{b.ref}}</span><span class="grow body-font">{{b.desc}}</span></div>
+          <div class="l2"><span><span class="label">Accountable</span> {{b.who}}</span><span><span class="label">Blocks</span> <span class="mono">{{b.blocks}}</span></span></div>
+        </div>
+      </section>
+      <section>
+        <h2>Open Risks</h2>
+        <div v-for="r in risks" class="card item" :class="{high:'st-red',medium:'st-amber',low:''}[sev(r)]">
+          <div class="l1"><span class="mono muted">{{r.ref}}</span><span class="grow body-font">{{r.desc}}</span><span class="sev" :class="'sev-'+sev(r)">{{sevLabel(r)}}</span></div>
+          <div class="l2"><span><span class="label">Likelihood</span> {{r.l}}</span><span><span class="label">Impact</span> {{r.i}}</span></div>
+        </div>
+      </section>
+    </template>
+
+    <!-- B Ledger -->
+    <template v-if="variant==='B'">
+      <section>
+        <h2>Open Actions<span class="count">{{actions.length}}</span></h2>
+        <table>
+          <thead><tr><th style="width:12mm">Ref</th><th>Description</th><th style="width:30mm">Assignee</th><th style="width:28mm">Due</th><th style="width:18mm">Blocked by</th></tr></thead>
+          <tbody><tr v-for="a in actions" class="item">
+            <td class="mono muted">{{a.ref}}</td><td class="body-font">{{a.desc}}</td>
+            <td><span v-if="a.who">{{a.who}}</span><span v-else class="unassigned">Unassigned</span></td>
+            <td class="num"><span :class="{overdue:a.overdue}">{{a.due}}</span><div v-if="a.overdue" class="overdue xs">▲ Overdue</div></td>
+            <td class="mono blocked">{{a.blockedBy}}</td>
+          </tr></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>Open Blockers<span class="count">{{blockers.length}}</span></h2>
+        <table>
+          <thead><tr><th style="width:12mm">Ref</th><th>Description</th><th style="width:30mm">Accountable</th><th style="width:18mm">Blocks</th></tr></thead>
+          <tbody><tr v-for="b in blockers" class="item"><td class="mono muted">{{b.ref}}</td><td class="body-font">{{b.desc}}</td><td>{{b.who}}</td><td class="mono">{{b.blocks}}</td></tr></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>Open Risks<span class="count">{{risks.length}}</span></h2>
+        <table>
+          <thead><tr><th style="width:12mm">Ref</th><th>Description</th><th style="width:20mm">Likelihood</th><th style="width:16mm">Impact</th><th style="width:26mm">Score</th></tr></thead>
+          <tbody><tr v-for="r in risks" class="item"><td class="mono muted">{{r.ref}}</td><td class="body-font">{{r.desc}}</td><td class="num">{{r.l}}</td><td class="num">{{r.i}}</td><td class="sev num" :class="'sev-'+sev(r)">{{sevLabel(r)}}</td></tr></tbody>
+        </table>
+      </section>
+    </template>
+
+    <!-- C Brief -->
+    <template v-if="variant==='C'">
+      <section>
+        <h2>Open Actions · {{actions.length}}</h2>
+        <div v-for="a in actions" class="entry item">
+          <span class="mono muted">{{a.ref}}</span>
+          <span class="body-font">{{a.desc}}</span>
+          <span class="meta">
+            <span v-if="a.who">{{a.who}}</span><span v-else class="unassigned">Unassigned</span>
+            <template v-if="a.due"> · <span class="num" :class="{overdue:a.overdue}">due {{a.due}}<template v-if="a.overdue"> ▲ overdue</template></span></template>
+            <template v-if="a.blockedBy"> · <span class="blocked">blocked by <span class="mono">{{a.blockedBy}}</span></span></template>
+          </span>
+        </div>
+      </section>
+      <div class="cols">
+        <section>
+          <h2>Open Blockers · {{blockers.length}}</h2>
+          <div v-for="b in blockers" class="entry item">
+            <span class="mono muted">{{b.ref}}</span><span class="body-font">{{b.desc}}</span>
+            <span class="meta">{{b.who}} · blocks <span class="mono">{{b.blocks}}</span></span>
+          </div>
+        </section>
+        <section>
+          <h2>Open Risks · {{risks.length}}</h2>
+          <div v-for="r in risks" class="entry item">
+            <span class="mono muted">{{r.ref}}</span><span class="body-font">{{r.desc}}</span>
+            <span class="meta"><span class="sev" :class="'sev-'+sev(r)">{{sevLabel(r)}}</span> · L{{r.l}} × I{{r.i}}</span>
+          </div>
+        </section>
+      </div>
+    </template>
+
+    <footer class="foot xs muted"><span>Lodestar</span><span class="num">{{p.code}} · {{generated}}</span></footer>
+  </article>
+
+  <div class="bar">
+    <button v-for="k in keys" :class="{on:variant===k}" @click="variant=k">{{k}} {{names[k]}}</button>
+    <span class="sep"></span>
+    <button :class="{on:font==='inter'}" @click="font='inter'">Inter</button>
+    <button :class="{on:font==='serif'}" @click="font='serif'">Serif body</button>
+    <span class="sep"></span>
+    <button :class="{on:grey}" @click="grey=!grey">Greyscale</button>
+    <button @click="print()">Print…</button>
+  </div>
+</div></div>
+<script>
+const params = new URLSearchParams(location.search)
+const keys = ['A','B','C']
+Vue.createApp({
+  data: () => ({
+    keys, names:{A:'Cards',B:'Ledger',C:'Brief'},
+    variant: keys.includes(params.get('variant')) ? params.get('variant') : 'A',
+    font: params.get('font')==='serif' ? 'serif' : 'inter',
+    grey: params.get('grey')==='1',
+    generated:'2026-10-20',
+    p:{ code:'WEBR', name:'Website Redesign', leader:'Priya Shah', health:'Amber',
+        comment:'CMS vendor is two weeks late; launch date holds if the migration plan lands this week.',
+        desc:'Refresh the public site and move it to the new CMS. Covers content migration, redirects, accessibility audit and user testing.' },
+    actions: [
+      { ref:'A-12', desc:'Draft content migration plan', who:'Sam Lee', due:'2026-10-14', overdue:true },
+      { ref:'A-15', desc:'Book user testing sessions with five customers from the beta list, including two screen-reader users', who:'Priya Shah', due:'2026-10-28', blockedBy:'B-3' },
+      { ref:'A-16', desc:'Confirm hosting costs', who:null, due:'2026-11-03' },
+      { ref:'A-17', desc:'Update redirects map', who:'Chris Portman', due:'' },
+      { ref:'A-19', desc:'Brief support team on the new help centre layout', who:'Jo Park', due:'2026-11-10' },
+    ],
+    blockers: [ { ref:'B-3', desc:'Legal sign-off on privacy copy', who:'Alex Ng', blocks:'A-15' } ],
+    risks: [
+      { ref:'R-4', desc:'CMS vendor may slip delivery', l:4, i:4 },
+      { ref:'R-7', desc:'Accessibility audit capacity', l:3, i:3 },
+      { ref:'R-9', desc:'Search ranking drop after URL changes', l:2, i:3 },
+    ],
+  }),
+  watch: {
+    variant(){ this.sync() }, font(){ this.sync() }, grey(){ this.sync() },
+  },
+  methods: {
+    rag(h){ return { Red:'▲ Red', Amber:'● Amber', Green:'✓ Green', None:'— Not rated' }[h] },
+    sev(r){ const s=r.l*r.i; return s>=15 ? 'high' : s>=8 ? 'medium' : 'low' },
+    sevLabel(r){ const s=r.l*r.i; return { high:'▲ High', medium:'● Medium', low:'✓ Low' }[this.sev(r)] + ' ' + s },
+    print(){ window.print() },
+    sync(){ history.replaceState(null,'',`?${new URLSearchParams({variant:this.variant,font:this.font,grey:this.grey?1:0})}`) },
+  },
+  mounted(){
+    addEventListener('keydown', e => {
+      if (e.key==='ArrowLeft') this.variant = keys[(keys.indexOf(this.variant)+2)%3]
+      else if (e.key==='ArrowRight') this.variant = keys[(keys.indexOf(this.variant)+1)%3]
+      else if (e.key==='f') this.font = this.font==='inter' ? 'serif' : 'inter'
+      else if (e.key==='g') this.grey = !this.grey
+    })
+  },
+}).mount('#app')
+</script>
+</body>
+</html>
