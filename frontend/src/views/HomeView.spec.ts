@@ -46,4 +46,13 @@ describe('Acting Person picker', () => {
     await waitFor(() => expect(screen.getByTestId('acting-person').textContent).toBe('Bob'))
     expect(backend.acting()).toBe('b')
   })
+
+  it('the header switches to a new Person (#59)', async () => {
+    const { backend } = await renderApp('/projects', [ada], 'a')
+    await screen.findByTestId('acting-person')
+    await userEvent.selectOptions(screen.getByLabelText('Switch Acting Person'), 'New Person…')
+    await userEvent.type(screen.getByLabelText('New Acting Person'), 'Dave{Enter}')
+    await waitFor(() => expect(screen.getByTestId('acting-person').textContent).toBe('Dave'))
+    expect(backend.acting()).toBe(backend.people[1]!.id)
+  })
 })

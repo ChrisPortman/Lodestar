@@ -11,12 +11,15 @@ import {
   useSetActionClosed,
   useUpdateAction,
 } from '../actions'
-import { useMembers } from '../members'
+import { useEnsureMember, useMembers } from '../members'
+import type { PersonRef } from '../api/members'
+import NewPersonField from './NewPersonField.vue'
 import DescriptionEditor from './DescriptionEditor.vue'
 import CommentsSection from './CommentsSection.vue'
 import ItemPanel from './ItemPanel.vue'
 import ListControls from './ListControls.vue'
 import { applyQuery, useListQuery } from '../listControls'
+import { NEW_PERSON } from '../session'
 
 const props = defineProps<{ project: Project }>()
 
@@ -26,6 +29,7 @@ const members = useMembers(projectId)
 const create = useCreateAction()
 const update = useUpdateAction()
 const close = useSetActionClosed()
+const ensureMember = useEnsureMember()
 
 const query = useListQuery()
 const SORTS = [
@@ -43,7 +47,9 @@ const shown = computed(() =>
 const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((a) => !a.closed)))
 const closed = computed(() => (query.state === 'open' ? [] : shown.value.filter((a) => a.closed)))
 const writable = computed(() => !props.project.archived)
-const error = computed(() => update.error.value ?? close.error.value ?? create.error.value)
+const error = computed(
+  () => update.error.value ?? close.error.value ?? create.error.value ?? ensureMember.error.value,
+)
 
 /** Members to choose from, plus a former Member still on a closed Action (FR-22). */
 function assigneeOptions(action: Action) {
@@ -75,10 +81,23 @@ async function saveDescription(action: Action, description: string) {
   editingId.value = null
 }
 
+/** The Action whose assignee is being picked as a new Person (#59). */
+const newPersonFor = ref<string | null>(null)
+
 function assign(action: Action, event: Event) {
   const id = (event.target as HTMLSelectElement).value
+  if (id === NEW_PERSON) {
+    newPersonFor.value = action.id
+    return
+  }
   const person = assigneeOptions(action).find((m) => m.id === id) ?? null
   update.mutate({ action, fields: { assignee: person } })
+}
+
+async function assignNew(action: Action, person: PersonRef) {
+  await ensureMember.ensure(props.project, person, members.data.value ?? [])
+  await update.mutateAsync({ action, fields: { assignee: person } })
+  newPersonFor.value = null
 }
 
 function setDue(action: Action, event: Event) {
@@ -144,7 +163,14 @@ function setDue(action: Action, event: Event) {
           </p>
           <label class="flex items-center gap-2">
             <span class="text-xs tracking-wide text-muted uppercase">Assignee</span>
+            <NewPersonField
+              v-if="newPersonFor === action.id"
+              :label="`New assignee of ${action.reference}`"
+              @picked="(person) => assignNew(action, person).catch(() => {})"
+              @cancel="newPersonFor = null"
+            />
             <select
+              v-else
               :value="action.assignee?.id ?? ''"
               :aria-label="`Assignee of ${action.reference}`"
               :disabled="!writable"
@@ -158,6 +184,7 @@ function setDue(action: Action, event: Event) {
               <option v-for="m in assigneeOptions(action)" :key="m.id" :value="m.id">
                 {{ m.display_name }}
               </option>
+              <option :value="NEW_PERSON">New Person…</option>
             </select>
           </label>
           <label class="flex items-center gap-2">

@@ -124,4 +124,14 @@ describe('Members in the meeting view', () => {
     expect(await screen.findByText('No Project Leader')).toBeTruthy()
     await waitFor(() => expect(memberNames(panel)).toHaveLength(0))
   })
+
+  it('adds a new Person as a Member (#59)', async () => {
+    const { backend } = await renderApp('/projects/p1', [ada], 'a', [web])
+    const panel = await openMembers()
+    await waitFor(() => expect(memberNames(panel)).toHaveLength(1))
+    await userEvent.selectOptions(within(panel).getByLabelText('Add member'), 'New Person…')
+    await userEvent.type(within(panel).getByLabelText('New member'), 'Dave{Enter}')
+    await waitFor(() => expect(memberNames(panel)).toHaveLength(2))
+    expect(backend.people.map((p) => p.display_name)).toEqual(['Ada', 'Dave'])
+  })
 })

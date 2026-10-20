@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { http } from 'msw'
 import { renderApp } from '../test/render'
-import type { Action, Project } from '../test/server'
+import { api, problem, server, type Action, type Project } from '../test/server'
 
 const ada = { id: 'a', version: 1, display_name: 'Ada' }
 const bob = { id: 'b', version: 1, display_name: 'Bob' }
@@ -263,5 +264,73 @@ describe('Actions panel', () => {
     expect(within(region).getByLabelText<HTMLSelectElement>('Assignee of A-001').disabled).toBe(
       true,
     )
+  })
+
+  it('assigns a new Person, who becomes a Member (#59)', async () => {
+    const { backend } = await meeting([
+      action({ id: 'x1', reference: 'A-001', description: 'Draft plan' }),
+    ])
+    const region = await panel()
+    await userEvent.selectOptions(
+      await within(region).findByLabelText('Assignee of A-001'),
+      'New Person…',
+    )
+    await userEvent.type(within(region).getByLabelText('New assignee of A-001'), 'Dave{Enter}')
+    await waitFor(() =>
+      expect(backend.actions[0]).toMatchObject({ assignee: { display_name: 'Dave' } }),
+    )
+    const dave = backend.people.find((p) => p.display_name === 'Dave')!
+    expect(backend.members.get('p1')!.has(dave.id)).toBe(true)
+    expect(backend.acting()).toBe('a')
+  })
+
+  it('offers an existing non-Member instead of a duplicate (#59)', async () => {
+    const carol = { id: 'c', version: 1, display_name: 'Carol' }
+    const { backend } = await renderApp(
+      '/projects/p1',
+      [ada, bob, carol],
+      'a',
+      [project()],
+      [],
+      [action({ id: 'x1', reference: 'A-001', description: 'Draft plan' })],
+    )
+    const region = await panel()
+    const assignee = await within(region).findByLabelText('Assignee of A-001')
+    expect(within(assignee).queryByRole('option', { name: 'Carol' })).toBeNull()
+    await userEvent.selectOptions(assignee, 'New Person…')
+    await userEvent.type(within(region).getByLabelText('New assignee of A-001'), 'car')
+    await userEvent.click(within(region).getByRole('button', { name: 'Use existing Carol' }))
+    await waitFor(() => expect(backend.actions[0]).toMatchObject({ assignee: { id: 'c' } }))
+    expect(backend.members.get('p1')!.has('c')).toBe(true)
+    expect(backend.people).toHaveLength(3)
+  })
+
+  it('cancels a new Person with Esc (#59)', async () => {
+    const { backend } = await meeting([
+      action({ id: 'x1', reference: 'A-001', description: 'Draft plan' }),
+    ])
+    const region = await panel()
+    await userEvent.selectOptions(
+      await within(region).findByLabelText('Assignee of A-001'),
+      'New Person…',
+    )
+    await userEvent.type(within(region).getByLabelText('New assignee of A-001'), 'Dave{Escape}')
+    expect(within(region).getByLabelText<HTMLSelectElement>('Assignee of A-001').value).toBe('')
+    expect(backend.people).toHaveLength(2)
+  })
+
+  it('shows why a new Person could not be made a Member (#59)', async () => {
+    const { backend } = await meeting([
+      action({ id: 'x1', reference: 'A-001', description: 'Draft plan' }),
+    ])
+    server.use(http.post(api('/projects/:id/members'), () => problem(409, 'Conflict')))
+    const region = await panel()
+    await userEvent.selectOptions(
+      await within(region).findByLabelText('Assignee of A-001'),
+      'New Person…',
+    )
+    await userEvent.type(within(region).getByLabelText('New assignee of A-001'), 'Dave{Enter}')
+    expect((await within(region).findByRole('alert')).textContent).toContain('Conflict')
+    expect(backend.actions[0]?.assignee).toBeNull()
   })
 })
