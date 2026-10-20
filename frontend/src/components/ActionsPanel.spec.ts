@@ -69,6 +69,10 @@ describe('Actions panel', () => {
     const [first, second] = await openActions()
     expect(within(first!).getByText(/Draft/).textContent).toBe('Draft\nplan')
     expect(first!.querySelector('[data-unassigned]')).not.toBeNull()
+    expect(first!.dataset.accent).toBe('red')
+    expect(second!.dataset.accent).toBeUndefined()
+    expect(within(first!).getByText('Assignee')).toBeTruthy()
+    expect(within(first!).getByText('Due')).toBeTruthy()
     expect(
       within(first!).getByLabelText<HTMLInputElement>('Due date of A-001').dataset.overdue,
     ).toBe('true')

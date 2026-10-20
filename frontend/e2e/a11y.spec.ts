@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test'
-import { actAs, seedAction, seedProject } from './seed'
+import {
+  actAs,
+  seedAction,
+  seedBlocker,
+  seedProject,
+  seedRisk,
+  setHealthRating,
+  updateAction,
+} from './seed'
 import { THEMES, expectAccessible, useTheme } from './axe'
 
 for (const theme of THEMES) {
@@ -33,11 +41,35 @@ for (const theme of THEMES) {
     test('a Project page is accessible', async ({ page, request }) => {
       const { person, project } = await seedProject(request, `Project ${theme}`)
       await seedAction(request, project.id, 'Book the venue')
+      const overdue = await seedAction(request, project.id, 'Send invites')
+      await updateAction(request, overdue, { assignee: person, due_date: '2001-01-01' })
+      const blocked = await seedAction(request, project.id, 'Print badges')
+      await seedBlocker(request, project.id, 'Printer broken', [blocked.id])
+      await seedRisk(request, project.id, 'Venue cancels', 5, 4)
+      await seedRisk(request, project.id, 'Rain', 3, 2)
+      await seedRisk(request, project.id, 'Late speaker', 1, 2)
+      await setHealthRating(request, project.id, 'amber', 'Venue pending')
       await actAs(page, person)
       await page.goto(`/projects/${project.id}`)
-      await expect(page.getByRole('region', { name: 'Actions' })).toContainText('Book the venue')
+      await expect(page.getByRole('region', { name: 'Actions' })).toContainText('Blocked by')
+      await expect(page.getByRole('region', { name: 'Blockers' })).toContainText('Printer broken')
+      await expect(page.getByRole('region', { name: 'Risks' })).toContainText('Late speaker')
+      await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText('▲ Amber')
       await expectAccessible(page)
     })
+
+    for (const rating of ['red', 'green'] as const) {
+      test(`a ${rating} Health Rating chip is accessible`, async ({ page, request }) => {
+        const { person, project } = await seedProject(request, `Rated ${rating} ${theme}`)
+        await setHealthRating(request, project.id, rating)
+        await actAs(page, person)
+        await page.goto(`/projects/${project.id}`)
+        await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText(
+          rating === 'red' ? '✕ Red' : '✓ Green',
+        )
+        await expectAccessible(page)
+      })
+    }
 
     test('Project on a Page is accessible', async ({ page, request }) => {
       const { person, project } = await seedProject(request, `Report ${theme}`)

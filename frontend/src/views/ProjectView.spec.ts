@@ -33,7 +33,7 @@ describe('Health Rating in the meeting view header', () => {
   it('shows a Project that is not rated', async () => {
     await renderApp('/projects/p1', [ada], 'a', [project()])
     expect(await screen.findByRole('heading', { name: /Website/ })).toBeTruthy()
-    expect((await badge()).textContent).toContain('Not rated')
+    expect((await badge()).textContent).toMatch(/^\s*–\s*Not rated\s*$/)
   })
 
   it('sets a rating with a comment', async () => {
@@ -45,14 +45,14 @@ describe('Health Rating in the meeting view header', () => {
 
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Health Rating' })).toBeNull())
     expect(backend.projects[0]!.health_rating).toEqual({ rating: 'amber', comment: 'Vendor late' })
-    await waitFor(async () => expect((await badge()).textContent).toContain('Amber'))
+    await waitFor(async () => expect((await badge()).textContent).toMatch(/▲\s*Amber/))
     expect(screen.getByText('Vendor late')).toBeTruthy()
   })
 
   it('changes the rating and clears the comment', async () => {
     const rated = project({ health_rating: { rating: 'red', comment: 'Behind' } })
     const { backend } = await renderApp('/projects/p1', [ada], 'a', [rated])
-    expect((await badge()).textContent).toContain('Red')
+    expect((await badge()).textContent).toMatch(/✕\s*Red/)
     const editor = await openEditor()
     await userEvent.click(within(editor).getByLabelText('Green'))
     await userEvent.clear(within(editor).getByLabelText('Comment'))
@@ -61,7 +61,7 @@ describe('Health Rating in the meeting view header', () => {
     await waitFor(() =>
       expect(backend.projects[0]!.health_rating).toEqual({ rating: 'green', comment: null }),
     )
-    await waitFor(async () => expect((await badge()).textContent).toContain('Green'))
+    await waitFor(async () => expect((await badge()).textContent).toMatch(/✓\s*Green/))
     expect(screen.queryByText('Behind')).toBeNull()
   })
 

@@ -71,6 +71,10 @@ describe('Risks panel', () => {
     expect(highScore.textContent).toContain('20')
     expect(highScore.dataset.severity).toBe('high')
     expect(within(second!).getByLabelText('Score').dataset.severity).toBe('low')
+    expect(first!.dataset.accent).toBe('red')
+    expect(second!.dataset.accent).toBeUndefined()
+    expect(within(first!).getByText('Likelihood')).toBeTruthy()
+    expect(within(first!).getByText('Impact')).toBeTruthy()
 
     const closed = within(await panel()).getByText('Closed (1)')
     expect(closed.closest('details')!.open).toBe(false)

@@ -39,8 +39,12 @@ async function save(person: Person) {
     <h1 class="text-2xl font-semibold">People</h1>
 
     <p v-if="people.isPending.value" class="mt-4 text-muted">Loading…</p>
-    <ul v-else aria-label="People" class="mt-4 divide-y divide-divider">
-      <li v-for="person in people.data.value" :key="person.id" class="flex items-center gap-2 py-2">
+    <ul v-else aria-label="People" class="mt-4 grid gap-2">
+      <li
+        v-for="person in people.data.value"
+        :key="person.id"
+        class="flex items-center gap-2 rounded-md border border-l-3 border-border bg-surface px-4 py-3"
+      >
         <form
           v-if="editingId === person.id"
           class="flex flex-1 gap-2"
