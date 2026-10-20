@@ -1,0 +1,245 @@
+<!doctype html>
+<!--
+  PROTOTYPE: throwaway. Wayfinder ticket "How should interaction states look: focus rings, hover, buttons and
+  form controls?" (ChrisPortman/Lodestar#52), on the map "Jazz up the UI" (#45).
+  Three interaction treatments (?variant=A|B|C) on the Project view (Actions panel cards + "Add action" form)
+  and a forced-state gallery (rest / hover / active / focus / disabled / invalid) for every control.
+  Fixed: Mist palette + classic status (#48), Inter scale + 4px rhythm (#49), two-line cards (#50). ?theme=light|dark.
+  The contrast panel at the bottom measures every state boundary against WCAG 1.4.11 (3:1) live.
+  Finding: today's --border-strong (1.71:1 light, 1.88:1 dark) and light --focus #6b9ae0 (2.87:1) fail 3:1,
+  so every variant uses new --control-border and --focus values.
+  Keys: ← → variant, D theme. To run: open this file in a browser.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE: Interaction states</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.3.0/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/jetbrains-mono@5.3.0/index.css">
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#f5f7fa;--surface:#fff;--subtle:#e8edf4;--hover:#eef2f7;--active:#e1e8f1;--input:#fff;
+  --text:#1d2633;--muted:#5a6677;--border:#d9e0ea;--border-strong:#bcc7d6;
+  --accent:#3f6fb0;--accent-hover:#335d96;--accent-active:#2b4f80;--on-accent:#fff;--accent-soft:#bcd2ef;--link:#335f9c;
+  --danger:#b23a3f;--danger-hover:#9a2f34;--on-danger:#fff;--danger-text:#a8323a;--danger-soft:#fbe1df;
+  /* NEW: 3:1-compliant control boundary and focus */
+  --control-border:#7d8a9c;--control-border-hover:#5a6677;--focus:#3f6fb0;
+  --st-red-solid:#d9534a;--st-amber-solid:#e0a12b;--st-amber-fg:#7a4d00;
+  --font:"Inter Variable",system-ui,sans-serif;--mono:"JetBrains Mono Variable",ui-monospace,monospace;
+  --xs:12px;--sm:13.5px;--base:15px;--md:16px;--lg:19px;--xl2:29px;
+}
+[data-theme=dark]{
+  --bg:#12161c;--surface:#1a2028;--subtle:#252d38;--hover:#212833;--active:#2a333f;--input:#161b22;
+  --text:#e2e8f0;--muted:#97a3b4;--border:#2c3542;--border-strong:#414c5c;
+  --accent:#8fb6ec;--accent-hover:#a9c8f2;--accent-active:#c3d9f6;--on-accent:#0e1a2c;--accent-soft:#36507a;--link:#9cc0f0;
+  --danger:#e8766d;--danger-hover:#f0938b;--on-danger:#1f0b0a;--danger-text:#f3a0a6;--danger-soft:#4a1f1d;
+  --control-border:#6b7889;--control-border-hover:#97a3b4;--focus:#8fb6ec;
+  --st-red-solid:#e8766d;--st-amber-solid:#e8b54d;--st-amber-fg:#fde1a6;
+}
+body{margin:0;font-family:var(--font);font-size:var(--base);line-height:1.55;background:var(--bg);color:var(--text);font-feature-settings:"cv11","ss01","cv05";-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono);font-size:.92em}.num{font-variant-numeric:tabular-nums}.muted{color:var(--muted)}.sm{font-size:var(--sm)}
+.appbar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;gap:24px;align-items:baseline;font-size:var(--sm)}
+.appbar .brand{font-weight:650;font-size:var(--lg);letter-spacing:-.022em}
+.appbar a{color:var(--text);opacity:.75;text-decoration:none}.appbar a.on{opacity:1;font-weight:550}
+main{max-width:64rem;margin:0 auto;padding:32px 24px 9rem}
+h1,h2,h3{font-weight:650;letter-spacing:-.022em;margin:0;line-height:1.25}h1{font-size:var(--xl2)}h2{font-size:var(--lg)}h3{font-size:var(--md)}
+p{margin:0}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-top:24px}
+.row{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}
+.label{font-size:var(--xs);font-weight:550;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.cards{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.card{border:1px solid var(--border);border-left:3px solid var(--border);border-radius:6px;padding:12px 16px}
+.card.red{border-left-color:var(--st-red-solid)}.card.amber{border-left-color:var(--st-amber-solid)}
+.card .l1{display:flex;gap:12px;align-items:baseline}.card .l1 .desc{flex:1}
+.card .l2{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:8px;font-size:var(--sm)}
+.card .l2 .end{margin-left:auto;display:flex;gap:8px}
+.field{display:inline-flex;gap:6px;align-items:center}
+.form{display:grid;grid-template-columns:1fr 12rem 10rem;gap:16px;margin-top:16px;align-items:start}
+.form label{display:flex;flex-direction:column;gap:4px}
+.err{color:var(--danger-text);font-size:var(--xs);font-weight:550}
+.gallery{display:grid;grid-template-columns:7rem repeat(6,1fr);gap:12px 8px;align-items:center;font-size:var(--sm);margin-top:12px}
+.gallery .h{font-size:var(--xs);font-weight:550;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.contrast{width:100%;border-collapse:collapse;font-size:var(--sm);margin-top:12px}
+.contrast td,.contrast th{padding:4px 8px;text-align:left;border-bottom:1px solid var(--border)}
+.pass{color:#1d5e31;font-weight:650}[data-theme=dark] .pass{color:#bfe9cb}.fail{color:var(--danger-text);font-weight:650}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;border:1px solid var(--border)}
+
+/* ---------- shared control base ---------- */
+.btn{font:inherit;font-size:var(--sm);font-weight:550;cursor:pointer;white-space:nowrap;line-height:1.4;padding:5px 12px;transition:background-color .12s,border-color .12s,color .12s,box-shadow .12s}
+.btn-lg{padding:8px 16px}
+.btn:disabled,.btn.is-disabled{cursor:not-allowed}
+.in{font:inherit;font-size:var(--sm);color:var(--text);padding:5px 8px;line-height:1.4;transition:border-color .12s,box-shadow .12s,background-color .12s}
+.in:disabled,.in.is-disabled{cursor:not-allowed}
+.chk{inline-size:16px;block-size:16px;margin:0;cursor:pointer}
+
+/* ========== A — Crisp outline ==========
+   Bordered controls, 5px radius. Focus = 2px solid --focus outline with 2px offset (detached ring).
+   Hover darkens border / fills --hover. Active fills --active. Disabled = 45% opacity. */
+.vA .btn{border-radius:5px;border:1px solid var(--control-border);background:var(--surface);color:var(--text)}
+.vA .btn:hover:not(:disabled),.vA .btn.is-hover{background:var(--hover);border-color:var(--control-border-hover)}
+.vA .btn:active:not(:disabled),.vA .btn.is-active{background:var(--active)}
+.vA .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.vA .btn-primary:hover:not(:disabled),.vA .btn-primary.is-hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.vA .btn-primary:active:not(:disabled),.vA .btn-primary.is-active{background:var(--accent-active);border-color:var(--accent-active)}
+.vA .btn-ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.vA .btn-ghost:hover:not(:disabled),.vA .btn-ghost.is-hover{background:var(--hover);border-color:transparent;color:var(--text)}
+.vA .btn-danger{background:var(--danger);border-color:var(--danger);color:var(--on-danger)}
+.vA .btn-danger:hover:not(:disabled),.vA .btn-danger.is-hover{background:var(--danger-hover);border-color:var(--danger-hover)}
+.vA .btn:disabled,.vA .btn.is-disabled,.vA .in:disabled,.vA .in.is-disabled,.vA .chk:disabled{opacity:.45}
+.vA .in{background:var(--input);border:1px solid var(--control-border);border-radius:5px}
+.vA .in:hover:not(:disabled),.vA .in.is-hover{border-color:var(--control-border-hover)}
+.vA .in.is-invalid,.vA .in[aria-invalid=true]{border-color:var(--st-red-solid);border-width:2px;padding:4px 7px}
+.vA .chk{accent-color:var(--accent)}
+.vA :focus-visible,.vA .is-focus{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ========== B — Soft fill + halo ==========
+   Inputs are filled (--subtle) with a 3:1 bottom rule; focus swaps the rule for --focus and adds a
+   two-tone ring (2px surface gap + 2px focus) via box-shadow. Pill buttons; secondary is tinted, not bordered. */
+.vB .btn{border-radius:999px;border:1px solid transparent;background:var(--subtle);color:var(--text);padding:5px 14px}
+.vB .btn-lg{padding:8px 18px}
+.vB .btn:hover:not(:disabled),.vB .btn.is-hover{background:var(--active);border-color:var(--control-border)}
+.vB .btn:active:not(:disabled),.vB .btn.is-active{background:var(--accent-soft)}
+.vB .btn-primary{background:var(--accent);color:var(--on-accent)}
+.vB .btn-primary:hover:not(:disabled),.vB .btn-primary.is-hover{background:var(--accent-hover);border-color:transparent}
+.vB .btn-primary:active:not(:disabled),.vB .btn-primary.is-active{background:var(--accent-active)}
+.vB .btn-ghost{background:transparent;color:var(--link)}
+.vB .btn-ghost:hover:not(:disabled),.vB .btn-ghost.is-hover{background:var(--hover);border-color:transparent;text-decoration:underline}
+.vB .btn-danger{background:var(--danger-soft);color:var(--danger-text);border-color:var(--danger)}
+.vB .btn-danger:hover:not(:disabled),.vB .btn-danger.is-hover{background:var(--danger);color:var(--on-danger);border-color:var(--danger)}
+.vB .btn:disabled,.vB .btn.is-disabled,.vB .chk:disabled{opacity:.45}
+.vB .in{background:var(--subtle);border:0;border-bottom:2px solid var(--control-border);border-radius:5px 5px 0 0;padding:5px 8px 4px}
+.vB .in:hover:not(:disabled),.vB .in.is-hover{background:var(--active);border-bottom-color:var(--control-border-hover)}
+.vB .in:disabled,.vB .in.is-disabled{opacity:.45;border-bottom-style:dotted}
+.vB .in.is-invalid,.vB .in[aria-invalid=true]{border-bottom-color:var(--st-red-solid);background:var(--danger-soft)}
+.vB .in:focus-visible,.vB .in.is-focus{outline:none;border-bottom-color:var(--focus);box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--focus)}
+.vB .chk{accent-color:var(--accent)}
+.vB .btn:focus-visible,.vB .btn.is-focus,.vB .chk:focus-visible,.vB .chk.is-focus{outline:none;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--focus)}
+
+/* ========== C — Bold & tactile ==========
+   1.5px borders, 4px radius, a 2px darker bottom edge on solid buttons that collapses on press.
+   Focus = 3px --focus outline flush to the control (offset 0) and the border turns --focus too. */
+.vC .btn{border-radius:4px;border:1.5px solid var(--control-border);border-bottom-width:3px;background:var(--surface);color:var(--text);padding:4px 12px 3px}
+.vC .btn-lg{padding:7px 16px 6px}
+.vC .btn:hover:not(:disabled),.vC .btn.is-hover{border-color:var(--control-border-hover);background:var(--hover)}
+.vC .btn:active:not(:disabled),.vC .btn.is-active{border-bottom-width:1.5px;transform:translateY(1.5px);background:var(--active)}
+.vC .btn-primary{background:var(--accent);border-color:var(--accent-active);color:var(--on-accent)}
+.vC .btn-primary:hover:not(:disabled),.vC .btn-primary.is-hover{background:var(--accent-hover);border-color:var(--accent-active)}
+.vC .btn-primary:active:not(:disabled),.vC .btn-primary.is-active{background:var(--accent-active)}
+.vC .btn-ghost{border-color:transparent;background:transparent;color:var(--text);text-decoration:underline;text-decoration-color:var(--control-border);text-underline-offset:3px}
+.vC .btn-ghost:hover:not(:disabled),.vC .btn-ghost.is-hover{background:transparent;border-color:transparent;text-decoration-color:var(--text)}
+.vC .btn-ghost:active:not(:disabled),.vC .btn-ghost.is-active{transform:none;background:var(--hover)}
+.vC .btn-danger{background:var(--surface);color:var(--danger-text);border-color:var(--danger)}
+.vC .btn-danger:hover:not(:disabled),.vC .btn-danger.is-hover{background:var(--danger);color:var(--on-danger);border-color:var(--danger-hover)}
+.vC .btn:disabled,.vC .btn.is-disabled{opacity:.45;border-bottom-width:1.5px;border-style:dashed}
+.vC .in{background:var(--input);border:1.5px solid var(--control-border);border-radius:4px}
+.vC .in:hover:not(:disabled),.vC .in.is-hover{border-color:var(--control-border-hover)}
+.vC .in:disabled,.vC .in.is-disabled{opacity:.45;border-style:dashed}
+.vC .in.is-invalid,.vC .in[aria-invalid=true]{border-color:var(--st-red-solid);border-left-width:4px}
+.vC .chk{accent-color:var(--accent);inline-size:18px;block-size:18px}
+.vC .chk:disabled{opacity:.45}
+.vC :focus-visible,.vC .is-focus{outline:3px solid var(--focus);outline-offset:0;border-color:var(--focus)}
+
+/* switcher (not part of the design) */
+.sw-bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:#111;color:#fff;border-radius:999px;padding:6px 10px;font:13px/1.2 system-ui;box-shadow:0 6px 20px rgba(0,0,0,.35);z-index:9}
+.sw-bar button{all:unset;cursor:pointer;padding:4px 10px;border-radius:999px;background:#333}.sw-bar button:hover{background:#555}
+.sw-bar b{min-width:15rem;text-align:center}
+</style>
+</head>
+<body>
+<header class="appbar"><span class="brand">Lodestar</span><a href="#">Projects</a><a href="#" class="on">Meeting</a><a href="#">People</a></header>
+<main id="root">
+  <div class="row" style="justify-content:space-between">
+    <div><p class="mono muted">PRJ-014</p><h1>Data Centre Exit</h1></div>
+    <div class="row"><button class="btn btn-ghost">Project on a Page</button><button class="btn">Edit project</button><button class="btn btn-danger">Delete project</button></div>
+  </div>
+
+  <section class="panel">
+    <div class="row" style="justify-content:space-between"><h2>Actions</h2><label class="field sm"><input type="checkbox" class="chk" checked> Show only mine</label></div>
+    <ul class="cards">
+      <li class="card red"><div class="l1"><span class="mono muted">A-031</span><span class="desc">Confirm decommission date for rack 7 with facilities</span></div>
+        <div class="l2"><span class="field"><span class="label">Assignee</span><select class="in"><option>Priya Nair</option><option>Sam Ortiz</option></select></span>
+        <span class="field"><span class="label">Due</span><input class="in num" type="date" value="2026-10-14" aria-invalid="true"></span><span class="err">▲ Overdue</span>
+        <span class="end"><button class="btn btn-ghost">Edit</button><button class="btn">Close</button></span></div></li>
+      <li class="card amber"><div class="l1"><span class="mono muted">A-032</span><span class="desc">Draft cutover runbook for the payments cluster</span></div>
+        <div class="l2"><span class="field"><span class="label">Assignee</span><select class="in"><option>Unassigned</option><option>Priya Nair</option></select></span>
+        <span class="field"><span class="label">Due</span><input class="in num" type="date" value="2026-11-02"></span>
+        <span class="end"><button class="btn btn-ghost">Edit</button><button class="btn">Close</button></span></div></li>
+      <li class="card"><div class="l1"><span class="mono muted">A-033</span><span class="desc">Archive legacy backup tapes</span></div>
+        <div class="l2"><span class="field"><span class="label">Assignee</span><select class="in" disabled><option>Lee Chen (left project)</option></select></span>
+        <span class="field"><span class="label">Due</span><input class="in num" type="date" value="2026-12-01"></span>
+        <span class="end"><button class="btn btn-ghost">Edit</button><button class="btn" disabled>Close</button></span></div></li>
+    </ul>
+    <h3 style="margin-top:24px">Add action</h3>
+    <form class="form" onsubmit="return false">
+      <label><span class="label">Description</span><input class="in" aria-invalid="true" placeholder="What needs doing?"><span class="err">▲ A description is required</span></label>
+      <label><span class="label">Assignee</span><select class="in"><option>Unassigned</option><option>Priya Nair</option></select></label>
+      <label><span class="label">Due</span><input class="in num" type="date"></label>
+    </form>
+    <div class="row" style="margin-top:16px"><button class="btn btn-primary btn-lg">Add action</button><button class="btn btn-ghost">Cancel</button></div>
+  </section>
+
+  <section class="panel">
+    <h2>Every state, forced</h2>
+    <p class="sm muted" style="margin-top:4px">Hover and press real controls above; this grid pins each state so they can be compared side by side.</p>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Contrast (WCAG 1.4.11, ≥ 3:1)</h2>
+    <p class="sm muted" style="margin-top:4px">Measured live from the current theme's tokens. The first two rows are today's tokens for reference.</p>
+    <table class="contrast" id="contrast"></table>
+  </section>
+</main>
+<div class="sw-bar"><button id="prev">←</button><b id="lbl"></b><button id="next">→</button><button id="theme">theme</button></div>
+<script>
+const V={A:'Crisp outline',B:'Soft fill + halo',C:'Bold & tactile'},keys=Object.keys(V);
+const q=new URLSearchParams(location.search);
+let v=keys.includes(q.get('variant'))?q.get('variant'):'A',t=q.get('theme')==='dark'?'dark':'light';
+const states=['rest','hover','active','focus','disabled','invalid'];
+const ctl={
+  Primary:s=>`<button class="btn btn-primary ${cls(s)}" ${s==='disabled'?'disabled':''}>Add action</button>`,
+  Secondary:s=>`<button class="btn ${cls(s)}" ${s==='disabled'?'disabled':''}>Close</button>`,
+  Ghost:s=>`<button class="btn btn-ghost ${cls(s)}" ${s==='disabled'?'disabled':''}>Edit</button>`,
+  Danger:s=>`<button class="btn btn-danger ${cls(s)}" ${s==='disabled'?'disabled':''}>Delete</button>`,
+  Input:s=>`<input class="in ${cls(s)}" style="width:100%" value="Rack 7" ${s==='disabled'?'disabled':''}>`,
+  Select:s=>`<select class="in ${cls(s)}" style="width:100%" ${s==='disabled'?'disabled':''}><option>Priya Nair</option></select>`,
+  Checkbox:s=>`<input type="checkbox" class="chk ${cls(s)}" checked ${s==='disabled'?'disabled':''}>`,
+};
+function cls(s){return s==='rest'||s==='disabled'?'':'is-'+s}
+function gallery(){
+  let h='<span></span>'+states.map(s=>`<span class="h">${s}</span>`).join('');
+  for(const [n,f] of Object.entries(ctl)){h+=`<span class="label">${n}</span>`+states.map(s=>`<span>${(n.match(/Primary|Secondary|Ghost|Danger|Checkbox/)&&s==='invalid')?'<span class="muted xs">n/a</span>':f(s)}</span>`).join('')}
+  document.getElementById('gallery').innerHTML=h;
+}
+const lum=h=>{const c=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255).map(x=>x<=.03928?x/12.92:((x+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2]};
+const ratio=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+const tok=n=>getComputedStyle(document.documentElement).getPropertyValue('--'+n).trim();
+const hex=s=>s.length===4?'#'+[...s.slice(1)].map(c=>c+c).join(''):s;
+function contrast(){
+  const pairs=[['border-strong (today)','border-strong','input'],['focus #6b9ae0 (today, light)',null,'surface','#6b9ae0','#8fb6ec'],
+    ['control-border vs input','control-border','input'],['control-border vs surface','control-border','surface'],['control-border-hover vs input','control-border-hover','input'],
+    ['focus ring vs surface','focus','surface'],['focus ring vs bg','focus','bg'],['primary fill vs surface','accent','surface'],
+    ['danger fill vs surface','danger','surface'],['invalid border vs input','st-red-solid','input'],['B: bottom rule vs subtle fill','control-border','subtle'],
+    ['B: focus rule vs subtle fill','focus','subtle'],['checkbox (accent) vs surface','accent','surface']];
+  let h='<tr><th>Boundary</th><th>Colours</th><th>Ratio</th><th></th></tr>';
+  for(const [n,a,b,la,da] of pairs){const A=hex(a?tok(a):(t==='dark'?da:la)),B=hex(tok(b)),r=ratio(A,B);
+    h+=`<tr><td>${n}</td><td><span class="sw" style="background:${A}"></span> ${A} on <span class="sw" style="background:${B}"></span> ${B}</td><td class="num">${r.toFixed(2)}:1</td><td class="${r>=3?'pass':'fail'}">${r>=3?'✓ pass':'✗ fail'}</td></tr>`}
+  document.getElementById('contrast').innerHTML=h;
+}
+function render(){
+  document.documentElement.dataset.theme=t;document.getElementById('root').className='v'+v;
+  document.getElementById('lbl').textContent=`${v} (${V[v]}) · ${t}`;
+  const u=new URL(location);u.searchParams.set('variant',v);u.searchParams.set('theme',t);history.replaceState(null,'',u);
+  gallery();contrast();
+}
+const step=d=>{v=keys[(keys.indexOf(v)+d+keys.length)%keys.length];render()};
+document.getElementById('prev').onclick=()=>step(-1);document.getElementById('next').onclick=()=>step(1);
+document.getElementById('theme').onclick=()=>{t=t==='dark'?'light':'dark';render()};
+addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea,[contenteditable]'))return;
+  if(e.key==='ArrowLeft')step(-1);if(e.key==='ArrowRight')step(1);if(e.key==='d'||e.key==='D'){t=t==='dark'?'light':'dark';render()}});
+render();
+</script>
+</body>
+</html>
