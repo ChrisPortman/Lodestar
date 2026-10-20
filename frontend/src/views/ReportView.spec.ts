@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/vue'
+import { screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from '../test/render'
 import type { Action, Blocker, Project, Risk } from '../test/server'
@@ -52,6 +52,7 @@ async function report(
 /** The body rows of the named table, each as its cell texts. */
 async function rows(name: string) {
   const table = await screen.findByRole('table', { name })
+  await waitFor(() => expect(within(table).getAllByRole('row').length).toBeGreaterThan(1))
   return within(table)
     .getAllByRole('row')
     .slice(1)
@@ -68,7 +69,8 @@ describe('Project on a Page', () => {
     expect(await screen.findByText('WEBS · Project on a Page')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 1 }).textContent!.trim()).toBe('Website')
     expect(screen.getByText('Project Leader: Ada')).toBeTruthy()
-    expect(screen.getByText('Amber')).toBeTruthy()
+    const pill = screen.getByText('● Amber')
+    expect(pill.dataset.outline).toBe('dashed')
     expect(screen.getByText(/^Generated \d{4}-\d{2}-\d{2}$/)).toBeTruthy()
     expect(screen.getByText('“Vendor is late”')).toBeTruthy()
     expect(screen.getByText('Rebuild the public site.')).toBeTruthy()
@@ -77,7 +79,7 @@ describe('Project on a Page', () => {
   it('says when there is no Leader or Health Rating', async () => {
     await report({ project_leader: null, health_rating: null })
     expect(await screen.findByText('Project Leader: none')).toBeTruthy()
-    expect(screen.getByText('Not rated')).toBeTruthy()
+    expect(screen.getByText('— Not rated')).toBeTruthy()
   })
 
   it('lists open Actions with unassigned and overdue ones flagged', async () => {
@@ -112,7 +114,7 @@ describe('Project on a Page', () => {
       },
     )
     expect(await rows('Open Actions')).toEqual([
-      ['WEBS-A-001', 'Draft plan', 'Unassigned', '2001-01-01', 'WEBS-B-001'],
+      ['WEBS-A-001', 'Draft plan', 'Unassigned', '2001-01-01▲ Overdue', 'WEBS-B-001'],
       ['WEBS-A-002', 'Book room', 'Ada', '2999-01-01', ''],
     ])
     expect(screen.getByText('Unassigned').dataset.unassigned).toBe('true')
@@ -163,10 +165,16 @@ describe('Project on a Page', () => {
       },
     )
     expect(await rows('Open Risks')).toEqual([
-      ['WEBS-R-002', 'High', '4', '5', '20'],
-      ['WEBS-R-001', 'Low', '1', '2', '2'],
+      ['WEBS-R-002', 'High', '4', '5', '▲ High 20'],
+      ['WEBS-R-001', 'Low', '1', '2', '✓ Low 2'],
     ])
-    expect(screen.getByText('20').dataset.severity).toBe('high')
+    expect(screen.getByText('▲ High 20').dataset.severity).toBe('high')
+    expect(screen.getByText('2', { selector: '.count' })).toBeTruthy()
+  })
+
+  it('outlines each Health Rating with a distinct stroke style', async () => {
+    await report({ health_rating: { rating: 'red', comment: '' } })
+    expect((await screen.findByText('▲ Red')).dataset.outline).toBe('solid')
   })
 
   it('is linked from the meeting view', async () => {
