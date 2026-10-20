@@ -11,16 +11,17 @@ use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
 use crate::blocker::{Blocker, BlockerId, BlockerView};
+use crate::comment::{Comment, CommentBody, CommentId, CommentView, Target, TargetType};
 use crate::history::{
     ChangeContext, ChangeKind, EntityType, HistoryEntry, HistoryEntryId, snapshot,
 };
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
     ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
-    BlockerSort, BlockersQuery, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort,
-    PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
-    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
-    UnitOfWork,
+    BlockerSort, BlockersQuery, CommentFilter, CommentRepository, CommentsQuery, HistoryQuery,
+    Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository, ProjectSort,
+    ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter, RiskRepository,
+    RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
 use crate::project::{
     Description, ItemRef, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
@@ -36,6 +37,7 @@ struct State {
     references: HashMap<(Uuid, ReferenceKind), u32>,
     actions: BTreeMap<ActionId, Action>,
     blockers: BTreeMap<BlockerId, Blocker>,
+    comments: BTreeMap<CommentId, Comment>,
 }
 
 /// An in-memory store implementing every port. Transactions work on a copy
@@ -94,6 +96,10 @@ impl Transaction for InMemoryTx {
 
     fn blockers(&mut self) -> impl BlockerRepository + Send + '_ {
         InMemoryBlockers(&mut self.work)
+    }
+
+    fn comments(&mut self) -> impl CommentRepository + Send + '_ {
+        InMemoryComments(&mut self.work)
     }
 
     async fn commit(self) -> Result<(), RepoError> {
@@ -338,6 +344,53 @@ impl RiskRepository for InMemoryRisks<'_> {
         self.0.history.push(HistoryEntry {
             id,
             entity_type: EntityType::Risk,
+            entity_id: after.id().as_uuid(),
+            project_id: Some(after.project_id().as_uuid()),
+            version: after.version(),
+            change_kind: if before.is_some() {
+                ChangeKind::Updated
+            } else {
+                ChangeKind::Created
+            },
+            acting_person: ctx.acting_person,
+            recorded_at: Utc::now(),
+            before: before.map(snapshot),
+            after: snapshot(after),
+            caused_by: ctx.caused_by,
+        });
+        Ok(id)
+    }
+}
+
+struct InMemoryComments<'a>(&'a mut State);
+
+impl CommentRepository for InMemoryComments<'_> {
+    async fn load(&mut self, id: CommentId) -> Result<Comment, RepoError> {
+        self.0.comments.get(&id).cloned().ok_or(RepoError::NotFound)
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&Comment>,
+        after: &Comment,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        let stored_version = self.0.comments.get(&after.id()).map(Comment::version);
+        if stored_version != before.map(Comment::version) {
+            return Err(RepoError::Conflict);
+        }
+        if !self.0.projects.contains_key(&after.project_id())
+            || !self.0.people.contains_key(&after.author())
+        {
+            return Err(RepoError::Unexpected(
+                "comment in an unknown project or by an unknown person".to_owned(),
+            ));
+        }
+        self.0.comments.insert(after.id(), after.clone());
+        let id = HistoryEntryId::new();
+        self.0.history.push(HistoryEntry {
+            id,
+            entity_type: EntityType::Comment,
             entity_id: after.id().as_uuid(),
             project_id: Some(after.project_id().as_uuid()),
             version: after.version(),
@@ -738,6 +791,48 @@ impl BlockersQuery for InMemoryStore {
     }
 }
 
+fn comment_view(state: &State, comment: &Comment) -> CommentView {
+    CommentView {
+        id: comment.id(),
+        project_id: comment.project_id(),
+        target: comment.target(),
+        author: person_ref(state, comment.author()),
+        body: comment.body().as_str().to_owned(),
+        created_at: comment.created_at(),
+        edited_at: comment.edited_at(),
+        deleted: comment.is_deleted(),
+        version: comment.version(),
+    }
+}
+
+impl CommentsQuery for InMemoryStore {
+    async fn list_comments(
+        &self,
+        filter: CommentFilter,
+        page: PageRequest,
+    ) -> Result<Page<CommentView>, RepoError> {
+        let state = self.snapshot();
+        let mut all: Vec<_> = state
+            .comments
+            .values()
+            .filter(|c| filter.project_id.is_none_or(|p| c.project_id() == p))
+            .filter(|c| filter.target.is_none_or(|t| c.target() == t))
+            .collect();
+        all.sort_by_key(|c| (c.created_at(), c.id()));
+        let all = all.into_iter().map(|c| comment_view(&state, c)).collect();
+        Ok(page_of(all, page))
+    }
+
+    async fn get_comment(&self, id: CommentId) -> Result<CommentView, RepoError> {
+        let state = self.snapshot();
+        state
+            .comments
+            .get(&id)
+            .map(|c| comment_view(&state, c))
+            .ok_or(RepoError::NotFound)
+    }
+}
+
 /// Builds a valid [`Person`], defaulting every field.
 pub fn a_person() -> PersonBuilder {
     PersonBuilder {
@@ -842,6 +937,48 @@ impl RiskBuilder {
             Description::new(&self.description).expect("valid description"),
             Rating::new(self.likelihood).expect("valid likelihood"),
             Rating::new(self.impact).expect("valid impact"),
+        )
+    }
+}
+
+/// Builds a valid [`Comment`] by `author` on `project` itself, defaulting
+/// every other field.
+pub fn a_comment(project: ProjectId, author: PersonId) -> CommentBuilder {
+    CommentBuilder {
+        project,
+        target: Target {
+            kind: TargetType::Project,
+            id: project.as_uuid(),
+        },
+        author,
+        body: "Test Comment".to_owned(),
+    }
+}
+
+pub struct CommentBuilder {
+    project: ProjectId,
+    target: Target,
+    author: PersonId,
+    body: String,
+}
+
+impl CommentBuilder {
+    pub fn on(mut self, kind: TargetType, id: Uuid) -> Self {
+        self.target = Target { kind, id };
+        self
+    }
+
+    pub fn saying(mut self, body: impl Into<String>) -> Self {
+        self.body = body.into();
+        self
+    }
+
+    pub fn build(self) -> Comment {
+        Comment::create(
+            self.project,
+            self.target,
+            self.author,
+            CommentBody::new(self.body).expect("valid body"),
         )
     }
 }

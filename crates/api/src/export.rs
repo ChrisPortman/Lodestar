@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use lodestar_core::{
     action::use_cases::{ActionFilter, ActionSort, list_actions},
     blocker::use_cases::{BlockerFilter, BlockerSort, list_blockers},
+    comment::use_cases::{CommentFilter, list_comments},
     history::HistoryEntry,
     person::use_cases::get_person,
     ports::{ClearedFilter, ClosedFilter, PageRequest, RiskFilter, RiskSort},
@@ -27,6 +28,7 @@ use crate::{
     AppState, Store,
     actions::ActionBody,
     blockers::BlockerBody,
+    comments::CommentBody,
     people::PersonBody,
     problem::Problem,
     projects::ProjectBody,
@@ -53,7 +55,7 @@ pub fn routes<S: Store>() -> Router<AppState<S>> {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ChangeHistoryEntry {
     pub id: Uuid,
-    /// `project`, `action`, `risk` or `blocker`.
+    /// `project`, `action`, `risk`, `blocker` or `comment`.
     pub entity_type: String,
     pub entity_id: Uuid,
     /// The entity version this change produced.
@@ -110,6 +112,9 @@ pub struct ProjectExport {
     pub risks: Vec<RiskBody>,
     /// Every Blocker, cleared ones included, ordered by Reference.
     pub blockers: Vec<BlockerBody>,
+    /// Every Comment on the Project or its items, oldest first. Deleted ones
+    /// are included with their original text.
+    pub comments: Vec<CommentBody>,
     /// Every Person the document mentions, ordered by display name.
     pub people: Vec<PersonBody>,
     /// Present only with `include_history=true`: every entry for the
@@ -126,8 +131,8 @@ pub struct ExportParams {
     include_history: Option<bool>,
 }
 
-/// Downloads a Project, archived or not, with all its Members, Actions, Risks
-/// and Blockers as an attachment named `<project-code>-<date>.json`. Needs a
+/// Downloads a Project, archived or not, with all its Members, Actions, Risks,
+/// Blockers and Comments as an attachment named `<project-code>-<date>.json`. Needs a
 /// session.
 #[utoipa::path(
     get,
@@ -190,6 +195,17 @@ async fn export<S: Store>(
         )
     })
     .await?;
+    let comments = all(|page| {
+        list_comments(
+            &state.store,
+            CommentFilter {
+                project_id: Some(project_id),
+                target: None,
+            },
+            page,
+        )
+    })
+    .await?;
     let history = if params.include_history.unwrap_or(false) {
         Some(state.store.project_history(project_id).await?)
     } else {
@@ -210,6 +226,7 @@ async fn export<S: Store>(
             .iter()
             .filter_map(|b| b.accountable.as_ref().map(|p| p.id)),
     );
+    mentioned.extend(comments.iter().map(|c| c.author.id));
     mentioned.extend(history.iter().flatten().map(|e| e.acting_person));
     let mut people = Vec::with_capacity(mentioned.len());
     for person in mentioned {
@@ -232,6 +249,7 @@ async fn export<S: Store>(
         actions: actions.into_iter().map(ActionBody::from).collect(),
         risks: risks.into_iter().map(RiskBody::from).collect(),
         blockers: blockers.into_iter().map(BlockerBody::from).collect(),
+        comments: comments.into_iter().map(CommentBody::revealed).collect(),
         people,
         change_history: history.map(|h| h.into_iter().map(ChangeHistoryEntry::from).collect()),
     };

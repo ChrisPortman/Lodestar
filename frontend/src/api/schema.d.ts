@@ -138,6 +138,50 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/comments': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Lists a Project's Comments oldest first, deleted ones included. */
+    get: operations['list_comments']
+    put?: never
+    /** Adds a Comment by the Acting Person, who must be a Member. */
+    post: operations['create_comment']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/comments/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Fetches a Comment. A deleted Comment's `body` is empty. */
+    get: operations['get_comment']
+    /**
+     * Replaces a Comment's text. Only its author can, while a Member. Needs a
+     *     session and `If-Match`.
+     */
+    put: operations['update_comment']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Deletes a Comment, with `{"deleted": true}` as
+     *     `application/merge-patch+json`. It can't be undone. Only its author can,
+     *     while a Member. Needs a session and `If-Match`.
+     */
+    patch: operations['delete_comment']
+    trace?: never
+  }
   '/api/v1/people': {
     parameters: {
       query?: never
@@ -248,8 +292,8 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Downloads a Project, archived or not, with all its Members, Actions, Risks
-     *     and Blockers as an attachment named `<project-code>-<date>.json`. Needs a
+     * Downloads a Project, archived or not, with all its Members, Actions, Risks,
+     *     Blockers and Comments as an attachment named `<project-code>-<date>.json`. Needs a
      *     session.
      */
     get: operations['export_project']
@@ -486,7 +530,7 @@ export interface components {
       change_kind: string
       /** Format: uuid */
       entity_id: string
-      /** @description `project`, `action`, `risk` or `blocker`. */
+      /** @description `project`, `action`, `risk`, `blocker` or `comment`. */
       entity_type: string
       /** Format: uuid */
       id: string
@@ -502,6 +546,63 @@ export interface components {
     CodeSuggestion: {
       /** @description `null` when the name has too few letters to suggest one. */
       project_code?: string | null
+    }
+    /**
+     * @description A Comment. Also the request body for `POST` and `PUT`: read-only fields
+     *     may be sent to `PUT` only if they match what is stored.
+     */
+    Comment: {
+      /** @description The Acting Person who added it. */
+      readonly author: components['schemas']['PersonRef']
+      /**
+       * @description Plain text, kept exactly as written: 1–4000 characters, not blank.
+       *     Empty once the Comment is deleted.
+       */
+      body: string
+      /** Format: date-time */
+      readonly created_at: string
+      /** @description Changed only with `PATCH`, and only to `true`. */
+      readonly deleted: boolean
+      /**
+       * Format: date-time
+       * @description When the text was last edited, if ever.
+       */
+      readonly edited_at?: string | null
+      /** Format: uuid */
+      readonly id: string
+      /**
+       * Format: uuid
+       * @description Required on `POST`; never changes.
+       */
+      project_id: string
+      /**
+       * Format: uuid
+       * @description The Project's ID when `target_type` is `project`. Required on `POST`;
+       *     never changes.
+       */
+      target_id: string
+      /** @description Required on `POST`; never changes. */
+      target_type: components['schemas']['TargetTypeParam']
+      /** Format: int32 */
+      readonly version: number
+    }
+    /** @description A page of Comments. */
+    CommentPage: {
+      items: components['schemas']['Comment'][]
+      /** Format: int32 */
+      limit: number
+      /** Format: int32 */
+      offset: number
+      /**
+       * Format: int64
+       * @description Matching Comments across all pages.
+       */
+      total: number
+    }
+    /** @description The only change `PATCH` makes (ADR-0006): deleting, which can't be undone. */
+    CommentPatch: {
+      /** @description Must be `true`. */
+      deleted: boolean
     }
     /** @description A Project's Health Rating, set by hand (FR-70). */
     HealthRating: {
@@ -609,6 +710,11 @@ export interface components {
        *     Project and its items, in the order recorded.
        */
       change_history?: components['schemas']['ChangeHistoryEntry'][] | null
+      /**
+       * @description Every Comment on the Project or its items, oldest first. Deleted ones
+       *     are included with their original text.
+       */
+      comments: components['schemas']['Comment'][]
       /** Format: date-time */
       exported_at: string
       /** @description The Acting Person. */
@@ -702,6 +808,11 @@ export interface components {
     Session: {
       person: components['schemas']['Person']
     }
+    /**
+     * @description What a Comment is about.
+     * @enum {string}
+     */
+    TargetTypeParam: 'project' | 'action' | 'risk' | 'blocker'
   }
   responses: never
   parameters: never
@@ -1417,6 +1528,317 @@ export interface operations {
       }
       /** @description Out of date */
       412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  list_comments: {
+    parameters: {
+      query: {
+        /** @description The Project whose Comments to list, including those on its items. */
+        project_id: string
+        /** @description Only Comments about this kind of target; needs `target_id`. */
+        target_type?: 'project' | 'action' | 'risk' | 'blocker'
+        /** @description Only Comments about this target; needs `target_type`. */
+        target_id?: string
+        /** @description Page size, 1–1000. */
+        limit?: number
+        offset?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CommentPage']
+        }
+      }
+      /** @description Invalid parameters */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  create_comment: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Comment']
+      }
+    }
+    responses: {
+      201: {
+        headers: {
+          etag?: string
+          location?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Comment']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Not a Member */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Comment */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  get_comment: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Comment']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  update_comment: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['Comment']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Comment']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Not the author, or no longer a Member */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived, or the Comment is deleted */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid Comment */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description If-Match missing */
+      428: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  delete_comment: {
+    parameters: {
+      query?: never
+      header: {
+        /** @description ETag of the version being changed */
+        'if-match': string
+      }
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/merge-patch+json': components['schemas']['CommentPatch']
+      }
+    }
+    responses: {
+      200: {
+        headers: {
+          etag?: string
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Comment']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Not the author, or no longer a Member */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description The Project is archived */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Out of date */
+      412: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Invalid patch */
+      422: {
         headers: {
           [name: string]: unknown
         }

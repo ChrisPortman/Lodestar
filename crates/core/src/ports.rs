@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
 use crate::blocker::{Blocker, BlockerId, BlockerView};
+use crate::comment::{Comment, CommentId, CommentView, Target};
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{PersonRef, Project, ProjectId, ProjectView};
@@ -50,6 +51,8 @@ pub trait Transaction: Send {
     fn actions(&mut self) -> impl ActionRepository + Send + '_;
 
     fn blockers(&mut self) -> impl BlockerRepository + Send + '_;
+
+    fn comments(&mut self) -> impl CommentRepository + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
@@ -127,6 +130,18 @@ pub trait RiskRepository {
         &mut self,
         before: Option<&Risk>,
         after: &Risk,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+pub trait CommentRepository {
+    fn load(&mut self, id: CommentId) -> impl Future<Output = Result<Comment, RepoError>> + Send;
+
+    /// As [`PersonRepository::save`].
+    fn save(
+        &mut self,
+        before: Option<&Comment>,
+        after: &Comment,
         ctx: &ChangeContext,
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
 }
@@ -434,4 +449,27 @@ pub trait BlockersQuery: Send + Sync {
         &self,
         id: BlockerId,
     ) -> impl Future<Output = Result<BlockerView, RepoError>> + Send;
+}
+
+/// Which Comments to list. Deleted Comments are always included.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CommentFilter {
+    /// Only this Project's Comments, including those on its items.
+    pub project_id: Option<ProjectId>,
+    /// Only Comments about this target.
+    pub target: Option<Target>,
+}
+
+/// Read-only views of Comments, oldest first (FR-126).
+pub trait CommentsQuery: Send + Sync {
+    fn list_comments(
+        &self,
+        filter: CommentFilter,
+        page: PageRequest,
+    ) -> impl Future<Output = Result<Page<CommentView>, RepoError>> + Send;
+
+    fn get_comment(
+        &self,
+        id: CommentId,
+    ) -> impl Future<Output = Result<CommentView, RepoError>> + Send;
 }

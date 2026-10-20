@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE comments SET body = ?, edited_at = ?, deleted = ?, version = ?\n                     WHERE id = ? AND version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "7a74434956f7722e4440cd0aea1433a01802d2f36fa5b2eb09759732234a4b99"
+}

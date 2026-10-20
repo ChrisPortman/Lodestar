@@ -3,6 +3,7 @@
 
 mod actions;
 mod blockers;
+mod comments;
 mod risks;
 
 use std::collections::{BTreeSet, HashSet};
@@ -15,9 +16,9 @@ use lodestar_core::history::{
 };
 use lodestar_core::person::{DisplayName, Person, PersonId, PersonView};
 use lodestar_core::ports::{
-    ActionRepository, BlockerRepository, HistoryQuery, Page, PageRequest, PeopleQuery, PeopleSort,
-    PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
-    ReferenceKind, RepoError, RiskRepository, Transaction, UnitOfWork,
+    ActionRepository, BlockerRepository, CommentRepository, HistoryQuery, Page, PageRequest,
+    PeopleQuery, PeopleSort, PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery,
+    ReferenceCounter, ReferenceKind, RepoError, RiskRepository, Transaction, UnitOfWork,
 };
 use lodestar_core::project::{
     Description, HealthRating, PersonRef, Project, ProjectCode, ProjectId, ProjectName,
@@ -122,6 +123,10 @@ impl Transaction for SqliteTx {
 
     fn blockers(&mut self) -> impl BlockerRepository + Send + '_ {
         blockers::SqliteBlockers(&mut self.0)
+    }
+
+    fn comments(&mut self) -> impl CommentRepository + Send + '_ {
+        comments::SqliteComments(&mut self.0)
     }
 
     fn risks(&mut self) -> impl RiskRepository + Send + '_ {

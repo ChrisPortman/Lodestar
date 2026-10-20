@@ -1,0 +1,146 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT c.id, c.project_id, c.target_type, c.target_id, c.author_id,\n                      pe.display_name AS author_name, c.body, c.created_at, c.edited_at,\n                      c.deleted, c.version\n               FROM comments c JOIN people pe ON pe.id = c.author_id\n               WHERE (?1 IS NULL OR c.project_id = ?1)\n                 AND (?2 IS NULL OR (c.target_type = ?2 AND c.target_id = ?3))\n               ORDER BY c.created_at, c.id\n               LIMIT ?4 OFFSET ?5",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "project_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "target_type",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "target_type"
+          }
+        }
+      },
+      {
+        "name": "target_id",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "author_id",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "author_id"
+          }
+        }
+      },
+      {
+        "name": "author_name",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "body",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "edited_at",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "edited_at"
+          }
+        }
+      },
+      {
+        "name": "deleted",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "deleted"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2638acccaf4650c9b0640e1aaf14b9bda10b90ace8a7dc9b30164c1e5d1964ea"
+}

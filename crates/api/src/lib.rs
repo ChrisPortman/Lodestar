@@ -2,6 +2,7 @@
 
 mod actions;
 mod blockers;
+mod comments;
 mod export;
 mod filters;
 mod frontend;
@@ -21,8 +22,8 @@ use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
     ports::{
-        ActionsQuery, BlockersQuery, HistoryQuery, PeopleQuery, ProjectsQuery, RisksQuery,
-        UnitOfWork,
+        ActionsQuery, BlockersQuery, CommentsQuery, HistoryQuery, PeopleQuery, ProjectsQuery,
+        RisksQuery, UnitOfWork,
     },
 };
 use rust_embed::RustEmbed;
@@ -55,6 +56,7 @@ pub trait Store:
     + RisksQuery
     + ActionsQuery
     + BlockersQuery
+    + CommentsQuery
     + HistoryQuery
     + Clone
     + 'static
@@ -68,6 +70,7 @@ impl<T> Store for T where
         + RisksQuery
         + ActionsQuery
         + BlockersQuery
+        + CommentsQuery
         + HistoryQuery
         + Clone
         + 'static
@@ -112,6 +115,7 @@ where
         .merge(risks::routes::<S>())
         .merge(actions::routes::<S>())
         .merge(blockers::routes::<S>())
+        .merge(comments::routes::<S>())
         .merge(members::routes::<S>())
         .merge(export::routes::<S>())
         .merge(session::routes::<S>())
@@ -160,6 +164,11 @@ where
         blockers::clear,
         blockers::link,
         blockers::unlink,
+        comments::list,
+        comments::create,
+        comments::fetch,
+        comments::update,
+        comments::delete,
         members::list,
         members::add,
         members::remove,
