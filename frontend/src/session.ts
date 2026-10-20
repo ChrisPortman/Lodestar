@@ -53,3 +53,6 @@ export function useRenamePerson() {
     },
   })
 }
+
+/** The option value behind "New Person…" in a Person dropdown (#59). */
+export const NEW_PERSON = '__new_person__'

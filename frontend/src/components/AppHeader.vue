@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { usePeople, useSession, useStartSession } from '../session'
+import { NEW_PERSON, usePeople, useSession, useStartSession } from '../session'
+import type { PersonRef } from '../api/members'
+import NewPersonField from './NewPersonField.vue'
 import { useTheme } from '../theme'
 
 const session = useSession()
@@ -11,9 +13,20 @@ const { theme, toggle } = useTheme()
 
 const acting = computed(() => session.data.value?.person)
 
+const creating = ref(false)
+
 function switchTo(event: Event) {
   const id = (event.target as HTMLSelectElement).value
+  if (id === NEW_PERSON) {
+    creating.value = true
+    return
+  }
   if (id && id !== acting.value?.id) start.mutate(id)
+}
+
+async function switchToNew(person: PersonRef) {
+  await start.mutateAsync(person.id)
+  creating.value = false
 }
 </script>
 
@@ -31,10 +44,23 @@ function switchTo(event: Event) {
             >Acting as <strong data-testid="acting-person">{{ acting.display_name }}</strong></span
           >
           <label class="sr-only" for="switch-person">Switch Acting Person</label>
-          <select id="switch-person" class="field text-sm" :value="acting.id" @change="switchTo">
+          <NewPersonField
+            v-if="creating"
+            label="New Acting Person"
+            @picked="(person) => switchToNew(person).catch(() => {})"
+            @cancel="creating = false"
+          />
+          <select
+            v-else
+            id="switch-person"
+            class="field text-sm"
+            :value="acting.id"
+            @change="switchTo"
+          >
             <option v-for="person in people.data.value" :key="person.id" :value="person.id">
               {{ person.display_name }}
             </option>
+            <option :value="NEW_PERSON">New Person…</option>
           </select>
         </div>
         <button type="button" class="btn" :aria-pressed="theme === 'dark'" @click="toggle">

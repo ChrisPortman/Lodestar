@@ -51,3 +51,13 @@ export function useSetProjectLeader() {
     setProjectLeader(project, leader),
   )
 }
+
+/** Makes a Person a Member of the Project unless they already are (#59). */
+export function useEnsureMember() {
+  const add = useAddMember()
+  async function ensure(project: Project, person: PersonRef, members: PersonRef[]) {
+    if (!members.some((m) => m.id === person.id))
+      await add.mutateAsync({ project, personId: person.id })
+  }
+  return { ensure, error: add.error }
+}

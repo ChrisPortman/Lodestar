@@ -14,12 +14,15 @@ import {
   useUnlinkAction,
   useUpdateBlocker,
 } from '../blockers'
-import { useMembers } from '../members'
+import { useEnsureMember, useMembers } from '../members'
+import type { PersonRef } from '../api/members'
+import NewPersonField from './NewPersonField.vue'
 import DescriptionEditor from './DescriptionEditor.vue'
 import CommentsSection from './CommentsSection.vue'
 import ItemPanel from './ItemPanel.vue'
 import ListControls from './ListControls.vue'
 import { applyQuery, useListQuery } from '../listControls'
+import { NEW_PERSON } from '../session'
 
 const props = defineProps<{ project: Project }>()
 
@@ -32,6 +35,7 @@ const update = useUpdateBlocker()
 const clear = useSetBlockerCleared()
 const link = useLinkAction()
 const unlink = useUnlinkAction()
+const ensureMember = useEnsureMember()
 
 const query = useListQuery()
 const SORTS = [
@@ -53,7 +57,8 @@ const error = computed(
     clear.error.value ??
     create.error.value ??
     link.error.value ??
-    unlink.error.value,
+    unlink.error.value ??
+    ensureMember.error.value,
 )
 
 /** Members to choose from, plus a former Member still on a cleared Blocker (FR-22). */
@@ -89,10 +94,23 @@ async function saveDescription(blocker: Blocker, description: string) {
   editingId.value = null
 }
 
+/** The Blocker whose accountable Member is being picked as a new Person (#59). */
+const newPersonFor = ref<string | null>(null)
+
 function assign(blocker: Blocker, event: Event) {
   const id = (event.target as HTMLSelectElement).value
+  if (id === NEW_PERSON) {
+    newPersonFor.value = blocker.id
+    return
+  }
   const person = accountableOptions(blocker).find((m) => m.id === id) ?? null
   update.mutate({ blocker, fields: { accountable: person } })
+}
+
+async function assignNew(blocker: Blocker, person: PersonRef) {
+  await ensureMember.ensure(props.project, person, members.data.value ?? [])
+  await update.mutateAsync({ blocker, fields: { accountable: person } })
+  newPersonFor.value = null
 }
 
 function linkChosen(blocker: Blocker, event: Event) {
@@ -155,7 +173,14 @@ function linkChosen(blocker: Blocker, event: Event) {
         <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <label class="flex items-center gap-2">
             <span class="text-xs tracking-wide text-muted uppercase">Accountable</span>
+            <NewPersonField
+              v-if="newPersonFor === blocker.id"
+              :label="`New accountable for ${blocker.reference}`"
+              @picked="(person) => assignNew(blocker, person).catch(() => {})"
+              @cancel="newPersonFor = null"
+            />
             <select
+              v-else
               :value="blocker.accountable?.id ?? ''"
               :aria-label="`Accountable for ${blocker.reference}`"
               :disabled="!writable"
@@ -169,6 +194,7 @@ function linkChosen(blocker: Blocker, event: Event) {
               <option v-for="m in accountableOptions(blocker)" :key="m.id" :value="m.id">
                 {{ m.display_name }}
               </option>
+              <option :value="NEW_PERSON">New Person…</option>
             </select>
           </label>
           <div class="flex flex-wrap items-center gap-2">

@@ -4,7 +4,9 @@ import type { Project } from '../api/client'
 import { useActions } from '../actions'
 import { useBlockers } from '../blockers'
 import { useAddMember, useMembers, useRemoveMember, useSetProjectLeader } from '../members'
-import { usePeople } from '../session'
+import { NEW_PERSON, usePeople } from '../session'
+import type { PersonRef } from '../api/members'
+import NewPersonField from './NewPersonField.vue'
 
 const props = defineProps<{ project: Project }>()
 const emit = defineEmits<{ close: [] }>()
@@ -48,6 +50,11 @@ function plural(n: number, word: string) {
 function openItemsLabel(id: string) {
   const c = openItems.value.get(id) ?? { actions: 0, blockers: 0 }
   return `${plural(c.actions, 'open Action')}, ${plural(c.blockers, 'open Blocker')}`
+}
+
+async function addNew(person: PersonRef) {
+  await add.mutateAsync({ project: props.project, personId: person.id })
+  chosen.value = ''
 }
 
 async function addChosen() {
@@ -110,13 +117,25 @@ async function addChosen() {
       </li>
     </ul>
 
-    <form v-if="!readOnly" class="mt-4 flex gap-2" @submit.prevent="addChosen().catch(() => {})">
+    <div v-if="!readOnly && chosen === NEW_PERSON" class="mt-4">
+      <NewPersonField
+        label="New member"
+        @picked="(person) => addNew(person).catch(() => {})"
+        @cancel="chosen = ''"
+      />
+    </div>
+    <form
+      v-else-if="!readOnly"
+      class="mt-4 flex gap-2"
+      @submit.prevent="addChosen().catch(() => {})"
+    >
       <label class="sr-only" for="add-member">Add member</label>
       <select id="add-member" v-model="chosen" class="field flex-1">
         <option value="" disabled>Choose a person…</option>
         <option v-for="person in candidates" :key="person.id" :value="person.id">
           {{ person.display_name }}
         </option>
+        <option :value="NEW_PERSON">New Person…</option>
       </select>
       <button type="submit" class="btn btn-primary" :disabled="!chosen">Add</button>
     </form>

@@ -174,4 +174,19 @@ describe('Blockers panel', () => {
     expect(within(row!).queryByLabelText('Link an Action to B-001')).toBeNull()
     expect(within(await panel()).queryByRole('button', { name: 'Add Blocker' })).toBeNull()
   })
+
+  it('makes a new Person accountable, and a Member (#59)', async () => {
+    const { backend } = await meeting([
+      blocker({ id: 'k1', reference: 'B-001', description: 'No env' }),
+    ])
+    const region = await panel()
+    await userEvent.selectOptions(
+      await within(region).findByLabelText('Accountable for B-001'),
+      'New Person…',
+    )
+    await userEvent.type(within(region).getByLabelText('New accountable for B-001'), 'Dave{Enter}')
+    await waitFor(() => expect(backend.blockers[0]?.accountable?.display_name).toBe('Dave'))
+    const dave = backend.people.find((p) => p.display_name === 'Dave')!
+    expect(backend.members.get('p1')!.has(dave.id)).toBe(true)
+  })
 })
