@@ -4,9 +4,8 @@ import { RouterLink } from 'vue-router'
 import ActionsPanel from '../components/ActionsPanel.vue'
 import BlockersPanel from '../components/BlockersPanel.vue'
 import CommentsSection from '../components/CommentsSection.vue'
-import ExportControl from '../components/ExportControl.vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
-import MembersPanel from '../components/MembersPanel.vue'
+import ProjectMenuPanel from '../components/ProjectMenuPanel.vue'
 import RisksPanel from '../components/RisksPanel.vue'
 import { markViewed, provideComments, useComments } from '../comments'
 import { useMembers } from '../members'
@@ -19,7 +18,7 @@ const project = useProject(projectId)
 const session = useSession()
 const members = useMembers(projectId)
 const comments = useComments(projectId)
-const showMembers = ref(false)
+const showMenu = ref(false)
 
 // Highlighting compares against the previous visit for the whole page visit.
 const since = ref<string | null>(null)
@@ -65,16 +64,23 @@ provideComments({
           <button
             type="button"
             class="btn"
-            :aria-expanded="showMembers"
-            @click="showMembers = !showMembers"
+            aria-label="Project menu"
+            :aria-expanded="showMenu"
+            @click="showMenu = !showMenu"
           >
-            Members
+            <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
+              <path
+                d="M4 6h16M4 12h16M4 18h16"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+            </svg>
           </button>
-          <ExportControl :project="project.data.value" />
         </div>
         <HealthRatingControl :project="project.data.value" />
       </header>
-      <MembersPanel v-if="showMembers" :project="project.data.value" @close="showMembers = false" />
+      <ProjectMenuPanel v-if="showMenu" :project="project.data.value" @close="showMenu = false" />
       <div class="mt-6 grid gap-6">
         <!-- Panels in FR-94 order: Actions, Blockers, then Risks last. -->
         <ActionsPanel :project="project.data.value" />

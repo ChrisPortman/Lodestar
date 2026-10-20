@@ -175,7 +175,8 @@ describe('Actions panel', () => {
         assignee: { id: 'b', display_name: 'Bob' },
       }),
     ])
-    await userEvent.click(await screen.findByRole('button', { name: 'Members' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Project menu' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Manage Members' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Remove Bob' }))
     await waitFor(() => expect(backend.actions[0]!.assignee).toBeNull())
     await waitFor(async () =>

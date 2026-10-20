@@ -14,11 +14,13 @@ const href = computed(
 </script>
 
 <template>
-  <span class="flex items-center gap-2 text-sm">
-    <label class="flex items-center gap-1 text-muted">
+  <div class="grid gap-4 text-sm">
+    <label class="flex items-center gap-2 text-muted">
       <input v-model="includeHistory" type="checkbox" />
       Include history
     </label>
-    <a :href="href" download class="btn"> Export </a>
-  </span>
+    <a :href="href" download class="btn btn-primary w-4/5 justify-self-center text-center">
+      Export
+    </a>
+  </div>
 </template>
