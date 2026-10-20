@@ -225,5 +225,5 @@
 /* Project on a Page prints on A4 portrait (FR-101), always in the light palette. */
 @page {
   size: A4 portrait;
-  margin: 12mm;
+  margin: 16mm 15mm;
 }
