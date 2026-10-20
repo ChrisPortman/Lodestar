@@ -30,18 +30,10 @@ function toggleUnassigned() {
 <template>
   <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
     <!-- eslint-disable vue/no-mutating-props -- the query is a shared reactive object -->
-    <select
-      v-model="query.sort"
-      :aria-label="`Sort ${title}`"
-      class="rounded border border-gray-300 text-sm"
-    >
+    <select v-model="query.sort" :aria-label="`Sort ${title}`" class="field text-sm">
       <option v-for="s in sorts" :key="s.value" :value="s.value">Sort: {{ s.label }}</option>
     </select>
-    <select
-      v-model="query.state"
-      :aria-label="`Filter ${title} by state`"
-      class="rounded border border-gray-300 text-sm"
-    >
+    <select v-model="query.state" :aria-label="`Filter ${title} by state`" class="field text-sm">
       <option value="all">Open and {{ finalisedLabel.toLowerCase() }}</option>
       <option value="open">Open only</option>
       <option value="closed">{{ finalisedLabel }} only</option>
@@ -50,7 +42,7 @@ function toggleUnassigned() {
       <select
         v-model="query.assignee"
         :aria-label="`Filter ${title} by ${personLabel}`"
-        class="rounded border border-gray-300 text-sm"
+        class="field text-sm"
       >
         <option value="">Any {{ personLabel }}</option>
         <option value="unassigned">Unassigned</option>
@@ -59,12 +51,8 @@ function toggleUnassigned() {
       <button
         type="button"
         :aria-pressed="unassignedOnly()"
-        class="rounded border px-2 py-0.5"
-        :class="
-          unassignedOnly()
-            ? 'border-amber-400 bg-amber-50 text-amber-900'
-            : 'border-gray-300 hover:bg-gray-100'
-        "
+        class="btn"
+        :class="unassignedOnly() ? 'border-st-amber-solid bg-st-amber-bg text-st-amber-fg' : ''"
         @click="toggleUnassigned"
       >
         Unassigned only
@@ -72,7 +60,7 @@ function toggleUnassigned() {
     </template>
     <label v-if="showDue" class="flex items-center gap-1">
       Due by
-      <input v-model="query.dueBy" type="date" class="rounded border border-gray-300 text-sm" />
+      <input v-model="query.dueBy" type="date" class="field text-sm" />
     </label>
   </div>
 </template>

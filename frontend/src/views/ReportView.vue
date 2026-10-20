@@ -4,6 +4,7 @@ import { isOverdue, today, useActions } from '../actions'
 import { useBlockers } from '../blockers'
 import { useProject } from '../projects'
 import { severity, useRisks } from '../risks'
+import { RATING, SEVERITY, TONE_TEXT, tag } from '../status'
 
 // Project on a Page (FR-100, FR-101): a printable snapshot built from the API.
 const props = defineProps<{ id: string }>()
@@ -20,143 +21,313 @@ const openRisks = computed(() =>
   (risks.data.value ?? []).filter((r) => !r.closed).sort((a, b) => b.score - a.score),
 )
 
-const RATING = {
-  red: { label: 'Red', badge: 'bg-red-600 text-white' },
-  amber: { label: 'Amber', badge: 'bg-amber-400 text-gray-900' },
-  green: { label: 'Green', badge: 'bg-green-600 text-white' },
-  none: { label: 'Not rated', badge: 'bg-gray-200 text-gray-700' },
-} as const
-const rating = computed(() => RATING[project.data.value?.health_rating?.rating ?? 'none'])
-
-const SEVERITY_CLASS = {
-  low: 'bg-green-100 text-green-800',
-  medium: 'bg-amber-100 text-amber-900',
-  high: 'bg-red-100 text-red-800',
-} as const
+// Colour is never the only cue (#51): each status pairs a symbol and a word (status.ts), and
+// the Health Rating outline is solid, dashed or dotted so it survives greyscale.
+const OUTLINE = { red: 'solid', amber: 'dashed', green: 'dotted', none: 'solid' } as const
+const ratingKey = computed(() => project.data.value?.health_rating?.rating ?? 'none')
+const rating = computed(() => RATING[ratingKey.value])
+const outline = computed(() => OUTLINE[ratingKey.value])
 
 const refs = (items: { reference: string }[]) => items.map((i) => i.reference).join(', ')
 </script>
 
 <template>
-  <article class="report text-sm">
-    <p v-if="project.isPending.value" class="text-gray-600">Loading…</p>
-    <p v-else-if="project.error.value" role="alert" class="text-red-700">
+  <article class="report">
+    <p v-if="project.isPending.value" class="muted">Loading…</p>
+    <p v-else-if="project.error.value" role="alert" class="text-danger-text">
       Couldn't load the Project: {{ project.error.value.message }}
     </p>
     <template v-else-if="project.data.value">
-      <header class="flex flex-wrap items-start gap-4 border-b-2 border-gray-800 pb-3">
+      <header class="masthead">
         <div class="flex-1">
-          <p class="font-mono text-xs text-gray-600">
-            {{ project.data.value.project_code }} · Project on a Page
+          <p class="label">{{ project.data.value.project_code }} · Project on a Page</p>
+          <h1>{{ project.data.value.name }}</h1>
+          <p class="cell">
+            Project Leader: {{ project.data.value.project_leader?.display_name ?? 'none' }}
           </p>
-          <h1 class="text-2xl font-semibold">{{ project.data.value.name }}</h1>
-          <p>Project Leader: {{ project.data.value.project_leader?.display_name ?? 'none' }}</p>
         </div>
         <div class="text-right">
-          <span class="rounded px-3 py-1 font-semibold" :class="rating.badge">{{
-            rating.label
-          }}</span>
-          <p class="mt-1 text-xs text-gray-600">Generated {{ generated }}</p>
+          <span
+            class="pill"
+            :class="TONE_TEXT[rating.tone]"
+            :data-outline="outline"
+            :style="{ borderStyle: outline }"
+            >{{ tag(rating) }}</span
+          >
+          <p class="meta">Generated {{ generated }}</p>
         </div>
       </header>
-      <blockquote
-        v-if="project.data.value.health_rating?.comment"
-        class="mt-3 border-l-4 border-gray-300 pl-3 italic"
-      >
+      <blockquote v-if="project.data.value.health_rating?.comment" class="comment">
         “{{ project.data.value.health_rating.comment }}”
       </blockquote>
-      <p v-if="project.data.value.description" class="mt-3 whitespace-pre-line">
+      <p v-if="project.data.value.description" class="prose whitespace-pre-line">
         {{ project.data.value.description }}
       </p>
 
-      <table class="mt-6 w-full border-collapse" aria-labelledby="report-actions">
-        <caption id="report-actions" class="text-left text-base font-semibold">
-          Open Actions
-        </caption>
-        <thead>
-          <tr class="border-b border-gray-400 text-left">
-            <th class="pr-2">Ref</th>
-            <th class="pr-2">Description</th>
-            <th class="pr-2">Assignee</th>
-            <th class="pr-2">Due</th>
-            <th>Blocked by</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="a in openActions" :key="a.id" class="break-inside-avoid border-b align-top">
-            <td class="pr-2 font-mono">{{ a.reference }}</td>
-            <td class="pr-2 whitespace-pre-line">{{ a.description }}</td>
-            <td class="pr-2">
-              <span v-if="a.assignee">{{ a.assignee.display_name }}</span>
-              <span v-else data-unassigned="true" class="rounded bg-amber-100 px-1 text-amber-900"
-                >Unassigned</span
-              >
-            </td>
-            <td class="pr-2">
-              <span
-                v-if="a.due_date"
-                :data-overdue="String(isOverdue(a, generated))"
-                :class="{ 'font-semibold text-red-700': isOverdue(a, generated) }"
-                >{{ a.due_date }}</span
-              >
-            </td>
-            <td class="font-mono">{{ refs(a.blocked_by) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <section>
+        <h2>
+          <span id="report-actions">Open Actions</span>
+          <span class="count">{{ openActions.length }}</span>
+        </h2>
+        <table aria-labelledby="report-actions">
+          <colgroup>
+            <col class="w-ref" />
+            <col />
+            <col class="w-people" />
+            <col class="w-due" />
+            <col class="w-refs" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Ref</th>
+              <th>Description</th>
+              <th>Assignee</th>
+              <th>Due</th>
+              <th>Blocked by</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="a in openActions" :key="a.id">
+              <td class="ref">{{ a.reference }}</td>
+              <td class="whitespace-pre-line">{{ a.description }}</td>
+              <td>
+                <span v-if="a.assignee">{{ a.assignee.display_name }}</span>
+                <span v-else data-unassigned="true" class="unassigned">Unassigned</span>
+              </td>
+              <td>
+                <template v-if="a.due_date">
+                  <span
+                    :data-overdue="String(isOverdue(a, generated))"
+                    :class="{ overdue: isOverdue(a, generated) }"
+                    >{{ a.due_date }}</span
+                  >
+                  <span v-if="isOverdue(a, generated)" class="overdue-note">▲ Overdue</span>
+                </template>
+              </td>
+              <td class="ref blocked">{{ refs(a.blocked_by) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
-      <table class="mt-6 w-full border-collapse" aria-labelledby="report-blockers">
-        <caption id="report-blockers" class="text-left text-base font-semibold">
-          Open Blockers
-        </caption>
-        <thead>
-          <tr class="border-b border-gray-400 text-left">
-            <th class="pr-2">Ref</th>
-            <th class="pr-2">Description</th>
-            <th class="pr-2">Accountable</th>
-            <th>Blocks</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="b in openBlockers" :key="b.id" class="break-inside-avoid border-b align-top">
-            <td class="pr-2 font-mono">{{ b.reference }}</td>
-            <td class="pr-2 whitespace-pre-line">{{ b.description }}</td>
-            <td class="pr-2">{{ b.accountable?.display_name ?? '' }}</td>
-            <td class="font-mono">{{ refs(b.blocked_actions) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <section>
+        <h2>
+          <span id="report-blockers">Open Blockers</span>
+          <span class="count">{{ openBlockers.length }}</span>
+        </h2>
+        <table aria-labelledby="report-blockers">
+          <colgroup>
+            <col class="w-ref" />
+            <col />
+            <col class="w-people" />
+            <col class="w-refs" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Ref</th>
+              <th>Description</th>
+              <th>Accountable</th>
+              <th>Blocks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="b in openBlockers" :key="b.id">
+              <td class="ref">{{ b.reference }}</td>
+              <td class="whitespace-pre-line">{{ b.description }}</td>
+              <td>{{ b.accountable?.display_name ?? '' }}</td>
+              <td class="ref">{{ refs(b.blocked_actions) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
-      <table class="mt-6 w-full border-collapse" aria-labelledby="report-risks">
-        <caption id="report-risks" class="text-left text-base font-semibold">
-          Open Risks
-        </caption>
-        <thead>
-          <tr class="border-b border-gray-400 text-left">
-            <th class="pr-2">Ref</th>
-            <th class="pr-2">Description</th>
-            <th class="pr-2">L</th>
-            <th class="pr-2">I</th>
-            <th>Score</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in openRisks" :key="r.id" class="break-inside-avoid border-b align-top">
-            <td class="pr-2 font-mono">{{ r.reference }}</td>
-            <td class="pr-2 whitespace-pre-line">{{ r.description }}</td>
-            <td class="pr-2">{{ r.likelihood }}</td>
-            <td class="pr-2">{{ r.impact }}</td>
-            <td>
-              <span
-                class="rounded px-2 font-semibold"
-                :class="SEVERITY_CLASS[severity(r.score)]"
-                :data-severity="severity(r.score)"
-                >{{ r.score }}</span
-              >
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <section>
+        <h2>
+          <span id="report-risks">Open Risks</span>
+          <span class="count">{{ openRisks.length }}</span>
+        </h2>
+        <table aria-labelledby="report-risks">
+          <colgroup>
+            <col class="w-ref" />
+            <col />
+            <col class="w-li" />
+            <col class="w-li" />
+            <col class="w-score" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Ref</th>
+              <th>Description</th>
+              <th>L</th>
+              <th>I</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in openRisks" :key="r.id">
+              <td class="ref">{{ r.reference }}</td>
+              <td class="whitespace-pre-line">{{ r.description }}</td>
+              <td>{{ r.likelihood }}</td>
+              <td>{{ r.impact }}</td>
+              <td>
+                <span
+                  class="severity"
+                  :class="TONE_TEXT[SEVERITY[severity(r.score)].tone]"
+                  :data-severity="severity(r.score)"
+                  >{{ tag(SEVERITY[severity(r.score)]) }} {{ r.score }}</span
+                >
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer class="colophon">
+        <span>Lodestar</span>
+        <span>{{ project.data.value.project_code }} · {{ generated }}</span>
+      </footer>
     </template>
   </article>
 </template>
+
+<style scoped>
+/* Ledger layout (#51): a booktabs table, Inter in points, colour on text and strokes only. */
+.report {
+  font-family: var(--font-sans);
+  font-size: 10pt;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+h1 {
+  font-size: 20pt;
+}
+h2 {
+  font-size: 12.5pt;
+  margin-bottom: 1.5mm;
+}
+.label,
+.meta,
+.colophon,
+th {
+  font-size: 8pt;
+  color: var(--color-muted);
+}
+.label,
+th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 550;
+}
+.cell,
+td {
+  font-size: 9pt;
+}
+.count {
+  margin-left: 0.4em;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4mm;
+  padding-bottom: 3mm;
+  border-bottom: 1.5pt solid var(--color-text);
+}
+.pill {
+  display: inline-block;
+  padding: 0.5mm 3mm;
+  border: 1.5pt solid currentColor;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.meta {
+  margin-top: 1mm;
+}
+.comment {
+  margin-top: 3mm;
+  padding-left: 3mm;
+  border-left: 2pt solid var(--color-border-strong);
+  font-style: italic;
+  max-width: 65ch;
+}
+.prose {
+  margin-top: 3mm;
+  max-width: 65ch;
+}
+section {
+  margin-top: 7mm;
+}
+table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border-bottom: 0.75pt solid var(--color-text);
+}
+thead tr {
+  border-bottom: 0.75pt solid var(--color-text);
+}
+tbody tr + tr {
+  border-top: 0.4pt solid var(--color-border);
+}
+tr {
+  break-inside: avoid;
+}
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 2mm 3mm 2mm 0;
+}
+.w-ref {
+  width: 24mm;
+}
+.w-people {
+  width: 30mm;
+}
+.w-due {
+  width: 28mm;
+}
+.w-refs {
+  width: 24mm;
+}
+.w-li {
+  width: 10mm;
+}
+.w-score {
+  width: 26mm;
+}
+.ref {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--color-muted);
+}
+.blocked {
+  color: var(--color-st-red-fg);
+  font-weight: 550;
+}
+.overdue {
+  font-weight: 700;
+  color: var(--color-st-red-fg);
+}
+.overdue-note {
+  display: block;
+  font-size: 8pt;
+  color: var(--color-st-red-fg);
+}
+.unassigned {
+  font-style: italic;
+  color: var(--color-st-amber-fg);
+}
+.severity {
+  font-weight: 600;
+}
+.colophon {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7mm;
+  padding-top: 1.5mm;
+  border-top: 0.4pt solid var(--color-border);
+}
+</style>

@@ -35,12 +35,12 @@ async function createAndPick() {
 <template>
   <section class="mx-auto max-w-md">
     <h1 class="text-2xl font-semibold">Who are you?</h1>
-    <p v-if="people.isPending.value" class="mt-4 text-gray-600">Loading…</p>
+    <p v-if="people.isPending.value" class="mt-4 text-muted">Loading…</p>
     <ul v-else class="mt-4 space-y-2">
       <li v-for="person in people.data.value" :key="person.id">
         <button
           type="button"
-          class="w-full rounded border border-gray-300 px-4 py-2 text-left hover:bg-gray-100"
+          class="w-full rounded border border-control-border px-4 py-2 text-left hover:bg-subtle"
           @click="pick(person.id).catch(() => {})"
         >
           {{ person.display_name }}
@@ -54,13 +54,11 @@ async function createAndPick() {
         v-model="newName"
         maxlength="100"
         placeholder="Your name"
-        class="flex-1 rounded border border-gray-300 px-3 py-2"
+        class="field flex-1 px-3 py-2"
       />
-      <button type="submit" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-        I'm new
-      </button>
+      <button type="submit" class="btn btn-primary btn-lg">I'm new</button>
     </form>
-    <p v-if="start.error.value || create.error.value" role="alert" class="mt-4 text-red-700">
+    <p v-if="start.error.value || create.error.value" role="alert" class="mt-4 text-danger-text">
       {{ (start.error.value ?? create.error.value)?.message }}
     </p>
   </section>

@@ -1,25 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Project } from '../api/client'
-import type { HealthRating } from '../api/projects'
 import { useSetHealthRating } from '../projects'
+import { RATING, TONE_CHIP, type RatingChoice } from '../status'
 
-type Choice = HealthRating['rating'] | 'none'
+type Choice = RatingChoice
 
 const props = defineProps<{ project: Project }>()
 
-const LABELS: Record<Choice, string> = {
-  red: 'Red',
-  amber: 'Amber',
-  green: 'Green',
-  none: 'Not rated',
-}
-const BADGE: Record<Choice, string> = {
-  red: 'bg-red-600 text-white',
-  amber: 'bg-amber-400 text-gray-900',
-  green: 'bg-green-600 text-white',
-  none: 'bg-gray-200 text-gray-700',
-}
 const CHOICES: Choice[] = ['red', 'amber', 'green', 'none']
 
 const save = useSetHealthRating()
@@ -54,22 +42,23 @@ async function submit() {
       <span
         role="status"
         aria-label="Health Rating"
-        class="rounded px-2 py-0.5 text-sm font-medium"
-        :class="BADGE[current()]"
+        class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-sm font-medium"
+        :class="TONE_CHIP[RATING[current()].tone]"
       >
-        {{ LABELS[current()] }}
+        <span aria-hidden="true">{{ RATING[current()].symbol }}</span>
+        {{ RATING[current()].label }}
       </span>
       <button
         v-if="!project.archived && !editing"
         type="button"
         aria-label="Edit Health Rating"
-        class="rounded border border-gray-300 px-2 py-0.5 text-sm hover:bg-gray-100"
+        class="btn"
         @click="startEditing"
       >
         Edit
       </button>
     </div>
-    <p v-if="project.health_rating?.comment && !editing" class="text-sm text-gray-700">
+    <p v-if="project.health_rating?.comment && !editing" class="text-sm text-muted">
       {{ project.health_rating.comment }}
     </p>
     <form
@@ -82,7 +71,7 @@ async function submit() {
       <div class="flex gap-3">
         <label v-for="choice in CHOICES" :key="choice" class="flex items-center gap-1 text-sm">
           <input v-model="draftRating" type="radio" name="health-rating" :value="choice" />
-          {{ LABELS[choice] }}
+          {{ RATING[choice].label }}
         </label>
       </div>
       <label class="grid gap-1">
@@ -92,23 +81,15 @@ async function submit() {
           :disabled="draftRating === 'none'"
           maxlength="4000"
           rows="2"
-          class="rounded border border-gray-300 px-3 py-1"
+          class="field"
         />
       </label>
-      <p v-if="save.error.value" role="alert" class="text-red-700">
+      <p v-if="save.error.value" role="alert" class="text-danger-text">
         Couldn't save: {{ save.error.value.message }}
       </p>
       <div class="flex gap-2">
-        <button type="submit" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
-          Save
-        </button>
-        <button
-          type="button"
-          class="rounded border border-gray-300 px-3 py-1"
-          @click="editing = false"
-        >
-          Cancel
-        </button>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" class="btn" @click="editing = false">Cancel</button>
       </div>
     </form>
   </div>

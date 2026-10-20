@@ -15,12 +15,10 @@ const href = computed(
 
 <template>
   <span class="flex items-center gap-2 text-sm">
-    <label class="flex items-center gap-1 text-gray-600">
+    <label class="flex items-center gap-1 text-muted">
       <input v-model="includeHistory" type="checkbox" />
       Include history
     </label>
-    <a :href="href" download class="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100">
-      Export
-    </a>
+    <a :href="href" download class="btn"> Export </a>
   </span>
 </template>

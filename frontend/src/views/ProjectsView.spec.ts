@@ -39,6 +39,25 @@ describe('Projects page', () => {
     expect((await projectNames())[1]).toContain('Archived')
   })
 
+  it('accents Red-rated and leaderless Project cards, with a word as well as a colour', async () => {
+    const red = project({
+      id: 'p3',
+      name: 'Red One',
+      project_code: 'REDO',
+      health_rating: { rating: 'red', comment: null },
+    })
+    const orphan = project({ id: 'p4', name: 'Orphan', project_code: 'ORPH', project_leader: null })
+    await renderApp('/projects', [ada], 'a', [web, red, orphan])
+    const list = await screen.findByRole('list', { name: 'Projects' })
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(3))
+    const [plain, redCard, orphanCard] = within(list).getAllByRole('listitem')
+    expect(plain!.dataset.accent).toBeUndefined()
+    expect(redCard!.dataset.accent).toBe('red')
+    expect(redCard!.textContent).toContain('▲ Red')
+    expect(orphanCard!.dataset.accent).toBe('amber')
+    expect(orphanCard!.textContent).toMatch(/Leader\s*none/i)
+  })
+
   it('creates a Project with the suggested code, which can be edited', async () => {
     const { backend } = await renderApp('/projects', [ada], 'a', [web])
     await userEvent.click(await screen.findByRole('button', { name: 'New Project' }))

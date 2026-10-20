@@ -27,26 +27,20 @@ function save() {
       required
       maxlength="4000"
       rows="3"
-      class="rounded border border-gray-300 px-3 py-1"
+      class="field"
       @keydown.ctrl.enter.prevent="save"
       @keydown.esc.prevent="emit('cancel')"
     />
-    <p v-if="initial !== started" role="status" class="text-sm text-amber-900">
+    <p v-if="initial !== started" role="status" class="text-sm text-st-amber-fg">
       Changed elsewhere since you started editing. Now:
       <span class="whitespace-pre-line">{{ initial }}</span>
     </p>
     <slot />
     <div class="flex gap-2">
-      <button type="submit" class="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700">
+      <button type="submit" class="btn btn-primary">
         {{ saveLabel ?? 'Save' }}
       </button>
-      <button
-        type="button"
-        class="rounded border border-gray-300 px-3 py-1"
-        @click="emit('cancel')"
-      >
-        Cancel
-      </button>
+      <button type="button" class="btn" @click="emit('cancel')">Cancel</button>
     </div>
   </form>
 </template>
