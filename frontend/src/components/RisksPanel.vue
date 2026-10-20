@@ -5,6 +5,7 @@ import { computed, ref, toRef } from 'vue'
 import type { Project } from '../api/client'
 import type { Risk } from '../api/risks'
 import { severity, useCreateRisk, useRisks, useSetRiskClosed, useUpdateRisk } from '../risks'
+import { SEVERITY, TONE_CHIP } from '../status'
 import DescriptionEditor from './DescriptionEditor.vue'
 import CommentsSection from './CommentsSection.vue'
 import ItemPanel from './ItemPanel.vue'
@@ -35,12 +36,6 @@ const writable = computed(() => !props.project.archived)
 const error = computed(() => update.error.value ?? close.error.value ?? create.error.value)
 
 const RATINGS = [1, 2, 3, 4, 5]
-const SEVERITY_CLASS = {
-  low: 'bg-st-green-bg text-st-green-fg',
-  medium: 'bg-st-amber-bg text-st-amber-fg',
-  high: 'bg-st-red-bg text-st-red-fg',
-} as const
-
 /** High-score Risks are red, medium ones amber (#50). */
 function accent(risk: Risk) {
   const s = severity(risk.score)
@@ -131,8 +126,9 @@ function rate(risk: Risk, field: 'likelihood' | 'impact', event: Event) {
           aria-label="Score"
           :data-severity="severity(risk.score)"
           class="min-w-10 shrink-0 rounded px-2 py-0.5 text-center text-sm font-semibold tabular-nums"
-          :class="SEVERITY_CLASS[severity(risk.score)]"
+          :class="TONE_CHIP[SEVERITY[severity(risk.score)].tone]"
         >
+          <span aria-hidden="true">{{ SEVERITY[severity(risk.score)].symbol }}</span>
           {{ risk.score }}
         </span>
       </div>

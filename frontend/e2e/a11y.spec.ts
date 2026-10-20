@@ -24,9 +24,15 @@ for (const theme of THEMES) {
 
     test('the Projects list is accessible', async ({ page, request }) => {
       const { person } = await seedProject(request, `Listed ${theme}`)
+      // One card per accent and chip tone (#50).
+      for (const rating of ['red', 'amber', 'green'] as const) {
+        const { project } = await seedProject(request, `Listed ${rating} ${theme}`)
+        await setHealthRating(request, project.id, rating)
+      }
       await actAs(page, person)
       await page.goto('/projects')
       await expect(page.getByRole('link', { name: `Listed ${theme}` })).toBeVisible()
+      await expect(page.getByRole('link', { name: `Listed red ${theme}` })).toBeVisible()
       await expectAccessible(page)
     })
 
@@ -55,7 +61,7 @@ for (const theme of THEMES) {
       await expect(page.getByRole('region', { name: 'Actions' })).toContainText('Blocked by')
       await expect(page.getByRole('region', { name: 'Blockers' })).toContainText('Printer broken')
       await expect(page.getByRole('region', { name: 'Risks' })).toContainText('Late speaker')
-      await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText('▲ Amber')
+      await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText('● Amber')
       await expectAccessible(page)
       // Hover and keyboard focus states keep their contrast too.
       await page.getByRole('button', { name: 'Members' }).hover()
@@ -71,7 +77,7 @@ for (const theme of THEMES) {
         await actAs(page, person)
         await page.goto(`/projects/${project.id}`)
         await expect(page.getByRole('status', { name: 'Health Rating' })).toHaveText(
-          rating === 'red' ? '✕ Red' : '✓ Green',
+          rating === 'red' ? '▲ Red' : '✓ Green',
         )
         await expectAccessible(page)
       })

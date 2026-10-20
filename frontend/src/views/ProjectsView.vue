@@ -3,6 +3,8 @@ import { nextTick, ref, watch } from 'vue'
 import type { Project } from '../api/client'
 import { suggestProjectCode } from '../api/projects'
 import { useCreateProject, useProjects, useSetArchived, useUpdateProject } from '../projects'
+import { CARD, accentClass, type Accent } from '../cards'
+import { RATING, TONE_CHIP } from '../status'
 
 const showArchived = ref(false)
 const projects = useProjects(showArchived)
@@ -82,6 +84,18 @@ async function save(project: Project) {
   editingId.value = null
 }
 
+/** Red health is red; Amber health or no Project Leader is amber (#50). */
+function accent(project: Project): Accent | undefined {
+  const rating = project.health_rating?.rating
+  if (rating === 'red') return 'red'
+  if (rating === 'amber' || !project.project_leader) return 'amber'
+  return undefined
+}
+
+function ratingOf(project: Project) {
+  return RATING[project.health_rating?.rating ?? 'none']
+}
+
 function toggleArchived(project: Project) {
   archive.mutate({ project, archived: !project.archived })
 }
@@ -147,14 +161,19 @@ function toggleArchived(project: Project) {
     </div>
 
     <p v-if="projects.isPending.value" class="mt-4 text-muted">Loading…</p>
-    <ul v-else aria-label="Projects" class="mt-4 divide-y divide-divider">
-      <li v-for="project in projects.data.value" :key="project.id" class="flex gap-3 py-3">
-        <span class="w-24 shrink-0 font-mono text-sm text-muted">{{ project.project_code }}</span>
+    <ul v-else aria-label="Projects" class="mt-4 grid gap-2">
+      <li
+        v-for="project in projects.data.value"
+        :key="project.id"
+        :data-accent="accent(project)"
+        :class="[CARD, accentClass(accent(project))]"
+      >
         <form
           v-if="editingId === project.id"
-          class="grid flex-1 gap-2"
+          class="grid gap-2"
           @submit.prevent="save(project).catch(() => {})"
         >
+          <span class="font-mono text-sm text-muted">{{ project.project_code }}</span>
           <label class="sr-only" :for="`name-${project.id}`">Name for {{ project.name }}</label>
           <input :id="`name-${project.id}`" v-model="draftName" maxlength="100" class="field" />
           <label class="sr-only" :for="`description-${project.id}`">
@@ -173,41 +192,56 @@ function toggleArchived(project: Project) {
           </div>
         </form>
         <template v-else>
-          <div class="flex-1">
-            <RouterLink :to="`/projects/${project.id}`" class="font-medium hover:underline">
-              {{ project.name }}
-            </RouterLink>
+          <div class="flex items-baseline gap-3">
+            <span class="shrink-0 font-mono text-sm text-muted">{{ project.project_code }}</span>
+            <div class="min-w-0 flex-1">
+              <RouterLink :to="`/projects/${project.id}`" class="font-medium hover:underline">
+                {{ project.name }}
+              </RouterLink>
+              <span
+                v-if="project.archived"
+                class="ml-2 rounded bg-active px-2 py-0.5 text-xs text-muted"
+              >
+                Archived
+              </span>
+              <p v-if="project.description" class="text-sm text-muted">
+                {{ project.description }}
+              </p>
+            </div>
             <span
-              v-if="project.archived"
-              class="ml-2 rounded bg-active px-2 py-0.5 text-xs text-muted"
+              class="inline-flex shrink-0 items-center gap-1.5 rounded px-2 py-0.5 text-sm font-medium"
+              :class="TONE_CHIP[ratingOf(project).tone]"
             >
-              Archived
+              <span aria-hidden="true">{{ ratingOf(project).symbol }}</span>
+              {{ ratingOf(project).label }}
             </span>
-            <p v-if="project.description" class="text-sm text-muted">
-              {{ project.description }}
-            </p>
-            <p class="text-xs text-muted">
-              Leader: {{ project.project_leader?.display_name ?? 'none' }}
-            </p>
           </div>
-          <div class="flex items-start gap-2">
-            <button
-              v-if="!project.archived"
-              type="button"
-              class="btn"
-              :aria-label="`Edit ${project.name}`"
-              @click="startEditing(project)"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              class="btn"
-              :aria-label="`${project.archived ? 'Unarchive' : 'Archive'} ${project.name}`"
-              @click="toggleArchived(project)"
-            >
-              {{ project.archived ? 'Unarchive' : 'Archive' }}
-            </button>
+          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <span class="flex items-center gap-2">
+              <span class="text-xs tracking-wide text-muted uppercase">Leader</span>
+              <span :class="{ 'text-muted italic': !project.project_leader }">
+                {{ project.project_leader?.display_name ?? 'none' }}
+              </span>
+            </span>
+            <div class="ml-auto flex gap-2">
+              <button
+                v-if="!project.archived"
+                type="button"
+                class="btn"
+                :aria-label="`Edit ${project.name}`"
+                @click="startEditing(project)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="btn"
+                :aria-label="`${project.archived ? 'Unarchive' : 'Archive'} ${project.name}`"
+                @click="toggleArchived(project)"
+              >
+                {{ project.archived ? 'Unarchive' : 'Archive' }}
+              </button>
+            </div>
           </div>
         </template>
       </li>

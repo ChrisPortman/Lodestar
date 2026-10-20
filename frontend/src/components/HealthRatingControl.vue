@@ -1,32 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Project } from '../api/client'
-import type { HealthRating } from '../api/projects'
 import { useSetHealthRating } from '../projects'
+import { RATING, TONE_CHIP, type RatingChoice } from '../status'
 
-type Choice = HealthRating['rating'] | 'none'
+type Choice = RatingChoice
 
 const props = defineProps<{ project: Project }>()
 
-const LABELS: Record<Choice, string> = {
-  red: 'Red',
-  amber: 'Amber',
-  green: 'Green',
-  none: 'Not rated',
-}
-/** Each rating's symbol, so it never relies on colour alone (#56). */
-const SYMBOLS: Record<Choice, string> = {
-  red: '✕',
-  amber: '▲',
-  green: '✓',
-  none: '–',
-}
-const BADGE: Record<Choice, string> = {
-  red: 'bg-st-red-bg text-st-red-fg',
-  amber: 'bg-st-amber-bg text-st-amber-fg',
-  green: 'bg-st-green-bg text-st-green-fg',
-  none: 'bg-active text-muted',
-}
 const CHOICES: Choice[] = ['red', 'amber', 'green', 'none']
 
 const save = useSetHealthRating()
@@ -62,10 +43,10 @@ async function submit() {
         role="status"
         aria-label="Health Rating"
         class="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-sm font-medium"
-        :class="BADGE[current()]"
+        :class="TONE_CHIP[RATING[current()].tone]"
       >
-        <span aria-hidden="true">{{ SYMBOLS[current()] }}</span>
-        {{ LABELS[current()] }}
+        <span aria-hidden="true">{{ RATING[current()].symbol }}</span>
+        {{ RATING[current()].label }}
       </span>
       <button
         v-if="!project.archived && !editing"
@@ -90,7 +71,7 @@ async function submit() {
       <div class="flex gap-3">
         <label v-for="choice in CHOICES" :key="choice" class="flex items-center gap-1 text-sm">
           <input v-model="draftRating" type="radio" name="health-rating" :value="choice" />
-          {{ LABELS[choice] }}
+          {{ RATING[choice].label }}
         </label>
       </div>
       <label class="grid gap-1">

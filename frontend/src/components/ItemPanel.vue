@@ -2,13 +2,7 @@
 // A meeting view panel (FR-90, FR-94): open items first, an Add form on
 // demand, and finalised items in a collapsed list at the bottom.
 import { ref } from 'vue'
-
-type Accent = 'red' | 'amber'
-
-const ACCENT_CLASS: Record<Accent, string> = {
-  red: 'border-l-st-red-solid',
-  amber: 'border-l-st-amber-solid',
-}
+import { CARD, accentClass, type Accent } from '../cards'
 
 const props = withDefaults(
   defineProps<{
@@ -34,13 +28,6 @@ defineSlots<{
   add(props: { done: () => void }): unknown
   default(): unknown
 }>()
-
-const CARD = 'rounded-md border border-l-3 border-border bg-surface px-4 py-3'
-
-function accentClass(item: T) {
-  const a = props.accent(item)
-  return a ? ACCENT_CLASS[a] : 'border-l-border'
-}
 
 const adding = ref(false)
 const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
@@ -69,7 +56,7 @@ const headingId = `panel-${props.title.toLowerCase().replace(/\W+/g, '-')}`
         v-for="item in open"
         :key="item.id"
         :data-accent="accent(item)"
-        :class="[CARD, accentClass(item)]"
+        :class="[CARD, accentClass(accent(item))]"
       >
         <slot name="item" :item="item" />
       </li>

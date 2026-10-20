@@ -4,6 +4,7 @@ import { isOverdue, today, useActions } from '../actions'
 import { useBlockers } from '../blockers'
 import { useProject } from '../projects'
 import { severity, useRisks } from '../risks'
+import { RATING, SEVERITY, TONE_TEXT, tag } from '../status'
 
 // Project on a Page (FR-100, FR-101): a printable snapshot built from the API.
 const props = defineProps<{ id: string }>()
@@ -20,21 +21,12 @@ const openRisks = computed(() =>
   (risks.data.value ?? []).filter((r) => !r.closed).sort((a, b) => b.score - a.score),
 )
 
-// Colour is never the only cue (#51): each status pairs a symbol and a word, and
+// Colour is never the only cue (#51): each status pairs a symbol and a word (status.ts), and
 // the Health Rating outline is solid, dashed or dotted so it survives greyscale.
-const RATING = {
-  red: { label: '▲ Red', tone: 'red', outline: 'solid' },
-  amber: { label: '● Amber', tone: 'amber', outline: 'dashed' },
-  green: { label: '✓ Green', tone: 'green', outline: 'dotted' },
-  none: { label: '— Not rated', tone: 'none', outline: 'solid' },
-} as const
-const rating = computed(() => RATING[project.data.value?.health_rating?.rating ?? 'none'])
-
-const SEVERITY = {
-  low: { label: '✓ Low', tone: 'green' },
-  medium: { label: '● Medium', tone: 'amber' },
-  high: { label: '▲ High', tone: 'red' },
-} as const
+const OUTLINE = { red: 'solid', amber: 'dashed', green: 'dotted', none: 'solid' } as const
+const ratingKey = computed(() => project.data.value?.health_rating?.rating ?? 'none')
+const rating = computed(() => RATING[ratingKey.value])
+const outline = computed(() => OUTLINE[ratingKey.value])
 
 const refs = (items: { reference: string }[]) => items.map((i) => i.reference).join(', ')
 </script>
@@ -57,10 +49,10 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
         <div class="text-right">
           <span
             class="pill"
-            :class="`tone-${rating.tone}`"
-            :data-outline="rating.outline"
-            :style="{ borderStyle: rating.outline }"
-            >{{ rating.label }}</span
+            :class="TONE_TEXT[rating.tone]"
+            :data-outline="outline"
+            :style="{ borderStyle: outline }"
+            >{{ tag(rating) }}</span
           >
           <p class="meta">Generated {{ generated }}</p>
         </div>
@@ -180,9 +172,9 @@ const refs = (items: { reference: string }[]) => items.map((i) => i.reference).j
               <td>
                 <span
                   class="severity"
-                  :class="`tone-${SEVERITY[severity(r.score)].tone}`"
+                  :class="TONE_TEXT[SEVERITY[severity(r.score)].tone]"
                   :data-severity="severity(r.score)"
-                  >{{ SEVERITY[severity(r.score)].label }} {{ r.score }}</span
+                  >{{ tag(SEVERITY[severity(r.score)]) }} {{ r.score }}</span
                 >
               </td>
             </tr>
@@ -330,18 +322,6 @@ td {
 }
 .severity {
   font-weight: 600;
-}
-.tone-red {
-  color: var(--color-st-red-fg);
-}
-.tone-amber {
-  color: var(--color-st-amber-fg);
-}
-.tone-green {
-  color: var(--color-st-green-fg);
-}
-.tone-none {
-  color: var(--color-muted);
 }
 .colophon {
   display: flex;

@@ -5,8 +5,8 @@ import { ref } from 'vue'
 
 export type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'lodestar-theme'
-const DARK_QUERY = '(prefers-color-scheme: dark)'
+export const STORAGE_KEY = 'lodestar-theme'
+export const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 function stored(): Theme | null {
   try {
