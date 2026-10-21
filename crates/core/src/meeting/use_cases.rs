@@ -44,6 +44,7 @@ impl From<GuardError> for MeetingError {
     fn from(error: GuardError) -> Self {
         match error {
             GuardError::Archived => Self::Archived,
+            GuardError::Locked(_) => Self::NotHeld,
             GuardError::Repo(RepoError::NotFound) => Self::UnknownProject,
             GuardError::Repo(e) => Self::Repo(e),
         }

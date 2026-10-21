@@ -10,7 +10,7 @@ use lodestar_core::ports::PageRequest;
 use lodestar_core::project::members::add_member;
 use lodestar_core::project::use_cases::{NewProject, create_project};
 use lodestar_core::project::{Project, ProjectId};
-use lodestar_core::session::SessionId;
+use lodestar_core::session::{Actor, SessionId};
 use lodestar_core::test_support::InMemoryStore;
 
 /// Change History records real time, so the clock here does too.
@@ -63,9 +63,15 @@ async fn ending_a_meeting_records_it_and_releases_the_lock() {
     let lock = acquire_lock(&store, ada.id(), &tab("a"), project.id(), now())
         .await
         .unwrap();
+    // Only the session holding the lock may write during the Meeting.
+    let holder = Actor {
+        person: ada.id(),
+        session: Some(tab("a")),
+        now: now(),
+    };
     create_comment(
         &store,
-        bob.id(),
+        holder,
         NewComment {
             project_id: project.id(),
             target: Target {

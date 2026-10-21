@@ -68,7 +68,7 @@ impl MeetingRepository for SqliteMeetings<'_> {
         .await
         .map_err(unexpected)?
         .ok_or(RepoError::NotFound)?;
-        let attendees = attendees(&mut **self.0, &id_text)
+        let attendees = attendees(self.0, &id_text)
             .await?
             .into_iter()
             .map(|a| a.id)

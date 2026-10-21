@@ -119,7 +119,8 @@ async fn the_leader_ends_a_meeting_and_members_read_it() {
         .send(
             Method::POST,
             "/api/v1/comments",
-            &[("cookie", &w.bob_tab)],
+            // Only the session holding the lock may write during the Meeting.
+            &[("cookie", &w.ada_tab)],
             Some(json!({"project_id": w.project, "target_type": "project",
                         "target_id": w.project, "body": "Launch moved"})),
         )
