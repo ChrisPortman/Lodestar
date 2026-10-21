@@ -8,14 +8,15 @@ export const VARIANTS = {
   A: 'Chosen: sidebar + reader',
   B: 'Docked rail beside the page',
   C: 'Meeting bar + reader',
+  D: 'Chosen so far: rail + reader',
 } as const
 export type Variant = keyof typeof VARIANTS
 
 export function useVariant() {
   const route = useRoute()
   return computed<Variant>(() => {
-    const v = String(route.query.variant ?? 'A')
-    return v in VARIANTS ? (v as Variant) : 'A'
+    const v = String(route.query.variant ?? 'D')
+    return v in VARIANTS ? (v as Variant) : 'D'
   })
 }
 

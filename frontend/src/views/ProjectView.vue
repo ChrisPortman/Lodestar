@@ -43,7 +43,7 @@ provideComments({
 </script>
 
 <template>
-  <section :class="{ 'pr-96': variant === 'B' && (stub.running || stub.justEnded) }">
+  <section :class="{ 'pr-96': (variant === 'B' && (stub.running || stub.justEnded)) || (variant === 'D' && stub.running) }">
     <PrototypeSwitcher />
     <MeetingsVariant v-if="project.data.value" :project="project.data.value" place="page" />
     <p v-if="project.isPending.value" class="text-muted">Loading…</p>

@@ -5,6 +5,7 @@ import { useVariant } from './meetingStub.prototype'
 import VariantA from './VariantA.prototype.vue'
 import VariantB from './VariantB.prototype.vue'
 import VariantC from './VariantC.prototype.vue'
+import VariantD from './VariantD.prototype.vue'
 
 defineProps<{ project: Project; place: 'panel' | 'page' }>()
 const emit = defineEmits<{ close: [] }>()
@@ -16,5 +17,6 @@ const variant = useVariant()
     <VariantA v-if="place === 'panel'" :project="project" />
   </template>
   <VariantB v-else-if="variant === 'B'" :project="project" :place="place" @close="emit('close')" />
+  <VariantD v-else-if="variant === 'D'" :project="project" :place="place" @close="emit('close')" />
   <VariantC v-else :project="project" :place="place" @close="emit('close')" />
 </template>
