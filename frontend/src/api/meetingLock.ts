@@ -16,3 +16,12 @@ export async function getMeetingLock(projectId: string): Promise<MeetingLock | n
     throw e
   }
 }
+
+/** Acquires a Project's Meeting Lock for this session (Project Leader only). */
+export async function acquireMeetingLock(projectId: string): Promise<MeetingLock> {
+  return unwrap(
+    await client.POST('/api/v1/projects/{id}/meeting-lock', {
+      params: { path: { id: projectId } },
+    }),
+  )
+}
