@@ -2,6 +2,7 @@
 // The Actions panel (FR-30 to FR-33, FR-23, FR-90 to FR-94): assignee and
 // due date save straight away, descriptions need an explicit Save.
 import { computed, ref, toRef } from 'vue'
+import { useUnlessLocked } from '../meetingLock'
 import type { Project } from '../api/client'
 import type { Action } from '../api/actions'
 import {
@@ -47,9 +48,10 @@ const shown = computed(() =>
 const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((a) => !a.closed)))
 const closed = computed(() => (query.state === 'open' ? [] : shown.value.filter((a) => a.closed)))
 const writable = computed(() => !props.project.archived)
-const error = computed(
+const anyError = computed(
   () => update.error.value ?? close.error.value ?? create.error.value ?? ensureMember.error.value,
 )
+const error = useUnlessLocked(anyError)
 
 /** Members to choose from, plus a former Member still on a closed Action (FR-22). */
 function assigneeOptions(action: Action) {
