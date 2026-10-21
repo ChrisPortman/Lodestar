@@ -64,7 +64,7 @@ A dated, plain-text note written by a Member about an Action, Risk, Blocker, Mee
 _Avoid_: Note, update, remark
 
 **Meeting**:
-A time-boxed session, run by a Project Leader, in which a Project's Actions, Risks and Blockers are reviewed with its attendees. Comments on a Meeting are written during it and cannot be changed once it has ended.
+A time-boxed session, run by a Project Leader, in which a Project's Actions, Risks and Blockers are reviewed with its attendees. Its leader is always one of its attendees.
 _Avoid_: Session, standup, review
 
 **Meeting Minutes**:
