@@ -67,6 +67,10 @@ _Avoid_: Note, update, remark
 A time-boxed session, run by a Project Leader, in which a Project's Actions, Risks and Blockers are reviewed with its attendees. Its leader is always one of its attendees.
 _Avoid_: Session, standup, review
 
+**Meeting Lock**:
+The hold a Project Leader takes on a Project while running a Meeting. While it is held, only that leader can change the Project, its Actions, Risks, Blockers, Health Rating and Comments; Members can still be added and removed. It lapses if the leader goes quiet, and another Project Leader may then take it.
+_Avoid_: Freeze, checkout
+
 **Meeting Minutes**:
 The fixed record of a Meeting: when it happened, who attended, and the Changes and Comments made to the Project's Actions, Risks and Blockers during it. Produced once, when the Meeting ends, and never regenerated.
 _Avoid_: Notes, summary, report
