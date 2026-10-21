@@ -8,6 +8,8 @@ import { fakeRisks, type Risk } from './risks-backend'
 
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
+export type MeetingLock = components['schemas']['MeetingLockBody']
+export type MeetingSummary = components['schemas']['MeetingSummaryBody']
 export type { Action, Blocker, Comment, Risk }
 type Schemas = components['schemas']
 
@@ -44,7 +46,16 @@ export function fakeBackend(
   initialActions: Action[] = [],
   initialBlockers: Blocker[] = [],
   initialComments: Comment[] = [],
+  initialLock: MeetingLock | null = null,
 ) {
+  // One Meeting Lock, as the acting session sees it, for whichever Project is viewed.
+  let lock = initialLock
+  // Past Meetings, in any order; the server lists them newest first.
+  const meetings: MeetingSummary[] = []
+  // The bodies of Meetings created through the API, oldest first.
+  const created: Schemas['NewMeetingBody'][] = []
+  let heartbeats = 0
+  const lockedOut = () => lock !== null && lock.live && !lock.held_by_you
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
   // Member IDs per Project; each Project starts with its leader as its only Member.
@@ -169,6 +180,7 @@ export function fakeBackend(
     http.put(api('/projects/:id'), async ({ request, params }) => {
       const project = writable(params.id, request)
       if (project instanceof Response) return project
+      if (lockedOut()) return problem(409, 'Conflict')
       const body = (await request.json()) as Project
       if (!('description' in body) || !('health_rating' in body) || !('project_leader' in body))
         return problem(422, 'Unprocessable Content')
@@ -202,6 +214,99 @@ export function fakeBackend(
         project.version += 1
       }
       return HttpResponse.json<Project>(project)
+    }),
+    http.get(api('/projects/:id/meeting-lock'), () =>
+      lock ? HttpResponse.json<MeetingLock>(lock) : problem(404, 'Not Found'),
+    ),
+    http.post(api('/projects/:id/meeting-lock'), ({ params }) => {
+      const project = projects.find((p) => p.id === params.id)
+      if (!project) return problem(404, 'Not Found')
+      if (project.project_leader?.id !== acting) return problem(403, 'Forbidden')
+      if (lockedOut()) return problem(409, 'Conflict')
+      lock = {
+        leader: personRef(acting!),
+        acquired_at: new Date().toISOString(),
+        live: true,
+        held_by_you: true,
+      }
+      return HttpResponse.json<MeetingLock>(lock)
+    }),
+    // Another session taking over (setLock with held_by_you false) makes these 409.
+    http.put(api('/projects/:id/meeting-lock'), () => {
+      if (!lock) return problem(404, 'Not Found')
+      if (!lock.held_by_you) return problem(409, 'Conflict')
+      heartbeats++
+      lock = { ...lock, live: true }
+      return HttpResponse.json<MeetingLock>(lock)
+    }),
+    http.delete(api('/projects/:id/meeting-lock'), () => {
+      if (!lock) return problem(404, 'Not Found')
+      if (!lock.held_by_you) return problem(409, 'Conflict')
+      lock = null
+      return new HttpResponse(null, { status: 204 })
+    }),
+    http.post(api('/meetings'), async ({ request }) => {
+      const body = (await request.json()) as Schemas['NewMeetingBody']
+      if (!lock?.held_by_you) return problem(409, 'Conflict')
+      const project = projects.find((p) => p.id === body.project_id)
+      if (project?.project_leader?.id !== acting) return problem(403, 'Forbidden')
+      const leader = lock.leader
+      const ids = [leader.id, ...body.attendee_ids.filter((id) => id !== leader.id)]
+      const meeting: MeetingSummary = {
+        id: `meeting-${++n}`,
+        project_id: body.project_id,
+        leader,
+        attendees: ids.map(personRef),
+        started_at: lock.acquired_at,
+        ended_at: new Date().toISOString(),
+        version: 1,
+      }
+      meetings.push(meeting)
+      created.push(body)
+      lock = null
+      return HttpResponse.json({ ...meeting, minutes: {} }, { status: 201 })
+    }),
+    http.get(api('/meetings'), ({ request }) => {
+      const projectId = new URL(request.url).searchParams.get('project_id')
+      const items = meetings
+        .filter((m) => m.project_id === projectId)
+        .sort((a, b) => b.started_at.localeCompare(a.started_at))
+      return HttpResponse.json<Schemas['MeetingPage']>({
+        items,
+        limit: 100,
+        offset: 0,
+        total: items.length,
+      })
+    }),
+    // Stand-in Minutes: just enough to tell the renderings apart.
+    http.get(api('/meetings/:id/minutes'), ({ request, params }) => {
+      if (!meetings.some((m) => m.id === params.id)) return problem(404, 'Not Found')
+      const accept = request.headers.get('Accept')
+      const query = new URL(request.url).searchParams
+      const zone = query.has('tz_offset')
+        ? ` at UTC${query.get('tz_offset')} ${query.get('tz_name')}`
+        : ''
+      if (accept === 'text/html')
+        return HttpResponse.html(`<p>Formatted Minutes of ${params.id}${zone}</p>`)
+      if (accept === 'text/plain') return HttpResponse.text(`Plain Minutes of ${params.id}${zone}`)
+      if (accept === 'application/json')
+        return HttpResponse.json({
+          schema: 1,
+          project_name: `Formatted Minutes of ${params.id}`,
+          start: '2026-10-21T09:00:00Z',
+          end: '2026-10-21T10:15:00Z',
+          duration_minutes: 75,
+          leader: 'Ada',
+          attendees: ['Ada', 'Bob'],
+          actions: {
+            new: [
+              { reference: 'A-1', title: '<b>Ship</b>', state: ['Due 31 Oct'], comments: ['Soon'] },
+            ],
+            updated: [{ reference: 'A-2', title: 'Test', changes: ['Closed'], comments: [] }],
+          },
+          meeting_comments: ['Good meeting'],
+        })
+      return problem(406, 'Not Acceptable')
     }),
     http.get(api('/session'), () => {
       const person = people.find((p) => p.id === acting)
@@ -237,6 +342,11 @@ export function fakeBackend(
     blockers: blockers.blockers,
     comments: comments.comments,
     acting: () => acting,
+    meetings,
+    created,
+    heartbeats: () => heartbeats,
+    lock: () => lock,
+    setLock: (next: MeetingLock | null) => (lock = next),
   }
 }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Project } from '../api/client'
+import { useWriteError } from '../meetingLock'
 import { useSetHealthRating } from '../projects'
 import { RATING, TONE_CHIP, type RatingChoice } from '../status'
 
@@ -11,6 +12,7 @@ const props = defineProps<{ project: Project }>()
 const CHOICES: Choice[] = ['red', 'amber', 'green', 'none']
 
 const save = useSetHealthRating()
+const error = useWriteError(save)
 const editing = ref(false)
 const draftRating = ref<Choice>('none')
 const draftComment = ref('')
@@ -84,9 +86,7 @@ async function submit() {
           class="field"
         />
       </label>
-      <p v-if="save.error.value" role="alert" class="text-danger-text">
-        Couldn't save: {{ save.error.value.message }}
-      </p>
+      <p v-if="error" role="alert" class="text-danger-text">Couldn't save: {{ error.message }}</p>
       <div class="flex gap-2">
         <button type="submit" class="btn btn-primary">Save</button>
         <button type="button" class="btn" @click="editing = false">Cancel</button>

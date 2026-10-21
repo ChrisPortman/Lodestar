@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meeting_locks\n                    (project_id, session_id, leader_id, acquired_at, heartbeat_at)\n                 VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "6852af9e14d4cea6c5c6b38c7c89d3bd1a2d5a5f32d8a7913e854f8718b46f3e"
+}

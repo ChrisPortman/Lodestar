@@ -9,8 +9,9 @@ use crate::ports::{
     ActionRepository, BlockerRepository, BlockersQuery, Page, PageRequest, ReferenceCounter,
     ReferenceKind, RepoError, Transaction, UnitOfWork,
 };
-use crate::project::guard::{GuardError, writable_project};
+use crate::project::guard::{GuardError, MeetingInProgress, unlocked_project};
 use crate::project::{Description, DescriptionError, ProjectId};
+use crate::session::Actor;
 
 pub use crate::ports::{BlockerFilter, BlockerSort};
 
@@ -28,6 +29,8 @@ pub enum BlockerError {
     ActionInAnotherProject,
     #[error("the project is archived; unarchive it first")]
     Archived,
+    #[error("{0}")]
+    Locked(MeetingInProgress),
     #[error(transparent)]
     Repo(#[from] RepoError),
 }
@@ -36,6 +39,7 @@ impl From<GuardError> for BlockerError {
     fn from(error: GuardError) -> Self {
         match error {
             GuardError::Archived => Self::Archived,
+            GuardError::Locked(m) => Self::Locked(m),
             GuardError::Repo(e) => Self::Repo(e),
         }
     }
@@ -53,12 +57,14 @@ pub struct NewBlocker<'a> {
 /// Creates an open Blocker with the next Reference in its Project (FR-51, FR-52).
 pub async fn create_blocker<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     input: NewBlocker<'_>,
 ) -> Result<Blocker, BlockerError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let description = Description::new(input.description)?;
     let mut tx = uow.begin().await?;
-    let project = match writable_project(&mut tx, input.project_id).await {
+    let project = match unlocked_project(&mut tx, input.project_id, &actor).await {
         Err(GuardError::Repo(RepoError::NotFound)) => return Err(BlockerError::UnknownProject),
         other => other?,
     };
@@ -93,15 +99,17 @@ pub struct BlockerEdit<'a> {
 /// Sending what is already stored changes nothing.
 pub async fn update_blocker<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: BlockerId,
     expected_version: u32,
     edit: BlockerEdit<'_>,
 ) -> Result<Blocker, BlockerError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let description = Description::new(edit.description)?;
     let mut tx = uow.begin().await?;
     let before = tx.blockers().load(id).await?;
-    let project = writable_project(&mut tx, before.project_id()).await?;
+    let project = unlocked_project(&mut tx, before.project_id(), &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
@@ -128,14 +136,16 @@ pub async fn update_blocker<U: UnitOfWork>(
 /// longer a Member leaves it unassigned, as removal would have (FR-21).
 pub async fn set_blocker_cleared<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: BlockerId,
     expected_version: u32,
     cleared: bool,
 ) -> Result<Blocker, BlockerError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let mut tx = uow.begin().await?;
     let before = tx.blockers().load(id).await?;
-    let project = writable_project(&mut tx, before.project_id()).await?;
+    let project = unlocked_project(&mut tx, before.project_id(), &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
@@ -159,14 +169,16 @@ pub async fn set_blocker_cleared<U: UnitOfWork>(
 /// changes nothing.
 pub async fn link_blocked_action<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: BlockerId,
     expected_version: u32,
     action: ActionId,
 ) -> Result<Blocker, BlockerError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let mut tx = uow.begin().await?;
     let before = tx.blockers().load(id).await?;
-    writable_project(&mut tx, before.project_id()).await?;
+    unlocked_project(&mut tx, before.project_id(), &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
@@ -192,14 +204,16 @@ pub async fn link_blocked_action<U: UnitOfWork>(
 /// Action that is not linked changes nothing.
 pub async fn unlink_blocked_action<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: BlockerId,
     expected_version: u32,
     action: ActionId,
 ) -> Result<Blocker, BlockerError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let mut tx = uow.begin().await?;
     let before = tx.blockers().load(id).await?;
-    writable_project(&mut tx, before.project_id()).await?;
+    unlocked_project(&mut tx, before.project_id(), &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }

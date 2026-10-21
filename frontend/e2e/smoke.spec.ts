@@ -59,3 +59,35 @@ test('saving an Action changed underneath shows the conflict notice', async ({ p
   )
   await expect(page.getByLabel(`Description of ${action.reference}`)).toHaveValue('My wording')
 })
+
+test('run a Meeting and read its Minutes', async ({ page, request }) => {
+  const { person, project } = await seedProject(request, 'Meeting Project')
+  const action = await seedAction(request, project.id, 'Draft the agenda')
+
+  await actAs(page, person)
+  await page.goto(`/projects/${project.id}`)
+  await page.getByRole('button', { name: 'Project menu' }).click()
+  await page.getByRole('button', { name: 'Meetings' }).click()
+  await page.getByRole('button', { name: 'Start a Meeting now' }).click()
+
+  const panel = page.getByRole('dialog', { name: 'Meeting' })
+  await panel.getByLabel('Meeting Comment', { exact: true }).fill('Agreed the venue')
+  await panel.getByLabel('Meeting Comment', { exact: true }).press('Enter')
+  await expect(panel.getByRole('list', { name: 'Meeting Comments' })).toContainText(
+    'Agreed the venue',
+  )
+  await panel.getByRole('button', { name: 'Close' }).click()
+
+  await page.getByRole('button', { name: `Edit ${action.reference}` }).click()
+  await page.getByLabel(`Description of ${action.reference}`).fill('Send the agenda')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Actions' })).toContainText('Send the agenda')
+
+  await page.getByRole('button', { name: /● Meeting/ }).click()
+  await panel.getByRole('button', { name: 'End Meeting…' }).click()
+  await panel.getByRole('button', { name: 'Create Minutes' }).click()
+
+  const reader = page.getByRole('dialog', { name: /Minutes/ })
+  await expect(reader).toContainText('Description Draft the agenda → Send the agenda')
+  await expect(reader).toContainText('Agreed the venue')
+})

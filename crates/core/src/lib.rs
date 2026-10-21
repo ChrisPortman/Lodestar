@@ -5,10 +5,14 @@ pub mod blocker;
 pub mod comment;
 pub mod health;
 pub mod history;
+pub mod meeting;
+pub mod meeting_lock;
+pub mod minutes;
 pub mod person;
 pub mod ports;
 pub mod project;
 pub mod risk;
+pub mod session;
 
 #[cfg(feature = "test-support")]
 pub mod test_support;

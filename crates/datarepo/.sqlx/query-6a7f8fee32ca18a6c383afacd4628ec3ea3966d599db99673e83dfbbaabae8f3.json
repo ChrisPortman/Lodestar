@@ -1,0 +1,146 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, entity_type, entity_id, project_id, version, change_kind,\n                    acting_person_id, recorded_at, before, after, caused_by\n             FROM change_history\n             WHERE project_id = ? AND recorded_at >= ? AND recorded_at < ?\n             ORDER BY recorded_at, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "entity_type",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "entity_type"
+          }
+        }
+      },
+      {
+        "name": "entity_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "entity_id"
+          }
+        }
+      },
+      {
+        "name": "project_id",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "name": "change_kind",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "change_kind"
+          }
+        }
+      },
+      {
+        "name": "acting_person_id",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "acting_person_id"
+          }
+        }
+      },
+      {
+        "name": "recorded_at",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "recorded_at"
+          }
+        }
+      },
+      {
+        "name": "before",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "before"
+          }
+        }
+      },
+      {
+        "name": "after",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "after"
+          }
+        }
+      },
+      {
+        "name": "caused_by",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "change_history",
+            "name": "caused_by"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "6a7f8fee32ca18a6c383afacd4628ec3ea3966d599db99673e83dfbbaabae8f3"
+}

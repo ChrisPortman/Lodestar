@@ -6,14 +6,16 @@ use crate::action::ActionId;
 use crate::blocker::BlockerId;
 use crate::comment::{BodyError, Comment, CommentBody, CommentId, CommentView, Target, TargetType};
 use crate::history::ChangeContext;
+use crate::meeting::MeetingId;
 use crate::person::PersonId;
 use crate::ports::{
-    ActionRepository, BlockerRepository, CommentRepository, CommentsQuery, Page, PageRequest,
-    RepoError, RiskRepository, Transaction, UnitOfWork,
+    ActionRepository, BlockerRepository, CommentRepository, CommentsQuery, MeetingRepository, Page,
+    PageRequest, RepoError, RiskRepository, Transaction, UnitOfWork,
 };
-use crate::project::guard::{GuardError, writable_project};
+use crate::project::guard::{GuardError, MeetingInProgress, unlocked_project};
 use crate::project::{Project, ProjectId};
 use crate::risk::RiskId;
+use crate::session::Actor;
 
 pub use crate::ports::CommentFilter;
 
@@ -33,6 +35,8 @@ pub enum CommentError {
     Deleted,
     #[error("the project is archived; unarchive it first")]
     Archived,
+    #[error("{0}")]
+    Locked(MeetingInProgress),
     #[error(transparent)]
     Repo(#[from] RepoError),
 }
@@ -41,6 +45,7 @@ impl From<GuardError> for CommentError {
     fn from(error: GuardError) -> Self {
         match error {
             GuardError::Archived => Self::Archived,
+            GuardError::Locked(m) => Self::Locked(m),
             GuardError::Repo(e) => Self::Repo(e),
         }
     }
@@ -77,6 +82,11 @@ async fn check_target<T: Transaction>(
             .load(BlockerId::from_uuid(target.id))
             .await
             .map(|b| b.project_id()),
+        TargetType::Meeting => tx
+            .meetings()
+            .load(MeetingId::from_uuid(target.id))
+            .await
+            .map(|m| m.project_id()),
     };
     match owner {
         Ok(owner) if owner == project => Ok(()),
@@ -97,12 +107,14 @@ fn require_member(project: &Project, acting: PersonId) -> Result<(), CommentErro
 /// or closed (FR-120).
 pub async fn create_comment<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     input: NewComment<'_>,
 ) -> Result<Comment, CommentError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let body = CommentBody::new(input.body)?;
     let mut tx = uow.begin().await?;
-    let project = match writable_project(&mut tx, input.project_id).await {
+    let project = match unlocked_project(&mut tx, input.project_id, &actor).await {
         Err(GuardError::Repo(RepoError::NotFound)) => return Err(CommentError::UnknownProject),
         other => other?,
     };
@@ -120,12 +132,13 @@ pub async fn create_comment<U: UnitOfWork>(
 /// version matches, and the Acting Person is its author and still a Member.
 async fn own_comment<T: Transaction>(
     tx: &mut T,
-    acting: PersonId,
+    actor: &Actor,
     id: CommentId,
     expected_version: u32,
 ) -> Result<Comment, CommentError> {
+    let acting = actor.person;
     let comment = tx.comments().load(id).await?;
-    let project = writable_project(tx, comment.project_id()).await?;
+    let project = unlocked_project(tx, comment.project_id(), actor).await?;
     if comment.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
@@ -139,14 +152,16 @@ async fn own_comment<T: Transaction>(
 /// Replaces a Comment's text and marks it edited (FR-122).
 pub async fn edit_comment<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: CommentId,
     expected_version: u32,
     body: &str,
 ) -> Result<Comment, CommentError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let body = CommentBody::new(body)?;
     let mut tx = uow.begin().await?;
-    let before = own_comment(&mut tx, acting, id, expected_version).await?;
+    let before = own_comment(&mut tx, &actor, id, expected_version).await?;
     if before.is_deleted() {
         return Err(CommentError::Deleted);
     }
@@ -162,12 +177,14 @@ pub async fn edit_comment<U: UnitOfWork>(
 /// Deleting it again changes nothing.
 pub async fn delete_comment<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: CommentId,
     expected_version: u32,
 ) -> Result<Comment, CommentError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let mut tx = uow.begin().await?;
-    let before = own_comment(&mut tx, acting, id, expected_version).await?;
+    let before = own_comment(&mut tx, &actor, id, expected_version).await?;
     if before.is_deleted() {
         return Ok(before);
     }

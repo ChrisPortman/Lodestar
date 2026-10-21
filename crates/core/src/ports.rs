@@ -6,13 +6,15 @@
 use std::collections::HashSet;
 use std::future::Future;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
 use crate::blocker::{Blocker, BlockerId, BlockerView};
 use crate::comment::{Comment, CommentId, CommentView, Target};
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
+use crate::meeting::{Meeting, MeetingId, MeetingSummary, MeetingView};
+use crate::meeting_lock::MeetingLock;
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{PersonRef, Project, ProjectId, ProjectView};
 use crate::risk::{Risk, RiskId, RiskView};
@@ -53,6 +55,10 @@ pub trait Transaction: Send {
     fn blockers(&mut self) -> impl BlockerRepository + Send + '_;
 
     fn comments(&mut self) -> impl CommentRepository + Send + '_;
+
+    fn meeting_locks(&mut self) -> impl MeetingLockRepository + Send + '_;
+
+    fn meetings(&mut self) -> impl MeetingRepository + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
@@ -144,6 +150,38 @@ pub trait CommentRepository {
         after: &Comment,
         ctx: &ChangeContext,
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+/// Meetings. They are only ever created, so there is no `before`.
+pub trait MeetingRepository {
+    fn load(&mut self, id: MeetingId) -> impl Future<Output = Result<Meeting, RepoError>> + Send;
+
+    /// Stores a new Meeting and writes its Change History entry.
+    fn create(
+        &mut self,
+        meeting: &Meeting,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+/// Meeting Locks, at most one per Project. Not a domain resource: no
+/// version and no Change History.
+pub trait MeetingLockRepository {
+    fn load(
+        &mut self,
+        project: ProjectId,
+    ) -> impl Future<Output = Result<Option<MeetingLock>, RepoError>> + Send;
+
+    /// Stores `after` in place of `before` (`None`: no lock). Returns
+    /// [`RepoError::Conflict`] if the stored lock is no longer `before`.
+    fn save(
+        &mut self,
+        before: Option<&MeetingLock>,
+        after: &MeetingLock,
+    ) -> impl Future<Output = Result<(), RepoError>> + Send;
+
+    /// Deletes `lock`; [`RepoError::Conflict`] if it is no longer stored.
+    fn delete(&mut self, lock: &MeetingLock) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
 
 /// The kinds of item that get a per-Project Reference (ADR-0001).
@@ -351,6 +389,15 @@ pub trait HistoryQuery: Send + Sync {
         &self,
         project_id: ProjectId,
     ) -> impl Future<Output = Result<Vec<HistoryEntry>, RepoError>> + Send;
+
+    /// The entries for a Project and its items recorded in `[from, to)`, in
+    /// the order recorded.
+    fn project_history_between(
+        &self,
+        project_id: ProjectId,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> impl Future<Output = Result<Vec<HistoryEntry>, RepoError>> + Send;
 }
 
 /// Who an Action or Blocker must be assigned to, to be listed.
@@ -472,4 +519,19 @@ pub trait CommentsQuery: Send + Sync {
         &self,
         id: CommentId,
     ) -> impl Future<Output = Result<CommentView, RepoError>> + Send;
+}
+
+/// Read-only views of Meetings.
+pub trait MeetingsQuery: Send + Sync {
+    /// A Project's Meetings, newest first, without their Minutes.
+    fn list_meetings(
+        &self,
+        project_id: ProjectId,
+        page: PageRequest,
+    ) -> impl Future<Output = Result<Page<MeetingSummary>, RepoError>> + Send;
+
+    fn get_meeting(
+        &self,
+        id: MeetingId,
+    ) -> impl Future<Output = Result<MeetingView, RepoError>> + Send;
 }

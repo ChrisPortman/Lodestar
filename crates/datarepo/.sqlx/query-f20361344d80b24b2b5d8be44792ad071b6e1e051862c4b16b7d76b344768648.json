@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT a.person_id, p.display_name\n         FROM meeting_attendees a JOIN people p ON p.id = a.person_id\n         WHERE a.meeting_id = ?\n         ORDER BY a.position",
+  "describe": {
+    "columns": [
+      {
+        "name": "person_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_attendees",
+            "name": "person_id"
+          }
+        }
+      },
+      {
+        "name": "display_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "people",
+            "name": "display_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f20361344d80b24b2b5d8be44792ad071b6e1e051862c4b16b7d76b344768648"
+}

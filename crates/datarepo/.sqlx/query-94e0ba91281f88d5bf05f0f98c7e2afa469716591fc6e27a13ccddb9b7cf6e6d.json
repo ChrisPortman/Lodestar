@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT project_id, leader_id, started_at, ended_at, minutes, version\n             FROM meetings WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "project_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "project_id"
+          }
+        }
+      },
+      {
+        "name": "leader_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "leader_id"
+          }
+        }
+      },
+      {
+        "name": "started_at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "started_at"
+          }
+        }
+      },
+      {
+        "name": "ended_at",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "ended_at"
+          }
+        }
+      },
+      {
+        "name": "minutes",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "minutes"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "94e0ba91281f88d5bf05f0f98c7e2afa469716591fc6e27a13ccddb9b7cf6e6d"
+}

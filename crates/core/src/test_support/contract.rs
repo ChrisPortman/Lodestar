@@ -8,6 +8,9 @@ use crate::blocker::{Blocker, BlockerId};
 use crate::comment::{CommentBody, CommentId, Target, TargetType};
 
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
+use crate::meeting::{Meeting, MeetingId};
+use crate::meeting_lock::MeetingLock;
+use crate::minutes::{MINUTES_SCHEMA, Minutes};
 use crate::person::PersonId;
 use crate::ports::{
     ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
@@ -16,8 +19,10 @@ use crate::ports::{
     ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError,
     RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
+use crate::ports::{MeetingLockRepository, MeetingRepository, MeetingsQuery};
 use crate::project::{Description, Project, ProjectId, ProjectName};
 use crate::risk::{Rating, RiskId};
+use crate::session::SessionId;
 use crate::test_support::{a_comment, a_person, a_project, a_risk};
 
 /// Everything a full store adapter provides.
@@ -30,6 +35,7 @@ pub trait Store:
     + BlockersQuery
     + CommentsQuery
     + HistoryQuery
+    + MeetingsQuery
 {
 }
 impl<
@@ -40,7 +46,8 @@ impl<
         + ActionsQuery
         + BlockersQuery
         + CommentsQuery
-        + HistoryQuery,
+        + HistoryQuery
+        + MeetingsQuery,
 > Store for T
 {
 }
@@ -406,6 +413,40 @@ pub async fn project_history_holds_the_project_and_its_items_in_time_order(store
             (EntityType::Risk, risk.id().as_uuid(), 2),
         ]
     );
+}
+
+pub async fn project_history_can_be_read_for_a_half_open_window(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let other = a_saved_project(&store, "DOCS").await;
+    let before = a_risk(project.id(), 1).build();
+    save_risk(&store, &before).await;
+    let from = chrono::Utc::now();
+    let inside = a_risk(project.id(), 2).build();
+    let elsewhere = a_risk(other.id(), 1).build();
+    save_risk(&store, &inside).await;
+    save_risk(&store, &elsewhere).await;
+    let to = chrono::Utc::now();
+    let after = a_risk(project.id(), 3).build();
+    save_risk(&store, &after).await;
+
+    let history = store
+        .project_history_between(project.id(), from, to)
+        .await
+        .unwrap();
+    let seen: Vec<Uuid> = history.iter().map(|e| e.entity_id).collect();
+    assert_eq!(seen, [inside.id().as_uuid()]);
+
+    let empty = store
+        .project_history_between(project.id(), to, to)
+        .await
+        .unwrap();
+    assert!(empty.is_empty());
+}
+
+async fn save_risk(store: &impl Store, risk: &crate::risk::Risk) {
+    let mut tx = store.begin().await.unwrap();
+    tx.risks().save(None, risk, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
 }
 
 pub async fn projects_are_listed_without_archived_ones_by_default(store: impl Store) {
@@ -1146,6 +1187,200 @@ pub async fn comments_are_listed_oldest_first_by_project_and_target(store: impl 
     );
 }
 
+fn a_lock(project: ProjectId, leader: PersonId, session: &str) -> MeetingLock {
+    let at = chrono::DateTime::parse_from_rfc3339("2026-10-21T09:00:00.123456Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    MeetingLock::acquire(project, SessionId::new(session), leader, at)
+}
+
+/// A Project and its leader, saved, for a Meeting Lock to refer to.
+async fn a_led_project(store: &impl Store) -> (ProjectId, PersonId) {
+    let ada = a_person().named("Ada").build();
+    let project = a_project(ada.id()).build();
+    let mut tx = store.begin().await.unwrap();
+    tx.people().save(None, &ada, &ctx()).await.unwrap();
+    tx.projects().save(None, &project, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+    (project.id(), ada.id())
+}
+
+pub async fn a_meeting_lock_can_be_saved_heartbeaten_and_deleted(store: impl Store) {
+    let (project, ada) = a_led_project(&store).await;
+    let lock = a_lock(project, ada, "s1");
+    let beaten = lock.heartbeat(lock.heartbeat_at() + chrono::TimeDelta::microseconds(90_000_001));
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meeting_locks().load(project).await.unwrap(), None);
+    tx.meeting_locks().save(None, &lock).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(
+        tx.meeting_locks().load(project).await.unwrap(),
+        Some(lock.clone())
+    );
+    tx.meeting_locks().save(Some(&lock), &beaten).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(
+        tx.meeting_locks().load(project).await.unwrap(),
+        Some(beaten.clone())
+    );
+    tx.meeting_locks().delete(&beaten).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meeting_locks().load(project).await.unwrap(), None);
+}
+
+pub async fn a_meeting_lock_is_replaced_only_from_its_stored_state(store: impl Store) {
+    let (project, ada) = a_led_project(&store).await;
+    let first = a_lock(project, ada, "s1");
+    let mut tx = store.begin().await.unwrap();
+    tx.meeting_locks().save(None, &first).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let other = a_lock(project, ada, "s2");
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(
+        tx.meeting_locks().save(None, &other).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.meeting_locks()
+            .save(Some(&other), &other)
+            .await
+            .unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.meeting_locks().delete(&other).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    tx.meeting_locks().save(Some(&first), &other).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meeting_locks().load(project).await.unwrap(), Some(other));
+}
+
+fn a_meeting(project: ProjectId, leader: PersonId, attendees: &[PersonId], hour: u32) -> Meeting {
+    use chrono::TimeZone;
+    let start = chrono::Utc
+        .with_ymd_and_hms(2026, 10, 21, hour, 0, 0)
+        .unwrap();
+    let end = start + chrono::TimeDelta::microseconds(1_800_000_001);
+    let minutes = Minutes {
+        schema: MINUTES_SCHEMA,
+        project_name: "Website".to_owned(),
+        start,
+        end,
+        duration_minutes: 30,
+        leader: "Ada".to_owned(),
+        attendees: vec!["Ada".to_owned(), "Bob".to_owned()],
+        actions: None,
+        risks: None,
+        blockers: None,
+        meeting_comments: vec!["Good progress".to_owned()],
+    };
+    Meeting::create(
+        MeetingId::new(),
+        project,
+        leader,
+        attendees,
+        start,
+        end,
+        minutes,
+    )
+}
+
+pub async fn a_meeting_can_be_created_loaded_and_read(store: impl Store) {
+    let (project, ada) = a_led_project(&store).await;
+    let bob = a_person().named("Bob").build();
+    let mut tx = store.begin().await.unwrap();
+    tx.people().save(None, &bob, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+    let meeting = a_meeting(project, ada, &[bob.id()], 9);
+
+    let mut tx = store.begin().await.unwrap();
+    let entry = tx.meetings().create(&meeting, &ctx()).await.unwrap();
+    assert_eq!(
+        tx.meetings().create(&meeting, &ctx()).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meetings().load(meeting.id()).await.unwrap(), meeting);
+    assert_eq!(
+        tx.meetings().load(MeetingId::new()).await.unwrap_err(),
+        RepoError::NotFound
+    );
+
+    let view = store.get_meeting(meeting.id()).await.unwrap();
+    assert_eq!(&view.minutes, meeting.minutes());
+    assert_eq!(view.summary.leader.display_name, "Ada");
+    let names: Vec<_> = view
+        .summary
+        .attendees
+        .iter()
+        .map(|a| a.display_name.as_str())
+        .collect();
+    assert_eq!(names, ["Ada", "Bob"]);
+    assert_eq!(view.summary.started_at, meeting.started_at());
+    assert_eq!(view.summary.ended_at, meeting.ended_at());
+    assert_eq!(view.summary.version, 1);
+
+    let history = store
+        .entity_history(
+            EntityType::Meeting,
+            meeting.id().as_uuid(),
+            PageRequest::first(10),
+        )
+        .await
+        .unwrap();
+    assert_eq!(history.total, 1);
+    assert_eq!(history.items[0].id, entry);
+    assert_eq!(history.items[0].change_kind, ChangeKind::Created);
+    assert_eq!(history.items[0].after, snapshot(&meeting));
+}
+
+pub async fn meetings_are_listed_newest_first_per_project(store: impl Store) {
+    let (project, ada) = a_led_project(&store).await;
+    let other = a_project(ada).coded("OTHR").build();
+    // Created out of time order, so ID order is not enough.
+    let newer = a_meeting(project, ada, &[], 11);
+    let older = a_meeting(project, ada, &[], 9);
+    let elsewhere = a_meeting(other.id(), ada, &[], 10);
+    let mut tx = store.begin().await.unwrap();
+    tx.projects().save(None, &other, &ctx()).await.unwrap();
+    for m in [&older, &newer, &elsewhere] {
+        tx.meetings().create(m, &ctx()).await.unwrap();
+    }
+    tx.commit().await.unwrap();
+
+    let page = store
+        .list_meetings(project, PageRequest::first(10))
+        .await
+        .unwrap();
+    assert_eq!(page.total, 2);
+    let ids: Vec<_> = page.items.iter().map(|m| m.id).collect();
+    assert_eq!(ids, [newer.id(), older.id()]);
+    let page = store
+        .list_meetings(
+            project,
+            PageRequest {
+                offset: 1,
+                limit: 1,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!((page.total, page.items[0].id), (2, older.id()));
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -1186,9 +1421,14 @@ macro_rules! port_contract_tests {
             open_blockers_a_person_is_accountable_for_can_be_found,
             blockers_are_listed_by_project_code_and_reference,
             project_history_holds_the_project_and_its_items_in_time_order,
+            project_history_can_be_read_for_a_half_open_window,
             saved_comment_can_be_loaded_updated_and_deleted,
             each_comment_save_writes_a_history_entry,
-            comments_are_listed_oldest_first_by_project_and_target
+            comments_are_listed_oldest_first_by_project_and_target,
+            a_meeting_lock_can_be_saved_heartbeaten_and_deleted,
+            a_meeting_lock_is_replaced_only_from_its_stored_state,
+            a_meeting_can_be_created_loaded_and_read,
+            meetings_are_listed_newest_first_per_project
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

@@ -6,7 +6,7 @@ pub mod contract;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
@@ -15,13 +15,16 @@ use crate::comment::{Comment, CommentBody, CommentId, CommentView, Target, Targe
 use crate::history::{
     ChangeContext, ChangeKind, EntityType, HistoryEntry, HistoryEntryId, snapshot,
 };
+use crate::meeting::{Meeting, MeetingId, MeetingSummary, MeetingView};
+use crate::meeting_lock::MeetingLock;
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
     ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
     BlockerSort, BlockersQuery, CommentFilter, CommentRepository, CommentsQuery, HistoryQuery,
-    Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository, ProjectSort,
-    ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter, RiskRepository,
-    RiskSort, RisksQuery, Transaction, UnitOfWork,
+    MeetingLockRepository, MeetingRepository, MeetingsQuery, Page, PageRequest, PeopleQuery,
+    PeopleSort, PersonRepository, ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter,
+    ReferenceKind, RepoError, RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction,
+    UnitOfWork,
 };
 use crate::project::{
     Description, ItemRef, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
@@ -38,6 +41,8 @@ struct State {
     actions: BTreeMap<ActionId, Action>,
     blockers: BTreeMap<BlockerId, Blocker>,
     comments: BTreeMap<CommentId, Comment>,
+    meeting_locks: BTreeMap<ProjectId, MeetingLock>,
+    meetings: BTreeMap<MeetingId, Meeting>,
 }
 
 /// An in-memory store implementing every port. Transactions work on a copy
@@ -102,8 +107,46 @@ impl Transaction for InMemoryTx {
         InMemoryComments(&mut self.work)
     }
 
+    fn meeting_locks(&mut self) -> impl MeetingLockRepository + Send + '_ {
+        InMemoryMeetingLocks(&mut self.work)
+    }
+
+    fn meetings(&mut self) -> impl MeetingRepository + Send + '_ {
+        InMemoryMeetings(&mut self.work)
+    }
+
     async fn commit(self) -> Result<(), RepoError> {
         *self.store.lock().expect("store lock") = self.work;
+        Ok(())
+    }
+}
+
+struct InMemoryMeetingLocks<'a>(&'a mut State);
+
+impl MeetingLockRepository for InMemoryMeetingLocks<'_> {
+    async fn load(&mut self, project: ProjectId) -> Result<Option<MeetingLock>, RepoError> {
+        Ok(self.0.meeting_locks.get(&project).cloned())
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&MeetingLock>,
+        after: &MeetingLock,
+    ) -> Result<(), RepoError> {
+        if self.0.meeting_locks.get(&after.project_id()) != before {
+            return Err(RepoError::Conflict);
+        }
+        self.0
+            .meeting_locks
+            .insert(after.project_id(), after.clone());
+        Ok(())
+    }
+
+    async fn delete(&mut self, lock: &MeetingLock) -> Result<(), RepoError> {
+        if self.0.meeting_locks.get(&lock.project_id()) != Some(lock) {
+            return Err(RepoError::Conflict);
+        }
+        self.0.meeting_locks.remove(&lock.project_id());
         Ok(())
     }
 }
@@ -359,6 +402,96 @@ impl RiskRepository for InMemoryRisks<'_> {
             caused_by: ctx.caused_by,
         });
         Ok(id)
+    }
+}
+
+struct InMemoryMeetings<'a>(&'a mut State);
+
+impl MeetingRepository for InMemoryMeetings<'_> {
+    async fn load(&mut self, id: MeetingId) -> Result<Meeting, RepoError> {
+        self.0.meetings.get(&id).cloned().ok_or(RepoError::NotFound)
+    }
+
+    async fn create(
+        &mut self,
+        meeting: &Meeting,
+        ctx: &ChangeContext,
+    ) -> Result<HistoryEntryId, RepoError> {
+        if self.0.meetings.contains_key(&meeting.id()) {
+            return Err(RepoError::Conflict);
+        }
+        if !self.0.projects.contains_key(&meeting.project_id())
+            || !meeting
+                .attendees()
+                .iter()
+                .all(|a| self.0.people.contains_key(a))
+        {
+            return Err(RepoError::Unexpected(
+                "meeting in an unknown project or with an unknown person".to_owned(),
+            ));
+        }
+        self.0.meetings.insert(meeting.id(), meeting.clone());
+        let id = HistoryEntryId::new();
+        self.0.history.push(HistoryEntry {
+            id,
+            entity_type: EntityType::Meeting,
+            entity_id: meeting.id().as_uuid(),
+            project_id: Some(meeting.project_id().as_uuid()),
+            version: meeting.version(),
+            change_kind: ChangeKind::Created,
+            acting_person: ctx.acting_person,
+            recorded_at: Utc::now(),
+            before: None,
+            after: snapshot(meeting),
+            caused_by: ctx.caused_by,
+        });
+        Ok(id)
+    }
+}
+
+fn meeting_summary(state: &State, meeting: &Meeting) -> MeetingSummary {
+    MeetingSummary {
+        id: meeting.id(),
+        project_id: meeting.project_id(),
+        leader: person_ref(state, meeting.leader()),
+        attendees: meeting
+            .attendees()
+            .iter()
+            .map(|&a| person_ref(state, a))
+            .collect(),
+        started_at: meeting.started_at(),
+        ended_at: meeting.ended_at(),
+        version: meeting.version(),
+    }
+}
+
+impl MeetingsQuery for InMemoryStore {
+    async fn list_meetings(
+        &self,
+        project_id: ProjectId,
+        page: PageRequest,
+    ) -> Result<Page<MeetingSummary>, RepoError> {
+        let state = self.snapshot();
+        let mut all: Vec<_> = state
+            .meetings
+            .values()
+            .filter(|m| m.project_id() == project_id)
+            .collect();
+        all.sort_by_key(|m| std::cmp::Reverse((m.started_at(), m.id())));
+        let all = all
+            .into_iter()
+            .map(|m| meeting_summary(&state, m))
+            .collect();
+        Ok(page_of(all, page))
+    }
+
+    async fn get_meeting(&self, id: MeetingId) -> Result<MeetingView, RepoError> {
+        let state = self.snapshot();
+        let meeting = state.meetings.get(&id).ok_or(RepoError::NotFound)?;
+        Ok(MeetingView {
+            summary: meeting_summary(&state, meeting),
+            minutes: meeting.minutes().clone(),
+        })
     }
 }
 
@@ -620,6 +753,20 @@ impl HistoryQuery for InMemoryStore {
             .history
             .into_iter()
             .filter(|e| e.project_id == Some(project_id.as_uuid()))
+            .collect())
+    }
+
+    async fn project_history_between(
+        &self,
+        project_id: ProjectId,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<HistoryEntry>, RepoError> {
+        Ok(self
+            .project_history(project_id)
+            .await?
+            .into_iter()
+            .filter(|e| from <= e.recorded_at && e.recorded_at < to)
             .collect())
     }
 }

@@ -5,11 +5,15 @@ import ActionsPanel from '../components/ActionsPanel.vue'
 import BlockersPanel from '../components/BlockersPanel.vue'
 import CommentsSection from '../components/CommentsSection.vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
+import MeetingPanel from '../components/MeetingPanel.vue'
+import MinutesReader from '../components/MinutesReader.vue'
 import ProjectMenuPanel from '../components/ProjectMenuPanel.vue'
 import RisksPanel from '../components/RisksPanel.vue'
+import { clockTime, useBlockingLock } from '../meetingLock'
 import { markViewed, provideComments, useComments } from '../comments'
 import { useMembers } from '../members'
 import { useProject } from '../projects'
+import { provideRunningMeeting } from '../runningMeeting'
 import { useSession } from '../session'
 
 const props = defineProps<{ id: string }>()
@@ -19,6 +23,15 @@ const session = useSession()
 const members = useMembers(projectId)
 const comments = useComments(projectId)
 const showMenu = ref(false)
+const blockingLock = useBlockingLock(projectId)
+const meeting = provideRunningMeeting(projectId)
+
+// The Meeting panel and the Project menu are never open together.
+watch(meeting.panelOpen, (open) => open && (showMenu.value = false))
+function toggleMenu() {
+  showMenu.value = !showMenu.value
+  if (showMenu.value) meeting.panelOpen.value = false
+}
 
 // Highlighting compares against the previous visit for the whole page visit.
 const since = ref<string | null>(null)
@@ -39,7 +52,8 @@ provideComments({
 </script>
 
 <template>
-  <section>
+  <!-- While a Meeting runs the page keeps the strip's width free, so nothing moves. -->
+  <section :class="{ 'pr-10': meeting.running.value }">
     <p v-if="project.isPending.value" class="text-muted">Loading…</p>
     <p v-else-if="project.error.value" role="alert" class="text-danger-text">
       Couldn't load the Project: {{ project.error.value.message }}
@@ -66,7 +80,7 @@ provideComments({
             class="btn"
             aria-label="Project menu"
             :aria-expanded="showMenu"
-            @click="showMenu = !showMenu"
+            @click="toggleMenu"
           >
             <svg viewBox="0 0 24 24" class="size-5" aria-hidden="true">
               <path
@@ -78,10 +92,36 @@ provideComments({
             </svg>
           </button>
         </div>
-        <HealthRatingControl :project="project.data.value" />
+        <p
+          v-if="blockingLock"
+          role="status"
+          aria-label="Meeting in progress"
+          class="rounded bg-st-amber-bg px-3 py-2 text-st-amber-fg"
+        >
+          Meeting in progress, led by {{ blockingLock.leader.display_name }}, since
+          {{ clockTime(blockingLock.acquired_at) }}
+        </p>
+        <!-- A disabled fieldset disables every control inside it (Member management is outside). -->
+        <fieldset :disabled="!!blockingLock" class="contents">
+          <HealthRatingControl :project="project.data.value" />
+        </fieldset>
       </header>
       <ProjectMenuPanel v-if="showMenu" :project="project.data.value" @close="showMenu = false" />
-      <div class="mt-6 grid gap-6">
+      <MeetingPanel v-if="meeting.running.value && meeting.panelOpen.value" :project-id="id" />
+      <button
+        v-else-if="meeting.running.value"
+        type="button"
+        class="fixed inset-y-0 right-0 z-10 w-10 border-l-4 border-accent bg-accent-soft text-sm font-medium [writing-mode:vertical-rl]"
+        @click="meeting.panelOpen.value = true"
+      >
+        ● Meeting {{ meeting.elapsed.value }} · {{ meeting.state.comments.length }} Comments
+      </button>
+      <MinutesReader
+        v-if="meeting.created.value"
+        :meeting="meeting.created.value"
+        @close="meeting.created.value = null"
+      />
+      <fieldset :disabled="!!blockingLock" class="mt-6 grid min-w-0 gap-6">
         <!-- Panels in FR-94 order: Actions, Blockers, then Risks last. -->
         <ActionsPanel :project="project.data.value" />
         <BlockersPanel :project="project.data.value" />
@@ -96,7 +136,7 @@ provideComments({
           </p>
           <CommentsSection target-type="project" :target-id="id" label="the Project" />
         </section>
-      </div>
+      </fieldset>
     </template>
   </section>
 </template>

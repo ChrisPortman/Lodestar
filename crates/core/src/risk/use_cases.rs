@@ -2,14 +2,14 @@
 //! archived-Project guard.
 
 use crate::history::ChangeContext;
-use crate::person::PersonId;
 use crate::ports::{
     Page, PageRequest, ReferenceCounter, ReferenceKind, RepoError, RiskRepository, RisksQuery,
     Transaction, UnitOfWork,
 };
-use crate::project::guard::{GuardError, writable_project};
+use crate::project::guard::{GuardError, MeetingInProgress, unlocked_project};
 use crate::project::{Description, DescriptionError, ProjectId};
 use crate::risk::{Rating, RatingError, Risk, RiskEdit, RiskId, RiskView};
+use crate::session::Actor;
 
 pub use crate::ports::{RiskFilter, RiskSort};
 
@@ -23,6 +23,8 @@ pub enum RiskError {
     UnknownProject,
     #[error("the project is archived; unarchive it first")]
     Archived,
+    #[error("{0}")]
+    Locked(MeetingInProgress),
     #[error(transparent)]
     Repo(#[from] RepoError),
 }
@@ -31,6 +33,7 @@ impl From<GuardError> for RiskError {
     fn from(error: GuardError) -> Self {
         match error {
             GuardError::Archived => Self::Archived,
+            GuardError::Locked(m) => Self::Locked(m),
             GuardError::Repo(e) => Self::Repo(e),
         }
     }
@@ -60,13 +63,15 @@ fn validate(
 /// Creates an open Risk with the next Reference in its Project (FR-42, FR-43).
 pub async fn create_risk<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     input: NewRisk<'_>,
 ) -> Result<Risk, RiskError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let (description, likelihood, impact) =
         validate(input.description, input.likelihood, input.impact)?;
     let mut tx = uow.begin().await?;
-    match writable_project(&mut tx, input.project_id).await {
+    match unlocked_project(&mut tx, input.project_id, &actor).await {
         Err(GuardError::Repo(RepoError::NotFound)) => return Err(RiskError::UnknownProject),
         other => other?,
     };
@@ -85,16 +90,18 @@ pub async fn create_risk<U: UnitOfWork>(
 /// Replaces a Risk's description, likelihood and impact (FR-42).
 pub async fn update_risk<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: RiskId,
     expected_version: u32,
     edit: RiskEdit<'_>,
 ) -> Result<Risk, RiskError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let (description, likelihood, impact) =
         validate(edit.description, edit.likelihood, edit.impact)?;
     let mut tx = uow.begin().await?;
     let before = tx.risks().load(id).await?;
-    writable_project(&mut tx, before.project_id()).await?;
+    unlocked_project(&mut tx, before.project_id(), &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
@@ -110,14 +117,16 @@ pub async fn update_risk<U: UnitOfWork>(
 /// changes nothing.
 pub async fn set_closed<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: RiskId,
     expected_version: u32,
     closed: bool,
 ) -> Result<Risk, RiskError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let mut tx = uow.begin().await?;
     let before = tx.risks().load(id).await?;
-    writable_project(&mut tx, before.project_id()).await?;
+    unlocked_project(&mut tx, before.project_id(), &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }

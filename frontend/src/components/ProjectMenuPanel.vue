@@ -2,14 +2,15 @@
 import { ref } from 'vue'
 import type { Project } from '../api/client'
 import ExportControl from './ExportControl.vue'
+import MeetingsPanel from './MeetingsPanel.vue'
 import MembersPanel from './MembersPanel.vue'
 
 defineProps<{ project: Project }>()
 const emit = defineEmits<{ close: [] }>()
 
 // Always opens on the menu: the panel is remounted on each open (#61).
-const view = ref<'menu' | 'members' | 'export'>('menu')
-const titles = { menu: 'Project menu', members: 'Members', export: 'Export' }
+const view = ref<'menu' | 'meetings' | 'members' | 'export'>('menu')
+const titles = { menu: 'Project menu', meetings: 'Meetings', members: 'Members', export: 'Export' }
 </script>
 
 <template>
@@ -26,9 +27,11 @@ const titles = { menu: 'Project menu', members: 'Members', export: 'Export' }
     </div>
 
     <nav v-if="view === 'menu'" class="mt-4 grid gap-2">
+      <button type="button" class="btn" @click="view = 'meetings'">Meetings</button>
       <button type="button" class="btn" @click="view = 'members'">Manage Members</button>
       <button type="button" class="btn" @click="view = 'export'">Export</button>
     </nav>
+    <MeetingsPanel v-else-if="view === 'meetings'" :project="project" />
     <MembersPanel v-else-if="view === 'members'" :project="project" />
     <ExportControl v-else :project="project" class="mt-4" />
   </aside>
