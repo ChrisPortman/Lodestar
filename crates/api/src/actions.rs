@@ -31,7 +31,7 @@ use crate::{
     problem::Problem,
     refs::{ItemRefBody, PersonRefBody},
     request::{JsonBody, Path, Query, etag, if_match, not_allowed, page_request, present},
-    session::Acting,
+    session::Writer,
 };
 
 pub fn routes<S: Store>() -> Router<AppState<S>> {
@@ -248,13 +248,13 @@ async fn list<S: Store>(
     responses(
         (status = 201, body = ActionBody, headers(("location" = String), ("etag" = String))),
         (status = 401, description = "No valid session", body = Problem, content_type = "application/problem+json"),
-        (status = 409, description = "The Project is archived", body = Problem, content_type = "application/problem+json"),
+        (status = 409, description = "The Project is archived, or another session holds its live Meeting Lock", body = Problem, content_type = "application/problem+json"),
         (status = 422, description = "Invalid Action", body = Problem, content_type = "application/problem+json"),
     )
 )]
 async fn create<S: Store>(
     State(state): State<AppState<S>>,
-    Acting(acting): Acting,
+    Writer(acting): Writer,
     JsonBody(input): JsonBody<ActionInput>,
 ) -> Result<Response, Problem> {
     if input.id.is_some()
@@ -324,7 +324,7 @@ async fn fetch<S: Store>(
         (status = 200, body = ActionBody, headers(("etag" = String))),
         (status = 401, description = "No valid session", body = Problem, content_type = "application/problem+json"),
         (status = 404, body = Problem, content_type = "application/problem+json"),
-        (status = 409, description = "The Project is archived", body = Problem, content_type = "application/problem+json"),
+        (status = 409, description = "The Project is archived, or another session holds its live Meeting Lock", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Out of date", body = Problem, content_type = "application/problem+json"),
         (status = 422, description = "Invalid Action", body = Problem, content_type = "application/problem+json"),
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
@@ -332,7 +332,7 @@ async fn fetch<S: Store>(
 )]
 async fn update<S: Store>(
     State(state): State<AppState<S>>,
-    Acting(acting): Acting,
+    Writer(acting): Writer,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
     JsonBody(input): JsonBody<ActionInput>,
@@ -403,7 +403,7 @@ async fn update<S: Store>(
         (status = 200, body = ActionBody, headers(("etag" = String))),
         (status = 401, description = "No valid session", body = Problem, content_type = "application/problem+json"),
         (status = 404, body = Problem, content_type = "application/problem+json"),
-        (status = 409, description = "The Project is archived", body = Problem, content_type = "application/problem+json"),
+        (status = 409, description = "The Project is archived, or another session holds its live Meeting Lock", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Out of date", body = Problem, content_type = "application/problem+json"),
         (status = 422, description = "Invalid patch", body = Problem, content_type = "application/problem+json"),
         (status = 428, description = "If-Match missing", body = Problem, content_type = "application/problem+json"),
@@ -411,7 +411,7 @@ async fn update<S: Store>(
 )]
 async fn close<S: Store>(
     State(state): State<AppState<S>>,
-    Acting(acting): Acting,
+    Writer(acting): Writer,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
     JsonBody(patch): JsonBody<ActionPatch>,

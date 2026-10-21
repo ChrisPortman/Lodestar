@@ -7,14 +7,26 @@ use axum::{
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use chrono::{DateTime, Utc};
 use lodestar_core::{
     action::use_cases::ActionError, blocker::use_cases::BlockerError,
     comment::use_cases::CommentError, meeting_lock::use_cases::LockError,
-    person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
-    risk::use_cases::RiskError,
+    person::use_cases::PersonError, ports::RepoError, project::guard::MeetingInProgress,
+    project::use_cases::ProjectError, risk::use_cases::RiskError,
 };
 use serde::Serialize;
+
+use crate::refs::PersonRefBody;
 use utoipa::ToSchema;
+
+/// The Meeting in progress, as named on a refused write.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = MeetingInProgress)]
+pub struct MeetingInProgressBody {
+    pub leader: PersonRefBody,
+    #[schema(value_type = String, format = DateTime)]
+    pub since: DateTime<Utc>,
+}
 
 /// An RFC 9457 problem details object, served as `application/problem+json`.
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -26,6 +38,9 @@ pub struct Problem {
     pub status: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    /// The live Meeting that refused a write, on such a 409.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meeting: Option<Box<MeetingInProgressBody>>,
     #[serde(skip)]
     allow: Option<&'static str>,
 }
@@ -37,6 +52,7 @@ impl Problem {
             title: status.canonical_reason().unwrap_or("Error").to_owned(),
             status: status.as_u16(),
             detail: None,
+            meeting: None,
             allow: None,
         }
     }
@@ -68,6 +84,16 @@ impl Problem {
         let mut problem =
             Self::new(StatusCode::METHOD_NOT_ALLOWED).detail("nothing is deleted (ADR-0006)");
         problem.allow = Some(allow);
+        problem
+    }
+
+    /// 409: a Meeting Lock held by another session makes the Project read-only.
+    pub fn locked(meeting: MeetingInProgress) -> Self {
+        let mut problem = Self::new(StatusCode::CONFLICT).detail(meeting.to_string());
+        problem.meeting = Some(Box::new(MeetingInProgressBody {
+            leader: meeting.leader.into(),
+            since: meeting.since,
+        }));
         problem
     }
 
@@ -131,6 +157,7 @@ impl From<ProjectError> for Problem {
                 Self::new(StatusCode::CONFLICT).detail(error.to_string())
             }
             ProjectError::UnknownActingPerson => Self::unauthorized(),
+            ProjectError::Locked(m) => Self::locked(m),
             ProjectError::Repo(e) => e.into(),
         }
     }
@@ -143,6 +170,7 @@ impl From<RiskError> for Problem {
             | RiskError::InvalidRating(_)
             | RiskError::UnknownProject => Self::invalid(error.to_string()),
             RiskError::Archived => Self::new(StatusCode::CONFLICT).detail(error.to_string()),
+            RiskError::Locked(m) => Self::locked(m),
             RiskError::Repo(e) => e.into(),
         }
     }
@@ -179,6 +207,7 @@ impl From<BlockerError> for Problem {
             | BlockerError::UnknownAction
             | BlockerError::ActionInAnotherProject => Self::invalid(error.to_string()),
             BlockerError::Archived => Self::new(StatusCode::CONFLICT).detail(error.to_string()),
+            BlockerError::Locked(m) => Self::locked(m),
             BlockerError::Repo(e) => e.into(),
         }
     }
@@ -191,6 +220,7 @@ impl From<ActionError> for Problem {
             | ActionError::AssigneeNotAMember
             | ActionError::UnknownProject => Self::invalid(error.to_string()),
             ActionError::Archived => Self::new(StatusCode::CONFLICT).detail(error.to_string()),
+            ActionError::Locked(m) => Self::locked(m),
             ActionError::Repo(e) => e.into(),
         }
     }
@@ -208,6 +238,7 @@ impl From<CommentError> for Problem {
             CommentError::Archived | CommentError::Deleted => {
                 Self::new(StatusCode::CONFLICT).detail(error.to_string())
             }
+            CommentError::Locked(m) => Self::locked(m),
             CommentError::Repo(e) => e.into(),
         }
     }

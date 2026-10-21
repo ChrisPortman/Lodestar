@@ -6,11 +6,12 @@ use crate::ports::{
     Page, PageRequest, PersonRepository, ProjectRepository, ProjectsQuery, RepoError, Transaction,
     UnitOfWork,
 };
-use crate::project::guard::{GuardError, writable_project};
+use crate::project::guard::{GuardError, MeetingInProgress, no_live_lock, unlocked_project};
 use crate::project::{
     Description, DescriptionError, HealthRating, LeaderNotAMember, Project, ProjectCode,
     ProjectCodeError, ProjectId, ProjectName, ProjectNameError, ProjectView, Rag, suggest_code,
 };
+use crate::session::Actor;
 
 pub use crate::ports::ProjectSort;
 
@@ -26,6 +27,8 @@ pub enum ProjectError {
     CodeTaken,
     #[error("the project is archived; unarchive it first")]
     Archived,
+    #[error("{0}")]
+    Locked(MeetingInProgress),
     #[error("the project leader must be a member")]
     LeaderNotAMember,
     #[error("that person is not a member of the project")]
@@ -48,6 +51,7 @@ impl From<GuardError> for ProjectError {
     fn from(error: GuardError) -> Self {
         match error {
             GuardError::Archived => Self::Archived,
+            GuardError::Locked(m) => Self::Locked(m),
             GuardError::Repo(e) => Self::Repo(e),
         }
     }
@@ -110,11 +114,13 @@ pub struct HealthRatingInput<'a> {
 /// Its code never changes (FR-11).
 pub async fn update_project<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: ProjectId,
     expected_version: u32,
     edit: ProjectEdit<'_>,
 ) -> Result<Project, ProjectError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let name = ProjectName::new(edit.name)?;
     let description = Description::optional(edit.description)?;
     let health_rating = edit
@@ -127,7 +133,7 @@ pub async fn update_project<U: UnitOfWork>(
         })
         .transpose()?;
     let mut tx = uow.begin().await?;
-    let before = writable_project(&mut tx, id).await?;
+    let before = unlocked_project(&mut tx, id, &actor).await?;
     if before.version() != expected_version {
         return Err(RepoError::Conflict.into());
     }
@@ -140,14 +146,17 @@ pub async fn update_project<U: UnitOfWork>(
 }
 
 /// Archives or unarchives a Project (FR-14). Setting the state it already has
-/// changes nothing.
+/// changes nothing. No one, not even the holder, archives a Project with a
+/// live Meeting Lock.
 pub async fn set_archived<U: UnitOfWork>(
     uow: &U,
-    acting: PersonId,
+    actor: impl Into<Actor>,
     id: ProjectId,
     expected_version: u32,
     archived: bool,
 ) -> Result<Project, ProjectError> {
+    let actor: Actor = actor.into();
+    let acting = actor.person;
     let mut tx = uow.begin().await?;
     let before = tx.projects().load(id).await?;
     if before.version() != expected_version {
@@ -155,6 +164,9 @@ pub async fn set_archived<U: UnitOfWork>(
     }
     if before.archived() == archived {
         return Ok(before);
+    }
+    if archived {
+        no_live_lock(&mut tx, id, actor.now).await?;
     }
     let after = before.with_archived(archived);
     tx.projects()

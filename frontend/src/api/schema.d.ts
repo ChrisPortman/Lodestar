@@ -640,6 +640,12 @@ export interface components {
       /** @description e.g. `A-001`. */
       reference: string
     }
+    /** @description The Meeting in progress, as named on a refused write. */
+    MeetingInProgress: {
+      leader: components['schemas']['PersonRef']
+      /** Format: date-time */
+      since: string
+    }
     /** @description A Project's Meeting Lock, as the calling session sees it. */
     MeetingLockBody: {
       /** Format: date-time */
@@ -707,6 +713,7 @@ export interface components {
     /** @description An RFC 9457 problem details object, served as `application/problem+json`. */
     Problem: {
       detail?: string | null
+      meeting?: components['schemas']['MeetingInProgress'] | null
       /** Format: int32 */
       status: number
       title: string
@@ -932,7 +939,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1026,7 +1033,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1108,7 +1115,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1217,7 +1224,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1311,7 +1318,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1393,7 +1400,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1475,7 +1482,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1554,7 +1561,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1662,7 +1669,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -1765,7 +1772,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived, or the Comment is deleted */
+      /** @description The Project is archived, another session holds its live Meeting Lock, or the Comment is deleted */
       409: {
         headers: {
           [name: string]: unknown
@@ -1856,7 +1863,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -2258,7 +2265,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -2333,6 +2340,15 @@ export interface operations {
         }
       }
       404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Archiving while the Project has a live Meeting Lock, whoever holds it */
+      409: {
         headers: {
           [name: string]: unknown
         }
@@ -2852,7 +2868,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -2946,7 +2962,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
@@ -3028,7 +3044,7 @@ export interface operations {
           'application/problem+json': components['schemas']['Problem']
         }
       }
-      /** @description The Project is archived */
+      /** @description The Project is archived, or another session holds its live Meeting Lock */
       409: {
         headers: {
           [name: string]: unknown
