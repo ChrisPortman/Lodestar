@@ -8,6 +8,7 @@ import { fakeRisks, type Risk } from './risks-backend'
 
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
+export type MeetingLock = components['schemas']['MeetingLockBody']
 export type { Action, Blocker, Comment, Risk }
 type Schemas = components['schemas']
 
@@ -44,7 +45,11 @@ export function fakeBackend(
   initialActions: Action[] = [],
   initialBlockers: Blocker[] = [],
   initialComments: Comment[] = [],
+  initialLock: MeetingLock | null = null,
 ) {
+  // One Meeting Lock, as the acting session sees it, for whichever Project is viewed.
+  let lock = initialLock
+  const lockedOut = () => lock !== null && lock.live && !lock.held_by_you
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
   // Member IDs per Project; each Project starts with its leader as its only Member.
@@ -169,6 +174,7 @@ export function fakeBackend(
     http.put(api('/projects/:id'), async ({ request, params }) => {
       const project = writable(params.id, request)
       if (project instanceof Response) return project
+      if (lockedOut()) return problem(409, 'Conflict')
       const body = (await request.json()) as Project
       if (!('description' in body) || !('health_rating' in body) || !('project_leader' in body))
         return problem(422, 'Unprocessable Content')
@@ -203,6 +209,9 @@ export function fakeBackend(
       }
       return HttpResponse.json<Project>(project)
     }),
+    http.get(api('/projects/:id/meeting-lock'), () =>
+      lock ? HttpResponse.json<MeetingLock>(lock) : problem(404, 'Not Found'),
+    ),
     http.get(api('/session'), () => {
       const person = people.find((p) => p.id === acting)
       return person
@@ -237,6 +246,7 @@ export function fakeBackend(
     blockers: blockers.blockers,
     comments: comments.comments,
     acting: () => acting,
+    setLock: (next: MeetingLock | null) => (lock = next),
   }
 }
 
