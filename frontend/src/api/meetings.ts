@@ -53,11 +53,21 @@ export async function getMinutesDocument(meetingId: string): Promise<Minutes> {
   return unwrap(result) as unknown as Minutes
 }
 
-/** A Meeting's Minutes, as the server renders them for `type`. */
-export async function getMinutes(meetingId: string, type: MinutesType): Promise<string> {
+/** The zone rendered Minutes show times in: minutes east of UTC and a short name. */
+export interface ReaderZone {
+  tz_offset: number
+  tz_name: string
+}
+
+/** A Meeting's Minutes, as the server renders them for `type` in `zone`. */
+export async function getMinutes(
+  meetingId: string,
+  type: MinutesType,
+  zone: ReaderZone,
+): Promise<string> {
   return unwrap(
     await client.GET('/api/v1/meetings/{id}/minutes', {
-      params: { path: { id: meetingId } },
+      params: { path: { id: meetingId }, query: zone },
       headers: { Accept: type },
       parseAs: 'text',
     }),

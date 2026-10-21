@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // A zone away from UTC, so tests notice times shown in UTC by mistake.
+    env: { TZ: 'Australia/Sydney' },
     setupFiles: ['src/test/setup.ts'],
     include: ['src/**/*.spec.ts'],
   },

@@ -1830,7 +1830,7 @@
         "tags": [
           "meetings"
         ],
-        "summary": "Fetches a Meeting's Minutes as the stored JSON document, or rendered as\nplain text or inline-styled HTML, by `Accept`. Any Member may.",
+        "summary": "Fetches a Meeting's Minutes as the stored JSON document, or rendered as\nplain text or inline-styled HTML, by `Accept`. Rendered times are in the\nzone `tz_offset`/`tz_name` give, else UTC. Any Member may.",
         "operationId": "get_meeting_minutes",
         "parameters": [
           {
@@ -1840,6 +1840,28 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "tz_offset",
+            "in": "query",
+            "description": "Minutes east of UTC at the Meeting's start, e.g. 660 for AEDT.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "maximum": 840,
+              "minimum": -840
+            }
+          },
+          {
+            "name": "tz_name",
+            "in": "query",
+            "description": "A short zone name to print, e.g. `AEDT`; `UTC±hh:mm` when absent.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 32
             }
           }
         ],
@@ -1860,6 +1882,16 @@
               "text/html": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The zone is out of range",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }

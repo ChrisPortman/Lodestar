@@ -229,7 +229,8 @@ export interface paths {
     }
     /**
      * Fetches a Meeting's Minutes as the stored JSON document, or rendered as
-     *     plain text or inline-styled HTML, by `Accept`. Any Member may.
+     *     plain text or inline-styled HTML, by `Accept`. Rendered times are in the
+     *     zone `tz_offset`/`tz_name` give, else UTC. Any Member may.
      */
     get: operations['get_meeting_minutes']
     put?: never
@@ -2180,7 +2181,12 @@ export interface operations {
   }
   get_meeting_minutes: {
     parameters: {
-      query?: never
+      query?: {
+        /** @description Minutes east of UTC at the Meeting's start, e.g. 660 for AEDT. */
+        tz_offset?: number
+        /** @description A short zone name to print, e.g. `AEDT`; `UTC±hh:mm` when absent. */
+        tz_name?: string
+      }
       header?: never
       path: {
         id: string
@@ -2198,6 +2204,15 @@ export interface operations {
           'application/json': Record<string, never>
           'text/plain': string
           'text/html': string
+        }
+      }
+      /** @description The zone is out of range */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
         }
       }
       /** @description No valid session */

@@ -127,7 +127,9 @@ describe('the Minutes reader (#84)', () => {
     const preview = await within(reader).findByRole('article', { name: 'Formatted Minutes' })
     const text = (name: string) => within(preview).getByText(name)
     expect(within(preview).getByRole('heading', { level: 3, name: 'Formatted Minutes of m2' }))
-    expect(text('Wed 21 Oct 2026, 09:00–10:15 UTC (75 min)')).toBeTruthy()
+    // 09:00–10:15 UTC is 20:00–21:15 in Sydney (the test zone), named as the browser names it.
+    const when = within(preview).getByText(/^Wed 21 Oct 2026, 20:00–21:15 /)
+    expect(when.textContent).toMatch(/^Wed 21 Oct 2026, 20:00–21:15 (AEDT|GMT\+11) \(75 min\)$/)
     expect(preview.textContent).toContain('Led by Ada. Attendees: Ada, Bob')
     expect(within(preview).getByRole('heading', { name: 'Actions' })).toBeTruthy()
     expect(within(preview).getByRole('heading', { name: 'New Actions' })).toBeTruthy()
@@ -143,7 +145,7 @@ describe('the Minutes reader (#84)', () => {
   it('previews the plain text version', async () => {
     const { reader } = await openReader()
     await userEvent.click(within(reader).getByRole('tab', { name: 'Plain text' }))
-    expect(await within(reader).findByText('Plain Minutes of m2')).toBeTruthy()
+    expect(await within(reader).findByText(/^Plain Minutes of m2 at UTC660 /)).toBeTruthy()
   })
 
   it('copies formatted Minutes as HTML with a plain-text fallback', async () => {
@@ -152,8 +154,13 @@ describe('the Minutes reader (#84)', () => {
     await waitFor(() => expect(write).toHaveBeenCalledOnce())
     const [item] = write.mock.calls[0]![0] as { items: Record<string, Blob> }[]
     expect(Object.keys(item!.items).sort()).toEqual(['text/html', 'text/plain'])
-    expect(await item!.items['text/html']!.text()).toBe('<p>Formatted Minutes of m2</p>')
-    expect(await item!.items['text/plain']!.text()).toBe('Plain Minutes of m2')
+    // Rendered in the reader's zone at the Meeting's start (AEDT, UTC+11:00).
+    expect(await item!.items['text/html']!.text()).toMatch(
+      /^<p>Formatted Minutes of m2 at UTC660 (AEDT|GMT\+11)<\/p>$/,
+    )
+    expect(await item!.items['text/plain']!.text()).toMatch(
+      /^Plain Minutes of m2 at UTC660 (AEDT|GMT\+11)$/,
+    )
   })
 
   it('copies plain text only', async () => {
@@ -162,6 +169,6 @@ describe('the Minutes reader (#84)', () => {
     await waitFor(() => expect(write).toHaveBeenCalledOnce())
     const [item] = write.mock.calls[0]![0] as { items: Record<string, Blob> }[]
     expect(Object.keys(item!.items)).toEqual(['text/plain'])
-    expect(await item!.items['text/plain']!.text()).toBe('Plain Minutes of m2')
+    expect(await item!.items['text/plain']!.text()).toMatch(/^Plain Minutes of m2 at UTC660 /)
   })
 })
