@@ -4,7 +4,7 @@
 use axum::{
     Json, Router,
     extract::State,
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use lodestar_core::{
     meeting::use_cases::{NewMeeting, create_meeting, get_meeting, list_meetings},
     meeting::{MeetingId, MeetingSummary, MeetingView},
+    minutes::render,
     person::PersonId,
     project::ProjectId,
 };
@@ -48,6 +49,13 @@ pub fn routes<S: Store>() -> Router<AppState<S>> {
         .route(
             "/meetings/{id}",
             get(fetch::<S>)
+                .put(immutable("GET,HEAD"))
+                .patch(immutable("GET,HEAD"))
+                .delete(immutable("GET,HEAD")),
+        )
+        .route(
+            "/meetings/{id}/minutes",
+            get(minutes::<S>)
                 .put(immutable("GET,HEAD"))
                 .patch(immutable("GET,HEAD"))
                 .delete(immutable("GET,HEAD")),
@@ -251,4 +259,127 @@ pub(crate) async fn fetch<S: Store>(
 ) -> Result<Json<MeetingBody>, Problem> {
     let view = get_meeting(&state.store, acting, MeetingId::from_uuid(id)).await?;
     Ok(Json(view.into()))
+}
+
+/// The formats Minutes are served in, in order of preference on a tie.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MinutesFormat {
+    Json,
+    Text,
+    Html,
+}
+
+impl MinutesFormat {
+    const ALL: [(Self, &'static str); 3] = [
+        (Self::Json, "application/json"),
+        (Self::Text, "text/plain"),
+        (Self::Html, "text/html"),
+    ];
+
+    /// Picks the format the `Accept` header rates highest; JSON when absent.
+    fn negotiate(accept: Option<&str>) -> Option<Self> {
+        let Some(accept) = accept.filter(|a| !a.trim().is_empty()) else {
+            return Some(Self::Json);
+        };
+        let ranges: Vec<(String, f32)> = accept
+            .split(',')
+            .map(|range| {
+                let mut parts = range.split(';');
+                let media = parts.next().unwrap_or("").trim().to_ascii_lowercase();
+                let q = parts
+                    .filter_map(|p| p.trim().strip_prefix("q="))
+                    .find_map(|q| q.trim().parse::<f32>().ok())
+                    .unwrap_or(1.0);
+                (media, q)
+            })
+            .collect();
+        let quality = |media: &str| -> f32 {
+            let (kind, _) = media.split_once('/').unwrap_or((media, ""));
+            let wildcard = format!("{kind}/*");
+            // The most specific matching range decides (RFC 9110 section 12.5.1).
+            [media, wildcard.as_str(), "*/*"]
+                .iter()
+                .find_map(|want| ranges.iter().find(|(m, _)| m == want).map(|(_, q)| *q))
+                .unwrap_or(0.0)
+        };
+        let mut best: Option<(Self, f32)> = None;
+        for (format, media) in Self::ALL {
+            let q = quality(media);
+            if q > 0.0 && best.is_none_or(|(_, b)| q > b) {
+                best = Some((format, q));
+            }
+        }
+        best.map(|(format, _)| format)
+    }
+}
+
+/// Fetches a Meeting's Minutes as the stored JSON document, or rendered as
+/// plain text or inline-styled HTML, by `Accept`. Any Member may.
+#[utoipa::path(
+    get,
+    path = "/api/v1/meetings/{id}/minutes",
+    tag = "meetings",
+    operation_id = "get_meeting_minutes",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 200, description = "The Minutes", content(
+            (Object = "application/json"),
+            (String = "text/plain"),
+            (String = "text/html"),
+        )),
+        (status = 401, description = "No valid session", body = Problem, content_type = "application/problem+json"),
+        (status = 403, description = "Not a Member", body = Problem, content_type = "application/problem+json"),
+        (status = 404, body = Problem, content_type = "application/problem+json"),
+        (status = 406, description = "None of the accepted types is offered", body = Problem, content_type = "application/problem+json"),
+    )
+)]
+pub(crate) async fn minutes<S: Store>(
+    State(state): State<AppState<S>>,
+    Acting(acting): Acting,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    let accept = headers
+        .get(header::ACCEPT)
+        .map(|v| v.to_str().unwrap_or(""));
+    let format = MinutesFormat::negotiate(accept).ok_or_else(|| {
+        Problem::new(StatusCode::NOT_ACCEPTABLE)
+            .detail("minutes are offered as application/json, text/plain or text/html")
+    })?;
+    let minutes = get_meeting(&state.store, acting, MeetingId::from_uuid(id))
+        .await?
+        .minutes;
+    let vary = [(header::VARY, "accept")];
+    Ok(match format {
+        MinutesFormat::Json => (vary, Json(minutes)).into_response(),
+        MinutesFormat::Text => (
+            vary,
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            render::to_text(&minutes),
+        )
+            .into_response(),
+        MinutesFormat::Html => (
+            vary,
+            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+            render::to_html(&minutes),
+        )
+            .into_response(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MinutesFormat::{self, *};
+
+    #[test]
+    fn accept_negotiation() {
+        let n = MinutesFormat::negotiate;
+        assert_eq!(n(None), Some(Json));
+        assert_eq!(n(Some("text/plain")), Some(Text));
+        assert_eq!(n(Some("TEXT/HTML; charset=utf-8")), Some(Html));
+        assert_eq!(n(Some("text/*")), Some(Text));
+        assert_eq!(n(Some("text/html;q=0.9, text/plain;q=0.8")), Some(Html));
+        assert_eq!(n(Some("*/*, application/json;q=0")), Some(Text));
+        assert_eq!(n(Some("image/png")), None);
+    }
 }

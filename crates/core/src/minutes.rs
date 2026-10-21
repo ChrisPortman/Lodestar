@@ -5,6 +5,8 @@
 //! stored frozen. It reads snapshots as loose JSON, so entries written by
 //! older versions of an aggregate still work (ADR-0004).
 
+pub mod render;
+
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use chrono::{DateTime, NaiveDate, Utc};

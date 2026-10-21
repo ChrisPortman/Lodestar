@@ -185,6 +185,7 @@ where
         meetings::create,
         meetings::list,
         meetings::fetch,
+        meetings::minutes,
         export::export,
         session::current,
         session::choose,
