@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // PROTOTYPE (#75) Variant A: step-by-step, all inside the Project menu panel.
-// Home (start + past list) → pick attendees → running → Minutes. Nothing on the page.
+// Home (start + past list) → running → confirm attendees → Minutes reader.
 import { computed, ref } from 'vue'
 import type { Project } from '../../api/client'
 import { useMembers } from '../../members'
@@ -26,8 +26,6 @@ const session = useSession()
 const me = computed(() => session.data.value?.person)
 const name = (id: string) => members.data.value?.find((m) => m.id === id)?.display_name ?? id
 
-type Step = 'home' | 'attendees'
-const step = ref<Step>('home')
 const viewing = ref<PastMeeting | null>(stub.justEnded)
 const chosen = ref<string[]>([])
 const draft = ref('')
@@ -38,15 +36,18 @@ function post() {
 const confirmingCancel = ref(false)
 const elapsed = useElapsed(() => stub.running?.startedAt)
 
-function pickAttendees() {
-  chosen.value = (members.data.value ?? []).map((m) => m.id) // default: everyone ticked
-  step.value = 'attendees'
-}
+const wrappingUp = ref(false)
 function begin() {
-  start(chosen.value)
-  step.value = 'home'
+  start([])
+}
+// Attendees are confirmed at the end, so late arrivals are counted.
+function wrapUp() {
+  chosen.value = (members.data.value ?? []).map((m) => m.id) // default: everyone ticked
+  wrappingUp.value = true
 }
 function finish() {
+  stub.running!.attendeeIds = chosen.value
+  wrappingUp.value = false
   end(name, me.value?.display_name ?? 'You')
   viewing.value = stub.justEnded
 }
@@ -87,12 +88,6 @@ function open(m: PastMeeting) {
         Since {{ fmtTime(stub.running.startedAt) }}. Others can't edit this Project until you end or
         cancel.
       </p>
-      <details class="text-sm">
-        <summary class="cursor-pointer">{{ stub.running.attendeeIds.length }} attendees</summary>
-        <ul class="mt-1 pl-4">
-          <li v-for="id in stub.running.attendeeIds" :key="id">{{ name(id) }}</li>
-        </ul>
-      </details>
       <section>
         <h3 class="font-semibold">Meeting Comments</h3>
         <ol class="mt-2 grid gap-2">
@@ -128,9 +123,23 @@ function open(m: PastMeeting) {
           </button>
         </form>
       </section>
-      <div class="flex gap-2 border-t border-divider pt-3">
-        <button type="button" class="btn btn-primary flex-1" @click="finish">
-          End and create Minutes
+      <div v-if="wrappingUp" class="grid gap-3 rounded border border-accent p-3">
+        <h3 class="font-semibold">Who attended?</h3>
+        <fieldset class="grid gap-1">
+          <label v-for="m in members.data.value" :key="m.id" class="flex items-center gap-2">
+            <input v-model="chosen" type="checkbox" :value="m.id" :disabled="m.id === me?.id" />
+            {{ m.display_name }}
+            <span v-if="m.id === me?.id" class="text-xs text-muted">(you, leading)</span>
+          </label>
+        </fieldset>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-primary flex-1" @click="finish">Create Minutes</button>
+          <button type="button" class="btn" @click="wrappingUp = false">Back to Meeting</button>
+        </div>
+      </div>
+      <div v-else class="flex gap-2 border-t border-divider pt-3">
+        <button type="button" class="btn btn-primary flex-1" @click="wrapUp">
+          End Meeting…
         </button>
         <button type="button" class="btn" @click="confirmingCancel = true">Cancel</button>
       </div>
@@ -156,22 +165,6 @@ function open(m: PastMeeting) {
       </div>
     </template>
 
-    <!-- Choosing attendees -->
-    <template v-else-if="step === 'attendees'">
-      <h3 class="font-semibold">Who's here?</h3>
-      <fieldset class="grid gap-1">
-        <label v-for="m in members.data.value" :key="m.id" class="flex items-center gap-2">
-          <input v-model="chosen" type="checkbox" :value="m.id" :disabled="m.id === me?.id" />
-          {{ m.display_name }}
-          <span v-if="m.id === me?.id" class="text-xs text-muted">(you, leading)</span>
-        </label>
-      </fieldset>
-      <div class="flex gap-2">
-        <button type="button" class="btn btn-primary flex-1" @click="begin">Start Meeting</button>
-        <button type="button" class="btn" @click="step = 'home'">Back</button>
-      </div>
-    </template>
-
     <!-- Home -->
     <template v-else>
       <p v-if="stub.justEnded" class="rounded bg-st-green-bg p-2 text-sm text-st-green-fg">
@@ -189,7 +182,7 @@ function open(m: PastMeeting) {
         v-else-if="stub.role === 'leader'"
         type="button"
         class="btn btn-primary btn-lg"
-        @click="pickAttendees"
+        @click="begin"
       >
         Start a Meeting
       </button>
