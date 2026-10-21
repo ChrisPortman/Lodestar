@@ -341,6 +341,21 @@ fn comments_made_in_the_window_go_with_their_item_or_the_meeting() {
 }
 
 #[test]
+fn comments_on_another_meeting_are_left_out() {
+    let earlier_meeting = Uuid::now_v7().to_string();
+    let history = entity(
+        EntityType::Comment,
+        "00000000-0000-0000-0000-0000000000c5",
+        None,
+        &[comment("meeting", &earlier_meeting, "Follow-up", false)],
+    );
+    assert_eq!(needed(&history), Default::default());
+    let m = minutes(&history, &lookups());
+    assert!(m.meeting_comments.is_empty());
+    assert_eq!(m.actions, None);
+}
+
+#[test]
 fn the_document_has_a_header_and_a_stable_versioned_json_shape() {
     let history = entity(
         EntityType::Risk,

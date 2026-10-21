@@ -9,9 +9,9 @@ use axum::{
 };
 use lodestar_core::{
     action::use_cases::ActionError, blocker::use_cases::BlockerError,
-    comment::use_cases::CommentError, meeting_lock::use_cases::LockError,
-    person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
-    risk::use_cases::RiskError,
+    comment::use_cases::CommentError, meeting::use_cases::MeetingError,
+    meeting_lock::use_cases::LockError, person::use_cases::PersonError, ports::RepoError,
+    project::use_cases::ProjectError, risk::use_cases::RiskError,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -227,6 +227,27 @@ impl From<LockError> for Problem {
                 Self::new(StatusCode::CONFLICT).detail(error.to_string())
             }
             LockError::Repo(e) => e.into(),
+        }
+    }
+}
+
+impl From<MeetingError> for Problem {
+    fn from(error: MeetingError) -> Self {
+        match error {
+            MeetingError::InvalidComment(_)
+            | MeetingError::NoAttendees
+            | MeetingError::AttendeeNotAMember
+            | MeetingError::UnknownProject => Self::invalid(error.to_string()),
+            MeetingError::NotTheLeader | MeetingError::NotAMember => {
+                Self::new(StatusCode::FORBIDDEN).detail(error.to_string())
+            }
+            // A Conflict here is a race with a change to the lock.
+            MeetingError::NotHeld
+            | MeetingError::Archived
+            | MeetingError::Repo(RepoError::Conflict) => {
+                Self::new(StatusCode::CONFLICT).detail(error.to_string())
+            }
+            MeetingError::Repo(e) => e.into(),
         }
     }
 }

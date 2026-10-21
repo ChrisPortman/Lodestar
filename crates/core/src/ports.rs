@@ -13,6 +13,7 @@ use crate::action::{Action, ActionId, ActionView};
 use crate::blocker::{Blocker, BlockerId, BlockerView};
 use crate::comment::{Comment, CommentId, CommentView, Target};
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
+use crate::meeting::{Meeting, MeetingId, MeetingSummary, MeetingView};
 use crate::meeting_lock::MeetingLock;
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{PersonRef, Project, ProjectId, ProjectView};
@@ -56,6 +57,8 @@ pub trait Transaction: Send {
     fn comments(&mut self) -> impl CommentRepository + Send + '_;
 
     fn meeting_locks(&mut self) -> impl MeetingLockRepository + Send + '_;
+
+    fn meetings(&mut self) -> impl MeetingRepository + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
@@ -145,6 +148,18 @@ pub trait CommentRepository {
         &mut self,
         before: Option<&Comment>,
         after: &Comment,
+        ctx: &ChangeContext,
+    ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+/// Meetings. They are only ever created, so there is no `before`.
+pub trait MeetingRepository {
+    fn load(&mut self, id: MeetingId) -> impl Future<Output = Result<Meeting, RepoError>> + Send;
+
+    /// Stores a new Meeting and writes its Change History entry.
+    fn create(
+        &mut self,
+        meeting: &Meeting,
         ctx: &ChangeContext,
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
 }
@@ -504,4 +519,19 @@ pub trait CommentsQuery: Send + Sync {
         &self,
         id: CommentId,
     ) -> impl Future<Output = Result<CommentView, RepoError>> + Send;
+}
+
+/// Read-only views of Meetings.
+pub trait MeetingsQuery: Send + Sync {
+    /// A Project's Meetings, newest first, without their Minutes.
+    fn list_meetings(
+        &self,
+        project_id: ProjectId,
+        page: PageRequest,
+    ) -> impl Future<Output = Result<Page<MeetingSummary>, RepoError>> + Send;
+
+    fn get_meeting(
+        &self,
+        id: MeetingId,
+    ) -> impl Future<Output = Result<MeetingView, RepoError>> + Send;
 }

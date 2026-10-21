@@ -56,6 +56,7 @@ pub enum TargetTypeParam {
     Action,
     Risk,
     Blocker,
+    Meeting,
 }
 
 impl From<TargetTypeParam> for TargetType {
@@ -65,6 +66,7 @@ impl From<TargetTypeParam> for TargetType {
             TargetTypeParam::Action => Self::Action,
             TargetTypeParam::Risk => Self::Risk,
             TargetTypeParam::Blocker => Self::Blocker,
+            TargetTypeParam::Meeting => Self::Meeting,
         }
     }
 }
@@ -76,6 +78,7 @@ impl From<TargetType> for TargetTypeParam {
             TargetType::Action => Self::Action,
             TargetType::Risk => Self::Risk,
             TargetType::Blocker => Self::Blocker,
+            TargetType::Meeting => Self::Meeting,
         }
     }
 }

@@ -130,7 +130,7 @@ impl ItemType {
             TargetType::Action => Some(Self::Action),
             TargetType::Risk => Some(Self::Risk),
             TargetType::Blocker => Some(Self::Blocker),
-            TargetType::Project => None,
+            TargetType::Project | TargetType::Meeting => None,
         }
     }
 
@@ -158,7 +158,8 @@ struct WindowComment<'a> {
     body: &'a str,
 }
 
-/// Comments created in the window and not deleted by its end, oldest first.
+/// Comments created in the window and not deleted by its end, oldest first,
+/// leaving out Comments on Meetings.
 fn window_comments(history: &[HistoryEntry]) -> Vec<WindowComment<'_>> {
     let mut created: Vec<Uuid> = Vec::new();
     let mut last: HashMap<Uuid, &Value> = HashMap::new();
@@ -178,10 +179,15 @@ fn window_comments(history: &[HistoryEntry]) -> Vec<WindowComment<'_>> {
             if c.get("deleted").and_then(Value::as_bool) == Some(true) {
                 return None;
             }
-            let target = c
+            let kind = c
                 .get("target_type")
                 .and_then(Value::as_str)
-                .and_then(TargetType::parse)
+                .and_then(TargetType::parse);
+            if kind == Some(TargetType::Meeting) {
+                // Another Meeting's Comment; a Meeting adds its own itself.
+                return None;
+            }
+            let target = kind
                 .and_then(ItemType::of_target)
                 .zip(c.get("target_id").and_then(uuid_of));
             Some(WindowComment {
