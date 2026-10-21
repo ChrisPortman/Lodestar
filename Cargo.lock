@@ -1197,6 +1197,7 @@ dependencies = [
  "axum-extra",
  "chrono",
  "cookie",
+ "getrandom 0.4.3",
  "http-body-util",
  "lodestar-core",
  "lodestar-datarepo",

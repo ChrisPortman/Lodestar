@@ -126,3 +126,42 @@ async fn post_session_for_an_unknown_person_is_422() {
     assert_eq!(reply.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(reply.header("set-cookie"), "");
 }
+
+/// The session id carried in a signed cookie. Signed cookies hold a 44-char
+/// base64 signature followed by the plain value `<person>.<session id>`.
+fn session_id(cookie: &str) -> String {
+    let value = cookie.strip_prefix("lodestar_session=").unwrap();
+    let (_, session) = value[44..].split_once('.').expect("a session id");
+    session.to_owned()
+}
+
+#[tokio::test]
+async fn each_post_session_mints_a_new_session_id() {
+    let app = app().await;
+    let ada = app.first_person("Ada").await;
+    let body = json!({ "person_id": ada.body["id"] });
+    let first = app
+        .send(Method::POST, "/api/v1/session", &[], Some(body.clone()))
+        .await;
+    let second = app
+        .send(Method::POST, "/api/v1/session", &[], Some(body))
+        .await;
+
+    let (a, b) = (session_id(&first.cookie()), session_id(&second.cookie()));
+    assert!(a.len() >= 32, "{a}");
+    assert_ne!(a, b);
+    assert_ne!(a, session_id(&ada.cookie()));
+}
+
+#[tokio::test]
+async fn the_session_id_survives_across_requests_and_is_not_exposed() {
+    let app = app().await;
+    let ada = app.first_person("Ada").await;
+    let id = session_id(&ada.cookie());
+
+    let session = app.get("/api/v1/session", &ada.cookie()).await;
+    assert_eq!(session.status, StatusCode::OK);
+    assert_eq!(session.header("set-cookie"), "");
+    assert_eq!(session.body.as_object().unwrap().len(), 1);
+    assert!(!session.body.to_string().contains(&id));
+}
