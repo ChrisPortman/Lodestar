@@ -7,6 +7,7 @@ import CommentsSection from '../components/CommentsSection.vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
 import ProjectMenuPanel from '../components/ProjectMenuPanel.vue'
 import RisksPanel from '../components/RisksPanel.vue'
+import { clockTime, useBlockingLock } from '../meetingLock'
 import { markViewed, provideComments, useComments } from '../comments'
 import { useMembers } from '../members'
 import { useProject } from '../projects'
@@ -19,6 +20,7 @@ const session = useSession()
 const members = useMembers(projectId)
 const comments = useComments(projectId)
 const showMenu = ref(false)
+const blockingLock = useBlockingLock(projectId)
 
 // Highlighting compares against the previous visit for the whole page visit.
 const since = ref<string | null>(null)
@@ -78,10 +80,22 @@ provideComments({
             </svg>
           </button>
         </div>
-        <HealthRatingControl :project="project.data.value" />
+        <p
+          v-if="blockingLock"
+          role="status"
+          aria-label="Meeting in progress"
+          class="rounded bg-st-amber-bg px-3 py-2 text-st-amber-fg"
+        >
+          Meeting in progress, led by {{ blockingLock.leader.display_name }}, since
+          {{ clockTime(blockingLock.acquired_at) }}
+        </p>
+        <!-- A disabled fieldset disables every control inside it (Member management is outside). -->
+        <fieldset :disabled="!!blockingLock" class="contents">
+          <HealthRatingControl :project="project.data.value" />
+        </fieldset>
       </header>
       <ProjectMenuPanel v-if="showMenu" :project="project.data.value" @close="showMenu = false" />
-      <div class="mt-6 grid gap-6">
+      <fieldset :disabled="!!blockingLock" class="mt-6 grid min-w-0 gap-6">
         <!-- Panels in FR-94 order: Actions, Blockers, then Risks last. -->
         <ActionsPanel :project="project.data.value" />
         <BlockersPanel :project="project.data.value" />
@@ -96,7 +110,7 @@ provideComments({
           </p>
           <CommentsSection target-type="project" :target-id="id" label="the Project" />
         </section>
-      </div>
+      </fieldset>
     </template>
   </section>
 </template>

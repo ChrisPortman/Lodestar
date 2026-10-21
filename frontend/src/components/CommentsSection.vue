@@ -2,6 +2,7 @@
 // A target's Comments (#42): collapsed by default, oldest first, with a
 // "new" badge for Comments since the Project was last viewed.
 import { computed, ref, toRef } from 'vue'
+import { useUnlessLocked } from '../meetingLock'
 import { ApiError } from '../api/client'
 import type { Comment, CommentTarget } from '../api/comments'
 import {
@@ -26,7 +27,8 @@ const { projectId, comments, actingId, canComment } = useTargetComments(
 const create = useCreateComment()
 const update = useUpdateComment()
 const remove = useDeleteComment()
-const error = computed(() => create.error.value ?? update.error.value ?? remove.error.value)
+const anyError = computed(() => create.error.value ?? update.error.value ?? remove.error.value)
+const error = useUnlessLocked(anyError)
 const hasNew = computed(() => comments.value.some((c) => c.isNew))
 
 const draft = ref('')
