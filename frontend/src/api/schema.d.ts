@@ -305,6 +305,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/projects/{id}/meeting-lock': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Reads a Project's Meeting Lock. Any Member may. */
+    get: operations['get_meeting_lock']
+    /** Keeps this session's Meeting Lock live; send it well within 2 minutes. */
+    put: operations['heartbeat_meeting_lock']
+    /**
+     * Acquires the Meeting Lock for this session. Only the Project Leader may.
+     *     A stale lock is taken over; this session's own lock is reclaimed.
+     */
+    post: operations['acquire_meeting_lock']
+    /** Cancels this session's Meeting Lock, deleting it. */
+    delete: operations['cancel_meeting_lock']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/projects/{id}/members': {
     parameters: {
       query?: never
@@ -616,6 +639,20 @@ export interface components {
       id: string
       /** @description e.g. `A-001`. */
       reference: string
+    }
+    /** @description A Project's Meeting Lock, as the calling session sees it. */
+    MeetingLockBody: {
+      /** Format: date-time */
+      acquired_at: string
+      /** @description Whether the calling session holds it. */
+      held_by_you: boolean
+      /** @description The Project Leader who acquired it. */
+      leader: components['schemas']['PersonRef']
+      /**
+       * @description Whether it was heartbeaten in the last 2 minutes. A stale lock blocks
+       *     nothing.
+       */
+      live: boolean
     }
     /** @description A Project's Members, ordered by display name. */
     MemberList: {
@@ -2374,6 +2411,187 @@ export interface operations {
       }
       /** @description Invalid parameters */
       422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  get_meeting_lock: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeetingLockBody']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Not a Member */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description No such Project, or no lock */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  heartbeat_meeting_lock: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeetingLockBody']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description This session does not hold the lock */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  acquire_meeting_lock: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MeetingLockBody']
+        }
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Not the Project Leader */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description Another session holds a live lock */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+    }
+  }
+  cancel_meeting_lock: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Cancelled */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No valid session */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/problem+json': components['schemas']['Problem']
+        }
+      }
+      /** @description This session does not hold the lock */
+      409: {
         headers: {
           [name: string]: unknown
         }

@@ -13,6 +13,7 @@ use crate::action::{Action, ActionId, ActionView};
 use crate::blocker::{Blocker, BlockerId, BlockerView};
 use crate::comment::{Comment, CommentId, CommentView, Target};
 use crate::history::{ChangeContext, EntityType, HistoryEntry, HistoryEntryId};
+use crate::meeting_lock::MeetingLock;
 use crate::person::{Person, PersonId, PersonView};
 use crate::project::{PersonRef, Project, ProjectId, ProjectView};
 use crate::risk::{Risk, RiskId, RiskView};
@@ -53,6 +54,8 @@ pub trait Transaction: Send {
     fn blockers(&mut self) -> impl BlockerRepository + Send + '_;
 
     fn comments(&mut self) -> impl CommentRepository + Send + '_;
+
+    fn meeting_locks(&mut self) -> impl MeetingLockRepository + Send + '_;
 
     fn commit(self) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
@@ -144,6 +147,26 @@ pub trait CommentRepository {
         after: &Comment,
         ctx: &ChangeContext,
     ) -> impl Future<Output = Result<HistoryEntryId, RepoError>> + Send;
+}
+
+/// Meeting Locks, at most one per Project. Not a domain resource: no
+/// version and no Change History.
+pub trait MeetingLockRepository {
+    fn load(
+        &mut self,
+        project: ProjectId,
+    ) -> impl Future<Output = Result<Option<MeetingLock>, RepoError>> + Send;
+
+    /// Stores `after` in place of `before` (`None`: no lock). Returns
+    /// [`RepoError::Conflict`] if the stored lock is no longer `before`.
+    fn save(
+        &mut self,
+        before: Option<&MeetingLock>,
+        after: &MeetingLock,
+    ) -> impl Future<Output = Result<(), RepoError>> + Send;
+
+    /// Deletes `lock`; [`RepoError::Conflict`] if it is no longer stored.
+    fn delete(&mut self, lock: &MeetingLock) -> impl Future<Output = Result<(), RepoError>> + Send;
 }
 
 /// The kinds of item that get a per-Project Reference (ADR-0001).

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT session_id, leader_id, acquired_at, heartbeat_at\n             FROM meeting_locks WHERE project_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "session_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_locks",
+            "name": "session_id"
+          }
+        }
+      },
+      {
+        "name": "leader_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_locks",
+            "name": "leader_id"
+          }
+        }
+      },
+      {
+        "name": "acquired_at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_locks",
+            "name": "acquired_at"
+          }
+        }
+      },
+      {
+        "name": "heartbeat_at",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_locks",
+            "name": "heartbeat_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f9b49ea993f100511268400840b042f9f0fa4520ea21b6eaed09a2ee254d0fe2"
+}
