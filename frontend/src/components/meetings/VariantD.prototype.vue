@@ -70,7 +70,7 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
   <div v-if="place === 'panel'" class="mt-4 grid gap-4">
     <template v-if="true">
       <p v-if="stub.running" class="rounded bg-accent-soft p-3 text-sm">
-        Your Meeting is running: open it with the Meeting button beside the menu.
+        Your Meeting is running: open it from the blue strip on the right.
       </p>
       <p
         v-else-if="stub.role === 'other-leader-running'"
@@ -111,10 +111,25 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
   <!-- Docked beside the page -->
   <template v-else-if="stub.running">
     <!-- Opens and closes like the Project menu panel: same edge, width and Close/Esc. -->
+    <!-- Closed: a blue-edged strip marks the running Meeting. The page always keeps
+         room for it, so opening the panel over the page moves nothing. -->
+    <div
+      v-if="stub.railCollapsed"
+      class="fixed inset-y-0 right-0 z-[5] w-12 border-l-4 border-accent bg-surface shadow-lg"
+    >
+      <button
+        type="button"
+        class="h-full w-full font-mono text-sm [writing-mode:vertical-rl]"
+        aria-label="Open the Meeting"
+        @click="stub.railCollapsed = false"
+      >
+        ● Meeting {{ elapsed }} · {{ stub.running.comments.length }} Comments
+      </button>
+    </div>
     <aside
-      v-if="!stub.railCollapsed"
+      v-else
       role="dialog"
-      class="fixed inset-y-0 right-0 z-10 flex w-full max-w-sm flex-col border-l border-control-border bg-surface shadow-lg"
+      class="fixed inset-y-0 right-0 z-10 flex w-full max-w-sm flex-col border-l-4 border-accent bg-surface shadow-lg"
       aria-label="Meeting"
       @keydown.esc="stub.railCollapsed = true"
     >

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch, watchEffect } from 'vue'
 import { RouterLink } from 'vue-router'
 import ActionsPanel from '../components/ActionsPanel.vue'
 import BlockersPanel from '../components/BlockersPanel.vue'
@@ -8,7 +8,7 @@ import HealthRatingControl from '../components/HealthRatingControl.vue'
 import ProjectMenuPanel from '../components/ProjectMenuPanel.vue'
 import MeetingsVariant from '../components/meetings/MeetingsVariant.prototype.vue'
 import PrototypeSwitcher from '../components/meetings/PrototypeSwitcher.prototype.vue'
-import { stub, useElapsed, useVariant } from '../components/meetings/meetingStub.prototype'
+import { stub, useVariant } from '../components/meetings/meetingStub.prototype'
 import RisksPanel from '../components/RisksPanel.vue'
 import { markViewed, provideComments, useComments } from '../comments'
 import { useMembers } from '../members'
@@ -29,7 +29,9 @@ const since = ref<string | null>(null)
 watch(projectId, (id) => (since.value = markViewed(id)), { immediate: true })
 // PROTOTYPE (#75) D: the Meeting panel and the Project menu share the right edge,
 // so opening one closes the other.
-const meetingElapsed = useElapsed(() => stub.running?.startedAt)
+// The page keeps room for the closed strip while a Meeting runs, so it never shifts.
+watchEffect(() => (document.body.style.marginRight = variant.value === 'D' && stub.running ? '3rem' : ''))
+onBeforeUnmount(() => (document.body.style.marginRight = ''))
 watch(showMenu, (open) => open && (stub.railCollapsed = true))
 watch(
   () => stub.railCollapsed,
@@ -75,16 +77,6 @@ provideComments({
             Acting as <strong>{{ session.data.value.person.display_name }}</strong>
           </span>
           <RouterLink :to="`/projects/${id}/report`" class="btn"> Project on a Page </RouterLink>
-          <button
-            v-if="variant === 'D' && stub.running"
-            type="button"
-            class="btn"
-            :aria-expanded="!stub.railCollapsed"
-            @click="stub.railCollapsed = !stub.railCollapsed"
-          >
-            <span class="size-2 animate-pulse rounded-full bg-st-red-solid" />
-            Meeting <span class="font-mono">{{ meetingElapsed }}</span>
-          </button>
           <button
             type="button"
             class="btn"
