@@ -6,6 +6,9 @@ import BlockersPanel from '../components/BlockersPanel.vue'
 import CommentsSection from '../components/CommentsSection.vue'
 import HealthRatingControl from '../components/HealthRatingControl.vue'
 import ProjectMenuPanel from '../components/ProjectMenuPanel.vue'
+import MeetingsVariant from '../components/meetings/MeetingsVariant.prototype.vue'
+import PrototypeSwitcher from '../components/meetings/PrototypeSwitcher.prototype.vue'
+import { stub, useVariant } from '../components/meetings/meetingStub.prototype'
 import RisksPanel from '../components/RisksPanel.vue'
 import { markViewed, provideComments, useComments } from '../comments'
 import { useMembers } from '../members'
@@ -19,6 +22,7 @@ const session = useSession()
 const members = useMembers(projectId)
 const comments = useComments(projectId)
 const showMenu = ref(false)
+const variant = useVariant()
 
 // Highlighting compares against the previous visit for the whole page visit.
 const since = ref<string | null>(null)
@@ -39,7 +43,9 @@ provideComments({
 </script>
 
 <template>
-  <section>
+  <section :class="{ 'pr-96': variant === 'B' && (stub.running || stub.justEnded) }">
+    <PrototypeSwitcher />
+    <MeetingsVariant v-if="project.data.value" :project="project.data.value" place="page" />
     <p v-if="project.isPending.value" class="text-muted">Loading…</p>
     <p v-else-if="project.error.value" role="alert" class="text-danger-text">
       Couldn't load the Project: {{ project.error.value.message }}
