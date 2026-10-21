@@ -1,0 +1,209 @@
+<!doctype html>
+<!--
+  PROTOTYPE, throwaway (map "Meetings", ticket "Meeting Minutes template").
+  Question: what should Meeting Minutes look like so they paste cleanly into an email?
+  Three variants, switch with ?variant=a|b|c or the bottom bar. "Copy" puts the
+  variant on the clipboard the way the real app would; paste it into your mail client.
+    A: plain text (New / Closed / Changed)
+    B: Markdown (Actions / Risks / Blockers)
+    C: rich HTML (inline styles, tables), with a plain-text fallback on the clipboard
+  Open the file directly in a browser. No build, no persistence.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Minutes prototype</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 24px 16px 96px; background: #f4f4f5; color: #18181b; }
+  main { max-width: 820px; margin: 0 auto; }
+  .note { color: #52525b; font-size: 13px; margin-bottom: 12px; }
+  .sheet { background: #fff; border: 1px solid #d4d4d8; border-radius: 6px; padding: 20px; overflow-x: auto; }
+  pre { margin: 0; font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+         padding: 10px; background: #18181b; }
+  .bar button { font: inherit; padding: 6px 12px; border-radius: 4px; border: 1px solid #52525b; background: #27272a; color: #fafafa; cursor: pointer; }
+  .bar button[aria-pressed="true"] { background: #fafafa; color: #18181b; }
+  .bar .copy { background: #2563eb; border-color: #2563eb; }
+  #status { color: #a1a1aa; align-self: center; font-size: 13px; min-width: 90px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="note" id="desc"></p>
+  <div class="sheet" id="out"></div>
+</main>
+<div class="bar">
+  <button data-v="a">A · Plain text</button>
+  <button data-v="b">B · Markdown</button>
+  <button data-v="c">C · Rich HTML</button>
+  <button class="copy" id="copy">Copy</button>
+  <span id="status"></span>
+</div>
+<script>
+// ---- sample data: what the server would derive from Change History for the window ----
+const m = {
+  project: "Warehouse Relocation",
+  leader: "Priya Shah",
+  start: "Tue 21 Oct 2026, 10:00", end: "10:42", duration: "42 min",
+  attendees: ["Priya Shah", "Sam Lee", "Jordan Okafor"],
+  // Only the Meeting's leader writes Comments during it, so they carry no author.
+  meetingComments: ["Next review moved to Thursday because of the public holiday."],
+  items: [
+    // New items: their state at the end of the Meeting, no Changes.
+    { ref: "A-012", type: "Action", title: "Book removalists for stage 2", isNew: true,
+      state: ["Assigned to Sam Lee", "Due 31 Oct"], comments: ["Sam to get two quotes first."] },
+    { ref: "R-005", type: "Risk", title: "Power upgrade not ready at new site", isNew: true,
+      state: ["Likelihood Low", "Impact High"], comments: [] },
+    // Updated items: the net Changes during the Meeting, then its Comments.
+    { ref: "A-007", type: "Action", title: "Confirm racking delivery date",
+      changes: ["Closed"], comments: ["Supplier confirmed 3 Nov in writing."] },
+    { ref: "A-009", type: "Action", title: "Draft the new site induction",
+      changes: ["Due 24 Oct → 7 Nov", "Reassigned to Jordan Okafor"],
+      comments: ["Jordan has the safety templates."] },
+    { ref: "A-004", type: "Action", title: "Get quotes for forklift hire",
+      changes: [], comments: ["Two of three quotes in."] },
+    { ref: "R-003", type: "Risk", title: "Lease handover slips past November",
+      changes: ["Likelihood Medium → High"], comments: ["Landlord has not signed the variation."] },
+    { ref: "B-002", type: "Blocker", title: "Waiting on council permit for loading dock",
+      changes: ["Closed"], comments: ["Permit issued 20 Oct."] },
+  ],
+};
+
+const TYPES = [["Action", "Actions"], ["Risk", "Risks"], ["Blocker", "Blockers"]];
+const ofType = t => m.items.filter(i => i.type === t);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// A: plain text
+function plain() {
+  const L = [];
+  L.push(`Meeting Minutes: ${m.project}`, `${m.start}–${m.end} (${m.duration}), led by ${m.leader}`,
+         `Attendees: ${m.attendees.join(", ")}`, "");
+  for (const [t, label] of TYPES) {
+    const its = ofType(t);
+    if (!its.length) continue;
+    L.push(label.toUpperCase(), "=".repeat(label.length), "");
+    const fresh = its.filter(i => i.isNew), upd = its.filter(i => !i.isNew);
+    if (fresh.length) {
+      L.push(`New ${label}`, "-".repeat(4 + label.length));
+      for (const i of fresh) {
+        L.push(`${i.ref}: ${i.title} (${i.state.join(", ")})`);
+        for (const c of i.comments) L.push(`  "${c}"`);
+      }
+      L.push("");
+    }
+    if (upd.length) {
+      L.push(`Updated ${label}`, "-".repeat(8 + label.length));
+      for (const i of upd) {
+        L.push(`${i.ref}: ${i.title}`);
+        for (const c of i.changes) L.push(`  - ${c}`);
+        for (const c of i.comments) L.push(`  "${c}"`);
+        L.push("");
+      }
+    }
+  }
+  if (m.meetingComments.length) {
+    L.push("MEETING COMMENTS", "================");
+    for (const c of m.meetingComments) L.push(`"${c}"`);
+  }
+  return L.join("\n");
+}
+
+// B: Markdown
+function markdown() {
+  const L = [];
+  L.push(`**Meeting Minutes: ${m.project}**  `, `${m.start}–${m.end} (${m.duration}), led by ${m.leader}  `,
+         `Attendees: ${m.attendees.join(", ")}`, "");
+  for (const [t, label] of TYPES) {
+    const its = ofType(t);
+    if (!its.length) continue;
+    L.push(`# ${label}`, "");
+    const fresh = its.filter(i => i.isNew), upd = its.filter(i => !i.isNew);
+    if (fresh.length) {
+      L.push(`## New ${label}`, "");
+      for (const i of fresh) {
+        L.push(`- **${i.ref}: ${i.title}** (${i.state.join(", ")})`);
+        for (const c of i.comments) L.push(`  - ${c}`);
+      }
+      L.push("");
+    }
+    if (upd.length) {
+      L.push(`## Updated ${label}`, "");
+      for (const i of upd) {
+        L.push(`### ${i.ref}: ${i.title}`, "");
+        for (const c of i.changes) L.push(`- ${c}`);
+        for (const c of i.comments) L.push(`- _${c}_`);
+        L.push("");
+      }
+    }
+  }
+  if (m.meetingComments.length) {
+    L.push("# Meeting Comments", "");
+    for (const c of m.meetingComments) L.push(`- ${c}`);
+  }
+  return L.join("\n");
+}
+
+// C: rich HTML, inline styles only (mail clients drop <style>)
+function html() {
+  const H = (n, size, text, extra = "") => `<h${n} style="margin:${n === 1 ? 20 : n === 2 ? 12 : 10}px 0 4px;font-size:${size}px;${extra}">${esc(text)}</h${n}>`;
+  const ul = rows => rows.length ? `<ul style="margin:0 0 6px;padding-left:20px;">${rows.join("")}</ul>` : "";
+  let h = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#18181b;">`;
+  h += `<p style="margin:0 0 8px;"><b style="font-size:16px;">Meeting Minutes: ${esc(m.project)}</b><br><span style="color:#52525b;">${esc(m.start)}–${esc(m.end)} (${m.duration}) · led by ${esc(m.leader)}<br>Attendees: ${esc(m.attendees.join(", "))}</span></p>`;
+  for (const [t, label] of TYPES) {
+    const its = ofType(t);
+    if (!its.length) continue;
+    h += H(1, 18, label, "border-bottom:2px solid #18181b;padding-bottom:2px;");
+    const fresh = its.filter(i => i.isNew), upd = its.filter(i => !i.isNew);
+    if (fresh.length) {
+      h += H(2, 15, `New ${label}`, "color:#3f3f46;");
+      h += ul(fresh.map(i => `<li><b>${i.ref}: ${esc(i.title)}</b> <span style="color:#52525b;">(${esc(i.state.join(", "))})</span>` +
+        ul(i.comments.map(c => `<li><i>${esc(c)}</i></li>`)) + `</li>`));
+    }
+    if (upd.length) {
+      h += H(2, 15, `Updated ${label}`, "color:#3f3f46;");
+      for (const i of upd) {
+        h += H(3, 14, `${i.ref}: ${i.title}`);
+        h += ul([...i.changes.map(c => `<li>${esc(c)}</li>`), ...i.comments.map(c => `<li><i>${esc(c)}</i></li>`)]);
+      }
+    }
+  }
+  if (m.meetingComments.length) {
+    h += H(1, 18, "Meeting Comments", "border-bottom:2px solid #18181b;padding-bottom:2px;");
+    h += ul(m.meetingComments.map(c => `<li>${esc(c)}</li>`));
+  }
+  return h + `</div>`;
+}
+
+const variants = {
+  a: { desc: "A: plain text. Copies as text/plain.", render: () => `<pre>${esc(plain())}</pre>`,
+       clip: () => ({ "text/plain": plain() }) },
+  b: { desc: "B: Markdown. Copies as text/plain (the Markdown source).", render: () => `<pre>${esc(markdown())}</pre>`,
+       clip: () => ({ "text/plain": markdown() }) },
+  c: { desc: "C: rich HTML, headings and lists. Copies as text/html with variant A as the text/plain fallback.", render: html,
+       clip: () => ({ "text/html": html(), "text/plain": plain() }) },
+};
+
+let cur = new URLSearchParams(location.search).get("variant") || "a";
+function show(v) {
+  cur = variants[v] ? v : "a";
+  document.getElementById("desc").textContent = variants[cur].desc;
+  document.getElementById("out").innerHTML = variants[cur].render();
+  document.querySelectorAll("[data-v]").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === cur));
+  history.replaceState(null, "", `?variant=${cur}`);
+}
+document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => show(b.dataset.v));
+document.getElementById("copy").onclick = async () => {
+  const s = document.getElementById("status");
+  try {
+    const parts = variants[cur].clip();
+    const item = {};
+    for (const [type, text] of Object.entries(parts)) item[type] = new Blob([text], { type });
+    await navigator.clipboard.write([new ClipboardItem(item)]);
+    s.textContent = "Copied";
+  } catch (e) { s.textContent = "Copy failed: " + e.message; }
+};
+show(cur);
+</script>
+</body>
+</html>
