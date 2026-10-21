@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { Project } from '../api/client'
-import { useUnlessLocked } from '../meetingLock'
+import { useWriteError } from '../meetingLock'
 import { useSetHealthRating } from '../projects'
 import { RATING, TONE_CHIP, type RatingChoice } from '../status'
 
@@ -12,7 +12,7 @@ const props = defineProps<{ project: Project }>()
 const CHOICES: Choice[] = ['red', 'amber', 'green', 'none']
 
 const save = useSetHealthRating()
-const error = useUnlessLocked(save.error)
+const error = useWriteError(save)
 const editing = ref(false)
 const draftRating = ref<Choice>('none')
 const draftComment = ref('')

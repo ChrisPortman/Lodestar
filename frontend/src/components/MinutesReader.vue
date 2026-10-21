@@ -2,20 +2,33 @@
 // The Minutes reader (#84): a wide overlay over the page that leaves the
 // Project menu open underneath. Close and Esc close the reader only.
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
-import type { MeetingSummary, MinutesType } from '../api/meetings'
-import { copyMinutes, meetingStart, useMinutes } from '../meetings'
+import type { MeetingSummary } from '../api/meetings'
+import {
+  copyMinutes,
+  meetingStart,
+  minutesParts,
+  minutesWhen,
+  useMinutesDocument,
+  useMinutesText,
+} from '../meetings'
 
 const props = defineProps<{ meeting: MeetingSummary }>()
 const emit = defineEmits<{ close: [] }>()
 
-const type = ref<MinutesType>('text/html')
-const minutes = useMinutes(
-  computed(() => props.meeting.id),
-  type,
+const type = ref<'formatted' | 'plain'>('formatted')
+const meetingId = computed(() => props.meeting.id)
+// The Formatted preview is laid out here from the Minutes document, not the
+// server's HTML: that is for email, and its inline styles break the CSP.
+const doc = useMinutesDocument(meetingId)
+const text = useMinutesText(
+  meetingId,
+  computed(() => type.value === 'plain'),
 )
+const parts = computed(() => (doc.data.value ? minutesParts(doc.data.value) : []))
+const loadError = computed(() => (type.value === 'formatted' ? doc.error.value : text.error.value))
 const tabs = [
-  { type: 'text/html', label: 'Formatted' },
-  { type: 'text/plain', label: 'Plain text' },
+  { type: 'formatted', label: 'Formatted' },
+  { type: 'plain', label: 'Plain text' },
 ] as const
 
 const copied = ref('')
@@ -81,21 +94,69 @@ onMounted(() => dialog.value?.focus())
         </div>
         <p v-if="copied" role="status" class="text-sm text-st-green-fg">{{ copied }}</p>
         <p v-if="copyError" role="alert" class="text-danger-text">Couldn't copy: {{ copyError }}</p>
-        <p v-if="minutes.error.value" role="alert" class="text-danger-text">
-          Couldn't load the Minutes: {{ minutes.error.value.message }}
+        <p v-if="loadError" role="alert" class="text-danger-text">
+          Couldn't load the Minutes: {{ loadError.message }}
         </p>
-        <!-- The server escapes every value in the HTML Minutes (#83). -->
-        <!-- eslint-disable vue/no-v-html -->
-        <div
-          v-else-if="type === 'text/html'"
+        <article
+          v-else-if="type === 'formatted'"
+          aria-label="Formatted Minutes"
           class="overflow-x-auto rounded border border-border bg-white p-3 text-sm text-black"
-          v-html="minutes.data.value ?? ''"
-        />
+        >
+          <template v-if="doc.data.value">
+            <h3 class="text-xl font-semibold">{{ doc.data.value.project_name }}</h3>
+            <p class="text-neutral-600">{{ minutesWhen(doc.data.value) }}</p>
+            <p class="mb-3">
+              Led by <b>{{ doc.data.value.leader }}</b
+              >. Attendees:
+              {{ doc.data.value.attendees.join(', ') }}
+            </p>
+            <section v-for="part in parts" :key="part.name">
+              <h4 class="mt-4 mb-1 text-base font-semibold">{{ part.name }}s</h4>
+              <template v-if="part.new.length">
+                <h5 class="mt-2 mb-1 font-semibold">New {{ part.name }}s</h5>
+                <ul class="mb-2 list-disc pl-5">
+                  <li v-for="item in part.new" :key="item.reference">
+                    <b>{{ item.reference }}</b
+                    >: {{ item.title
+                    }}<template v-if="item.state?.length"> ({{ item.state.join(', ') }})</template>
+                    <ul v-if="item.comments?.length" class="list-disc pl-5">
+                      <li v-for="(c, i) in item.comments" :key="i">
+                        <i>{{ c }}</i>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </template>
+              <template v-if="part.updated.length">
+                <h5 class="mt-2 mb-1 font-semibold">Updated {{ part.name }}s</h5>
+                <ul class="mb-2 list-disc pl-5">
+                  <li v-for="item in part.updated" :key="item.reference">
+                    <b>{{ item.reference }}</b
+                    >: {{ item.title }}
+                    <ul class="list-disc pl-5">
+                      <li v-for="(change, i) in item.changes ?? []" :key="i">{{ change }}</li>
+                      <li v-for="(c, i) in item.comments ?? []" :key="`c${i}`">
+                        <i>{{ c }}</i>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </template>
+            </section>
+            <section v-if="doc.data.value.meeting_comments?.length">
+              <h4 class="mt-4 mb-1 text-base font-semibold">Meeting Comments</h4>
+              <ul class="mb-2 list-disc pl-5">
+                <li v-for="(c, i) in doc.data.value.meeting_comments" :key="i">
+                  <i>{{ c }}</i>
+                </li>
+              </ul>
+            </section>
+          </template>
+        </article>
         <pre
           v-else
           class="overflow-x-auto rounded border border-border bg-subtle p-3 text-xs whitespace-pre-wrap"
-          >{{ minutes.data.value ?? '' }}</pre>
-        <!-- eslint-enable vue/no-v-html -->
+          >{{ text.data.value ?? '' }}</pre>
       </div>
     </div>
   </Teleport>

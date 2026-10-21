@@ -16,7 +16,7 @@ const blockingKey = Symbol('blocking Meeting Lock')
  * Polls a Project's Meeting Lock and returns the lock that blocks this
  * session (live and held by another session), or `null`. A 409 from any write
  * refetches it at once, and the page's data is refetched when the blocking
- * lock goes away. Provides the result to {@link useUnlessLocked}.
+ * lock goes away. Provides the result to {@link useWriteError}.
  */
 export function useBlockingLock(projectId: Ref<string>): ComputedRef<MeetingLock | null> {
   const queryClient = useQueryClient()
@@ -50,12 +50,16 @@ function isConflict(error: unknown): boolean {
 }
 
 /**
- * `error`, unless it is a 409 while a Meeting blocks this session: the
- * Meeting in progress banner explains that instead of a generic error.
+ * The first error among a component's writes (`mutations`), to show next to
+ * them. A 409 while a Meeting blocks this session is left out: the Meeting in
+ * progress banner explains that instead of a generic error.
  */
-export function useUnlessLocked<E>(error: Ref<E | null>): ComputedRef<E | null> {
+export function useWriteError<E>(...mutations: { error: Ref<E | null> }[]): ComputedRef<E | null> {
   const blocking = inject<Ref<MeetingLock | null> | null>(blockingKey, null)
-  return computed(() => (blocking?.value && isConflict(error.value) ? null : error.value))
+  return computed(() => {
+    const error = mutations.map((m) => m.error.value).find((e) => e != null) ?? null
+    return blocking?.value && isConflict(error) ? null : error
+  })
 }
 
 /** "HH:MM" in local time. */
