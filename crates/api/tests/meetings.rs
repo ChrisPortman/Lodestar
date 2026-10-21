@@ -394,7 +394,11 @@ impl World {
         self.app
             .send(
                 Method::GET,
-                &format!("/api/v1/meetings/{id}/minutes"),
+                &if id.contains('/') {
+                    format!("/api/v1/meetings/{id}")
+                } else {
+                    format!("/api/v1/meetings/{id}/minutes")
+                },
                 &[("cookie", cookie), ("accept", accept)],
                 None,
             )
@@ -450,4 +454,46 @@ async fn minutes_are_rendered_by_accept() {
         w.minutes(id, "text/plain", &w.cy_tab).await.status,
         StatusCode::FORBIDDEN
     );
+}
+
+#[tokio::test]
+async fn minutes_render_in_the_zone_asked_for_and_utc_otherwise() {
+    let w = world().await;
+    w.lock(Method::POST, &w.ada_tab).await;
+    let created = w.end(&w.ada_tab, w.meeting(&[&w.bob], &[])).await;
+    let id = created.body["id"].as_str().unwrap();
+    let start: chrono::DateTime<chrono::Utc> = created.body["started_at"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    let utc = start.format("%H:%M").to_string();
+    let text = w.minutes(id, "text/plain", &w.bob_tab).await;
+    let text = text.body.as_str().unwrap();
+    assert!(text.contains(&format!(", {utc}–")), "{text}");
+    assert!(text.contains(" UTC ("), "{text}");
+
+    let local = (start + chrono::Duration::minutes(630))
+        .format("%H:%M")
+        .to_string();
+    let html = w
+        .minutes(
+            &format!("{id}/minutes?tz_offset=630&tz_name=%3CACDT%3E"),
+            "text/html",
+            &w.bob_tab,
+        )
+        .await;
+    let html = html.body.as_str().unwrap();
+    assert!(html.contains(&format!(", {local}–")), "{html}");
+    assert!(html.contains(" &lt;ACDT&gt; ("), "{html}");
+
+    let bad = w
+        .minutes(
+            &format!("{id}/minutes?tz_offset=900"),
+            "text/plain",
+            &w.bob_tab,
+        )
+        .await;
+    assert_eq!(bad.status, StatusCode::BAD_REQUEST);
 }

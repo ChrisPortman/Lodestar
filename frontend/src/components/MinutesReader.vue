@@ -21,7 +21,7 @@ const meetingId = computed(() => props.meeting.id)
 // server's HTML: that is for email, and its inline styles break the CSP.
 const doc = useMinutesDocument(meetingId)
 const text = useMinutesText(
-  meetingId,
+  computed(() => props.meeting),
   computed(() => type.value === 'plain'),
 )
 const parts = computed(() => (doc.data.value ? minutesParts(doc.data.value) : []))
@@ -36,7 +36,7 @@ const copyError = ref('')
 async function copy(formatted: boolean) {
   copied.value = copyError.value = ''
   try {
-    await copyMinutes(props.meeting.id, formatted)
+    await copyMinutes(props.meeting, formatted)
     copied.value = formatted ? 'Copied for email or documents' : 'Copied as plain text'
   } catch (e) {
     copyError.value = e instanceof Error ? e.message : String(e)

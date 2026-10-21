@@ -2,29 +2,69 @@
 //!
 //! One walk over the Minutes ([`render`]) drives both formats through
 //! [`Writer`], so they always agree on layout and wording (#68, as amended by
-//! #75). Times are shown in UTC: the server renders without a viewer's zone,
-//! and the output must be deterministic.
+//! #75). Times are stored in UTC and shown in the [`Zone`] the reader asks
+//! for (UTC when none), so the output stays deterministic.
 
 use std::fmt::Write as _;
+
+use chrono::FixedOffset;
 
 use super::{Minutes, NewItem, Section, UpdatedItem};
 
 /// The Minutes as plain text, for pasting where formatting is lost.
-pub fn to_text(minutes: &Minutes) -> String {
+pub fn to_text(minutes: &Minutes, zone: &Zone) -> String {
     let mut w = Text(String::new());
-    render(minutes, &mut w);
+    render(minutes, zone, &mut w);
     w.0
 }
 
 /// The Minutes as an HTML fragment with inline styles only, for email and
 /// docs. All user text is escaped.
-pub fn to_html(minutes: &Minutes) -> String {
+pub fn to_html(minutes: &Minutes, zone: &Zone) -> String {
     let mut w = Html(String::from(
         r#"<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4;color:#1a1a1a">"#,
     ));
-    render(minutes, &mut w);
+    render(minutes, zone, &mut w);
     w.0.push_str("</div>\n");
     w.0
+}
+
+/// The time zone a reader sees the Minutes in: a fixed offset from UTC (the
+/// reader's offset at the Meeting's start) and a short name such as `AEDT`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Zone {
+    offset: FixedOffset,
+    label: String,
+}
+
+impl Zone {
+    /// The longest label accepted; real zone abbreviations are far shorter.
+    pub const MAX_LABEL: usize = 32;
+
+    pub fn utc() -> Self {
+        Self {
+            offset: FixedOffset::east_opt(0).expect("zero offset is valid"),
+            label: "UTC".into(),
+        }
+    }
+
+    /// `offset_minutes` east of UTC, within ±14 hours. An empty label names
+    /// the zone by its offset (`UTC+05:30`). `None` when out of range.
+    pub fn new(offset_minutes: i32, label: &str) -> Option<Self> {
+        if offset_minutes.abs() > 14 * 60 || label.chars().count() > Self::MAX_LABEL {
+            return None;
+        }
+        let offset = FixedOffset::east_opt(offset_minutes * 60)?;
+        let label = match label.trim() {
+            "" => {
+                let sign = if offset_minutes < 0 { '-' } else { '+' };
+                let m = offset_minutes.abs();
+                format!("UTC{sign}{:02}:{:02}", m / 60, m % 60)
+            }
+            l => l.to_owned(),
+        };
+        Some(Self { offset, label })
+    }
 }
 
 /// The parts of the Minutes layout; each format decides how they look.
@@ -37,12 +77,17 @@ trait Writer {
     fn meeting_comments(&mut self, comments: &[String]);
 }
 
-fn render(m: &Minutes, w: &mut impl Writer) {
+fn render(m: &Minutes, zone: &Zone, w: &mut impl Writer) {
+    let (start, end) = (
+        m.start.with_timezone(&zone.offset),
+        m.end.with_timezone(&zone.offset),
+    );
     let when = format!(
-        "{}, {}–{} UTC ({} min)",
-        m.start.format("%a %-d %b %Y"),
-        m.start.format("%H:%M"),
-        m.end.format("%H:%M"),
+        "{}, {}–{} {} ({} min)",
+        start.format("%a %-d %b %Y"),
+        start.format("%H:%M"),
+        end.format("%H:%M"),
+        zone.label,
         m.duration_minutes
     );
     w.heading(&m.project_name, &when, &m.leader, &m.attendees);
@@ -332,7 +377,7 @@ MEETING COMMENTS
   \"Launch moved\"
   \"Good progress\"
 ";
-        assert_eq!(to_text(&fixture()), expected);
+        assert_eq!(to_text(&fixture(), &Zone::utc()), expected);
     }
 
     #[test]
@@ -362,7 +407,7 @@ MEETING COMMENTS
             r#"<ul style="margin:0 0 8px;padding-left:20px"><li><i>Launch moved</i></li><li><i>Good progress</i></li></ul>"#,
             "</div>\n",
         );
-        assert_eq!(to_html(&fixture()), expected);
+        assert_eq!(to_html(&fixture(), &Zone::utc()), expected);
     }
 
     #[test]
@@ -383,7 +428,7 @@ MEETING COMMENTS
         actions.updated[0].comments = vec![evil.into()];
         m.meeting_comments = vec![evil.into()];
 
-        let html = to_html(&m);
+        let html = to_html(&m, &Zone::utc());
         assert!(!html.contains("<script"), "{html}");
         assert!(!html.contains("\"x"), "{html}");
         assert_eq!(html.matches(escaped).count(), 11, "{html}");
@@ -397,9 +442,39 @@ MEETING COMMENTS
         m.blockers = None;
         m.meeting_comments.clear();
         assert_eq!(
-            to_text(&m),
+            to_text(&m, &Zone::utc()),
             "Office move\nWed 21 Oct 2026, 09:00–10:15 UTC (75 min)\n\
              Led by Ada Lovelace. Attendees: Ada Lovelace, Sam Lee\n"
         );
+    }
+
+    #[test]
+    fn times_render_in_the_viewers_zone() {
+        let zone = Zone::new(11 * 60, "AEDT").unwrap();
+        let text = to_text(&fixture(), &zone);
+        assert!(
+            text.contains("Wed 21 Oct 2026, 20:00–21:15 AEDT (75 min)"),
+            "{text}"
+        );
+        let html = to_html(&fixture(), &Zone::new(-5 * 60, "<b>").unwrap());
+        assert!(
+            html.contains("Wed 21 Oct 2026, 04:00–05:15 &lt;b&gt; (75 min)"),
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn a_zone_without_a_label_is_named_by_its_offset() {
+        let text = to_text(&fixture(), &Zone::new(5 * 60 + 30, "").unwrap());
+        assert!(text.contains("14:30–15:45 UTC+05:30 "), "{text}");
+        let text = to_text(&fixture(), &Zone::new(-150, "").unwrap());
+        assert!(text.contains("06:30–07:45 UTC-02:30 "), "{text}");
+    }
+
+    #[test]
+    fn unreal_offsets_and_long_labels_are_refused() {
+        assert!(Zone::new(15 * 60, "").is_none());
+        assert!(Zone::new(-15 * 60, "").is_none());
+        assert!(Zone::new(0, &"x".repeat(33)).is_none());
     }
 }

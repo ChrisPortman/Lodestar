@@ -282,9 +282,13 @@ export function fakeBackend(
     http.get(api('/meetings/:id/minutes'), ({ request, params }) => {
       if (!meetings.some((m) => m.id === params.id)) return problem(404, 'Not Found')
       const accept = request.headers.get('Accept')
+      const query = new URL(request.url).searchParams
+      const zone = query.has('tz_offset')
+        ? ` at UTC${query.get('tz_offset')} ${query.get('tz_name')}`
+        : ''
       if (accept === 'text/html')
-        return HttpResponse.html(`<p>Formatted Minutes of ${params.id}</p>`)
-      if (accept === 'text/plain') return HttpResponse.text(`Plain Minutes of ${params.id}`)
+        return HttpResponse.html(`<p>Formatted Minutes of ${params.id}${zone}</p>`)
+      if (accept === 'text/plain') return HttpResponse.text(`Plain Minutes of ${params.id}${zone}`)
       if (accept === 'application/json')
         return HttpResponse.json({
           schema: 1,

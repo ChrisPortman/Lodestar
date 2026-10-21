@@ -313,20 +313,48 @@ impl MinutesFormat {
     }
 }
 
+/// The reader's time zone for rendered Minutes; UTC when absent.
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct MinutesParams {
+    /// Minutes east of UTC at the Meeting's start, e.g. 660 for AEDT.
+    #[param(minimum = -840, maximum = 840)]
+    tz_offset: Option<i32>,
+    /// A short zone name to print, e.g. `AEDT`; `UTC±hh:mm` when absent.
+    #[param(max_length = 32)]
+    tz_name: Option<String>,
+}
+
+impl MinutesParams {
+    fn zone(&self) -> Result<render::Zone, Problem> {
+        match (self.tz_offset, self.tz_name.as_deref()) {
+            (None, None) => Ok(render::Zone::utc()),
+            (offset, name) => render::Zone::new(offset.unwrap_or(0), name.unwrap_or(""))
+                .ok_or_else(|| {
+                    Problem::new(StatusCode::BAD_REQUEST).detail(
+                        "tz_offset must be within ±840 minutes and tz_name at most 32 characters",
+                    )
+                }),
+        }
+    }
+}
+
 /// Fetches a Meeting's Minutes as the stored JSON document, or rendered as
-/// plain text or inline-styled HTML, by `Accept`. Any Member may.
+/// plain text or inline-styled HTML, by `Accept`. Rendered times are in the
+/// zone `tz_offset`/`tz_name` give, else UTC. Any Member may.
 #[utoipa::path(
     get,
     path = "/api/v1/meetings/{id}/minutes",
     tag = "meetings",
     operation_id = "get_meeting_minutes",
-    params(("id" = Uuid, Path)),
+    params(("id" = Uuid, Path), MinutesParams),
     responses(
         (status = 200, description = "The Minutes", content(
             (Object = "application/json"),
             (String = "text/plain"),
             (String = "text/html"),
         )),
+        (status = 400, description = "The zone is out of range", body = Problem, content_type = "application/problem+json"),
         (status = 401, description = "No valid session", body = Problem, content_type = "application/problem+json"),
         (status = 403, description = "Not a Member", body = Problem, content_type = "application/problem+json"),
         (status = 404, body = Problem, content_type = "application/problem+json"),
@@ -337,6 +365,7 @@ pub(crate) async fn minutes<S: Store>(
     State(state): State<AppState<S>>,
     Acting(acting): Acting,
     Path(id): Path<Uuid>,
+    Query(params): Query<MinutesParams>,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let accept = headers
@@ -346,6 +375,7 @@ pub(crate) async fn minutes<S: Store>(
         Problem::new(StatusCode::NOT_ACCEPTABLE)
             .detail("minutes are offered as application/json, text/plain or text/html")
     })?;
+    let zone = params.zone()?;
     let minutes = get_meeting(&state.store, acting, MeetingId::from_uuid(id))
         .await?
         .minutes;
@@ -355,13 +385,13 @@ pub(crate) async fn minutes<S: Store>(
         MinutesFormat::Text => (
             vary,
             [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            render::to_text(&minutes),
+            render::to_text(&minutes, &zone),
         )
             .into_response(),
         MinutesFormat::Html => (
             vary,
             [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-            render::to_html(&minutes),
+            render::to_html(&minutes, &zone),
         )
             .into_response(),
     })

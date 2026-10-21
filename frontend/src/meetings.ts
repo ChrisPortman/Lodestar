@@ -10,6 +10,7 @@ import {
   type Minutes,
   type MinutesSection,
   type MinutesType,
+  type ReaderZone,
 } from './api/meetings'
 import { meetingLockKey } from './meetingLock'
 
@@ -51,11 +52,12 @@ export function useMeetings(projectId: Ref<string>) {
   })
 }
 
-/** A Meeting's Minutes as plain text, as the server renders them. */
-export function useMinutesText(meetingId: Ref<string>, enabled: Ref<boolean>) {
+/** A Meeting's Minutes as plain text, as the server renders them in local time. */
+export function useMinutesText(meeting: Ref<MeetingSummary>, enabled: Ref<boolean>) {
   return useQuery({
-    queryKey: computed(() => ['minutes', meetingId.value, 'text/plain'] as const),
-    queryFn: () => getMinutes(meetingId.value, 'text/plain'),
+    queryKey: computed(() => ['minutes', meeting.value.id, 'text/plain'] as const),
+    queryFn: () =>
+      getMinutes(meeting.value.id, 'text/plain', readerZone(new Date(meeting.value.started_at))),
     enabled,
     staleTime: Infinity, // Meetings never change
   })
@@ -89,26 +91,48 @@ export function minutesParts(minutes: Minutes): MinutesPart[] {
     .filter((p) => p.new.length || p.updated.length)
 }
 
-/** "Wed 21 Oct 2026, 09:00–10:15 UTC (75 min)", in UTC like the server's renderings. */
-export function minutesWhen(minutes: Minutes): string {
-  const start = new Date(minutes.start)
-  const end = new Date(minutes.end)
-  const part = (options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(start)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const time = (at: Date) => `${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())}`
-  const date = `${part({ weekday: 'short' })} ${start.getUTCDate()} ${part({ month: 'short' })} ${start.getUTCFullYear()}`
-  return `${date}, ${time(start)}–${time(end)} UTC (${minutes.duration_minutes} min)`
+/** The browser's short name for its zone at `at`, e.g. "AEDT" (or "GMT+11"). */
+function zoneName(at: Date): string {
+  const parts = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(at)
+  return parts.find((p) => p.type === 'timeZoneName')?.value ?? ''
 }
 
 /**
- * Puts a Meeting's Minutes on the clipboard: formatted (HTML with a plain-text
- * fallback) or plain text only.
+ * The browser's zone as it stood at `at` (a Meeting's start), for the server
+ * to render Minutes in. Times are stored in UTC; people read them locally.
  */
-export async function copyMinutes(meetingId: string, formatted: boolean): Promise<void> {
+export function readerZone(at: Date): ReaderZone {
+  return { tz_offset: -at.getTimezoneOffset(), tz_name: zoneName(at) }
+}
+
+/** "Wed 21 Oct 2026, 20:00–21:15 AEDT (75 min)", in local time like the server's renderings. */
+export function minutesWhen(minutes: Minutes): string {
+  const start = new Date(minutes.start)
+  const end = new Date(minutes.end)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const time = (at: Date) => `${pad(at.getHours())}:${pad(at.getMinutes())}`
+  return `${localDate(start)}, ${time(start)}–${time(end)} ${zoneName(start)} (${minutes.duration_minutes} min)`
+}
+
+/** "Wed 21 Oct 2026" in local time. */
+function localDate(at: Date): string {
+  const part = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-GB', options).format(at)
+  return `${part({ weekday: 'short' })} ${at.getDate()} ${part({ month: 'short' })} ${at.getFullYear()}`
+}
+
+/**
+ * Puts a Meeting's Minutes on the clipboard, rendered in local time: formatted
+ * (HTML with a plain-text fallback) or plain text only.
+ */
+export async function copyMinutes(meeting: MeetingSummary, formatted: boolean): Promise<void> {
+  const zone = readerZone(new Date(meeting.started_at))
   const types: MinutesType[] = formatted ? ['text/html', 'text/plain'] : ['text/plain']
   const blobs = await Promise.all(
-    types.map(async (type) => [type, new Blob([await getMinutes(meetingId, type)], { type })]),
+    types.map(async (type) => [
+      type,
+      new Blob([await getMinutes(meeting.id, type, zone)], { type }),
+    ]),
   )
   await navigator.clipboard.write([new ClipboardItem(Object.fromEntries(blobs))])
 }
@@ -116,11 +140,8 @@ export async function copyMinutes(meetingId: string, formatted: boolean): Promis
 /** "Wed 21 Oct 2026, 09:00" in local time. */
 export function meetingStart(meeting: MeetingSummary): string {
   const at = new Date(meeting.started_at)
-  const part = (options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('en-GB', options).format(at)
   const pad = (n: number) => String(n).padStart(2, '0')
-  const date = `${part({ weekday: 'short' })} ${at.getDate()} ${part({ month: 'short' })} ${at.getFullYear()}`
-  return `${date}, ${pad(at.getHours())}:${pad(at.getMinutes())}`
+  return `${localDate(at)}, ${pad(at.getHours())}:${pad(at.getMinutes())}`
 }
 
 /** Whole minutes from start to end. */
