@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meetings (id, project_id, leader_id, started_at, ended_at, minutes, version)\n             VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "488186600cd7511cfb8f72be480c1e745f24cb59bd9539a1cdf086184b5647cb"
+}

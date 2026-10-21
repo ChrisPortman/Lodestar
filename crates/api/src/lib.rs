@@ -8,6 +8,7 @@ mod filters;
 mod frontend;
 mod health;
 mod meeting_lock;
+mod meetings;
 mod members;
 mod people;
 mod problem;
@@ -23,8 +24,8 @@ use axum_extra::extract::cookie::Key;
 use lodestar_core::{
     health::HealthProbe,
     ports::{
-        ActionsQuery, BlockersQuery, CommentsQuery, HistoryQuery, PeopleQuery, ProjectsQuery,
-        RisksQuery, UnitOfWork,
+        ActionsQuery, BlockersQuery, CommentsQuery, HistoryQuery, MeetingsQuery, PeopleQuery,
+        ProjectsQuery, RisksQuery, UnitOfWork,
     },
 };
 use rust_embed::RustEmbed;
@@ -59,6 +60,7 @@ pub trait Store:
     + BlockersQuery
     + CommentsQuery
     + HistoryQuery
+    + MeetingsQuery
     + Clone
     + 'static
 {
@@ -73,6 +75,7 @@ impl<T> Store for T where
         + BlockersQuery
         + CommentsQuery
         + HistoryQuery
+        + MeetingsQuery
         + Clone
         + 'static
 {
@@ -119,6 +122,7 @@ where
         .merge(comments::routes::<S>())
         .merge(members::routes::<S>())
         .merge(meeting_lock::routes::<S>())
+        .merge(meetings::routes::<S>())
         .merge(export::routes::<S>())
         .merge(session::routes::<S>())
         .route("/openapi.json", get(|| async { Json(openapi()) }))
@@ -178,6 +182,9 @@ where
         meeting_lock::heartbeat,
         meeting_lock::read,
         meeting_lock::cancel,
+        meetings::create,
+        meetings::list,
+        meetings::fetch,
         export::export,
         session::current,
         session::choose,

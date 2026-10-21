@@ -49,6 +49,7 @@ pub enum TargetType {
     Action,
     Risk,
     Blocker,
+    Meeting,
 }
 
 impl TargetType {
@@ -58,6 +59,7 @@ impl TargetType {
             Self::Action => "action",
             Self::Risk => "risk",
             Self::Blocker => "blocker",
+            Self::Meeting => "meeting",
         }
     }
 
@@ -67,12 +69,14 @@ impl TargetType {
             "action" => Some(Self::Action),
             "risk" => Some(Self::Risk),
             "blocker" => Some(Self::Blocker),
+            "meeting" => Some(Self::Meeting),
             _ => None,
         }
     }
 }
 
-/// What a Comment is about: the Project itself, or an item in it.
+/// What a Comment is about: the Project itself, an item in it, or one of
+/// its Meetings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Target {
     #[serde(rename = "target_type")]

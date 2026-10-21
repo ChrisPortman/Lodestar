@@ -1166,7 +1166,8 @@
                 "project",
                 "action",
                 "risk",
-                "blocker"
+                "blocker",
+                "meeting"
               ]
             }
           },
@@ -1592,6 +1593,227 @@
           },
           "428": {
             "description": "If-Match missing",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meetings": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Lists a Project's Meetings newest first, without Minutes. Any Member may.",
+        "operationId": "list_meetings",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "description": "The Project whose Meetings to list.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1–1000.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50,
+              "maximum": 1000,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Member",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Ends a Meeting: creates it over the Meeting Lock's time range with its\nComments and Minutes, and releases the lock, all at once.",
+        "operationId": "create_meeting",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMeetingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "headers": {
+              "location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the Project Leader",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This session does not hold the lock, or the Project is archived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid Meeting",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meetings/{id}": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Fetches a Meeting with its Minutes. Any Member may.",
+        "operationId": "get_meeting",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meeting"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Member",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3899,6 +4121,83 @@
           }
         }
       },
+      "Meeting": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "A Meeting as listed: everything but its Minutes.",
+            "required": [
+              "id",
+              "project_id",
+              "leader",
+              "attendees",
+              "started_at",
+              "ended_at",
+              "version"
+            ],
+            "properties": {
+              "attendees": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PersonRef"
+                },
+                "description": "The leader first, then the others in the order given."
+              },
+              "ended_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "leader": {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              "project_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "started_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "version": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 1
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "minutes"
+            ],
+            "properties": {
+              "minutes": {
+                "type": "object",
+                "description": "The fixed, fully resolved Minutes document (`schema` gives its version)."
+              }
+            }
+          }
+        ],
+        "description": "A Meeting with its frozen Minutes."
+      },
+      "MeetingCommentInput": {
+        "type": "object",
+        "description": "A Comment about the Meeting, made while it ran.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "additionalProperties": false
+      },
       "MeetingInProgress": {
         "type": "object",
         "description": "The Meeting in progress, as named on a refused write.",
@@ -3944,6 +4243,86 @@
           }
         }
       },
+      "MeetingPage": {
+        "type": "object",
+        "description": "A page of Meetings, newest first.",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeetingSummaryBody"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Meetings across all pages.",
+            "minimum": 0
+          }
+        }
+      },
+      "MeetingSummaryBody": {
+        "type": "object",
+        "description": "A Meeting as listed: everything but its Minutes.",
+        "required": [
+          "id",
+          "project_id",
+          "leader",
+          "attendees",
+          "started_at",
+          "ended_at",
+          "version"
+        ],
+        "properties": {
+          "attendees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "description": "The leader first, then the others in the order given."
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "leader": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          }
+        }
+      },
       "MemberList": {
         "type": "object",
         "description": "A Project's Members, ordered by display name.",
@@ -3967,6 +4346,35 @@
         ],
         "properties": {
           "action_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NewMeetingBody": {
+        "type": "object",
+        "description": "Ends the Meeting the calling session holds the lock for.",
+        "required": [
+          "project_id",
+          "attendee_ids"
+        ],
+        "properties": {
+          "attendee_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Members who attended; not empty. The leader is added if missing."
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeetingCommentInput"
+            }
+          },
+          "project_id": {
             "type": "string",
             "format": "uuid"
           }
@@ -4479,7 +4887,8 @@
           "project",
           "action",
           "risk",
-          "blocker"
+          "blocker",
+          "meeting"
         ]
       }
     }

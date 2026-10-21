@@ -6,10 +6,11 @@ use crate::action::ActionId;
 use crate::blocker::BlockerId;
 use crate::comment::{BodyError, Comment, CommentBody, CommentId, CommentView, Target, TargetType};
 use crate::history::ChangeContext;
+use crate::meeting::MeetingId;
 use crate::person::PersonId;
 use crate::ports::{
-    ActionRepository, BlockerRepository, CommentRepository, CommentsQuery, Page, PageRequest,
-    RepoError, RiskRepository, Transaction, UnitOfWork,
+    ActionRepository, BlockerRepository, CommentRepository, CommentsQuery, MeetingRepository, Page,
+    PageRequest, RepoError, RiskRepository, Transaction, UnitOfWork,
 };
 use crate::project::guard::{GuardError, MeetingInProgress, unlocked_project};
 use crate::project::{Project, ProjectId};
@@ -81,6 +82,11 @@ async fn check_target<T: Transaction>(
             .load(BlockerId::from_uuid(target.id))
             .await
             .map(|b| b.project_id()),
+        TargetType::Meeting => tx
+            .meetings()
+            .load(MeetingId::from_uuid(target.id))
+            .await
+            .map(|m| m.project_id()),
     };
     match owner {
         Ok(owner) if owner == project => Ok(()),
