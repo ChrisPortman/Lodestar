@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch, watchEffect } from 'vue'
 import { RouterLink } from 'vue-router'
 import ActionsPanel from '../components/ActionsPanel.vue'
 import BlockersPanel from '../components/BlockersPanel.vue'
@@ -27,6 +27,10 @@ const variant = useVariant()
 // Highlighting compares against the previous visit for the whole page visit.
 const since = ref<string | null>(null)
 watch(projectId, (id) => (since.value = markViewed(id)), { immediate: true })
+// PROTOTYPE (#75) D: make room for the rail on the whole page, so the centred
+// content keeps its width and only narrows when the window is too small.
+watchEffect(() => (document.body.style.marginRight = variant.value === 'D' && stub.running ? '24rem' : ''))
+onBeforeUnmount(() => (document.body.style.marginRight = ''))
 
 const actingId = computed(() => session.data.value?.person.id ?? null)
 provideComments({
@@ -43,7 +47,7 @@ provideComments({
 </script>
 
 <template>
-  <section :class="{ 'pr-96': (variant === 'B' && (stub.running || stub.justEnded)) || (variant === 'D' && stub.running) }">
+  <section :class="{ 'pr-96': variant === 'B' && (stub.running || stub.justEnded) }">
     <PrototypeSwitcher />
     <MeetingsVariant v-if="project.data.value" :project="project.data.value" place="page" />
     <p v-if="project.isPending.value" class="text-muted">Loading…</p>

@@ -86,30 +86,24 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
         Start a Meeting now
       </button>
       <p v-else class="text-sm text-muted">Only a Project Leader can start a Meeting.</p>
-      <table class="w-full text-sm">
-        <caption class="text-left font-semibold">
-          History
-        </caption>
-        <thead class="text-xs text-muted">
-          <tr>
-            <th class="text-left">When</th>
-            <th class="text-left">Leader</th>
-            <th class="text-right">Mins</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="m in stub.past"
-            :key="m.id"
-            class="cursor-pointer hover:bg-hover"
-            @click="reader.meeting = m"
-          >
-            <td class="py-1">{{ fmtDate(m.startedAt) }}</td>
-            <td>{{ m.leader }}</td>
-            <td class="text-right font-mono">{{ minutesLong(m) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <section>
+        <h3 class="font-semibold">Past Meetings</h3>
+        <ul class="mt-2 grid gap-1">
+          <li v-for="m in stub.past" :key="m.id">
+            <button
+              type="button"
+              class="w-full rounded px-2 py-1 text-left hover:bg-hover"
+              @click="reader.meeting = m"
+            >
+              <span class="block">{{ fmtDate(m.startedAt) }}, {{ fmtTime(m.startedAt) }}</span>
+              <span class="block text-xs text-muted">
+                {{ minutesLong(m) }} min · led by {{ m.leader }} ·
+                {{ m.attendees.length }} attendees
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
     </template>
   </div>
 

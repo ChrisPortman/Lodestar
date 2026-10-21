@@ -27,7 +27,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <template>
   <div
     v-if="dev"
-    class="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-black px-4 py-2 text-sm text-white shadow-xl"
+    class="fixed bottom-4 left-4 z-50 flex items-center gap-3 rounded-full bg-black px-4 py-2 text-sm text-white shadow-xl"
   >
     <button type="button" aria-label="Previous variant" @click="go(-1)">◀</button>
     <span class="font-mono">{{ variant }} ({{ VARIANTS[variant] }})</span>
