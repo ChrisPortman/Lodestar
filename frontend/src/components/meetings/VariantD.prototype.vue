@@ -32,7 +32,7 @@ function post() {
   addComment(draft.value)
   draft.value = ''
 }
-const collapsed = ref(false)
+
 const reader = readerState
 const confirming = ref(false)
 const elapsed = useElapsed(() => stub.running?.startedAt)
@@ -111,14 +111,14 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
   <template v-else-if="stub.running">
     <aside
       class="fixed inset-y-0 right-0 z-[5] flex flex-col border-l-4 border-accent bg-surface shadow-lg"
-      :class="collapsed ? 'w-12' : 'w-96'"
+      :class="stub.railCollapsed ? 'w-12' : 'w-96'"
       aria-label="Meeting"
     >
       <button
-        v-if="collapsed"
+        v-if="stub.railCollapsed"
         type="button"
         class="h-full font-mono text-sm [writing-mode:vertical-rl]"
-        @click="collapsed = false"
+        @click="stub.railCollapsed = false"
       >
         ● Meeting {{ elapsed }} · {{ stub.running?.comments.length ?? 0 }} Comments
       </button>
@@ -144,7 +144,7 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
             type="button"
             class="btn btn-sm btn-ghost"
             aria-label="Collapse"
-            @click="collapsed = true"
+            @click="stub.railCollapsed = true"
           >
             ⇥
           </button>

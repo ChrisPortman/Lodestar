@@ -29,7 +29,7 @@ const since = ref<string | null>(null)
 watch(projectId, (id) => (since.value = markViewed(id)), { immediate: true })
 // PROTOTYPE (#75) D: make room for the rail on the whole page, so the centred
 // content keeps its width and only narrows when the window is too small.
-watchEffect(() => (document.body.style.marginRight = variant.value === 'D' && stub.running ? '24rem' : ''))
+watchEffect(() => (document.body.style.marginRight = variant.value === 'D' && stub.running ? (stub.railCollapsed ? '3rem' : '24rem') : ''))
 onBeforeUnmount(() => (document.body.style.marginRight = ''))
 
 const actingId = computed(() => session.data.value?.person.id ?? null)

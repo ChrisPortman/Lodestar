@@ -45,6 +45,8 @@ export const stub = reactive({
   running: null as null | { startedAt: Date; attendeeIds: string[]; comments: StubComment[] },
   /** Set by "Simulate reload": the variant must offer to resume. */
   resumePending: false,
+  /** Variant D: the rail is collapsed to a strip. */
+  railCollapsed: false,
   /** The Meeting just created, so the variant can show its Minutes straight away. */
   justEnded: null as null | PastMeeting,
   past: [
