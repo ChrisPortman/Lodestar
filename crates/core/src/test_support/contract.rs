@@ -411,6 +411,40 @@ pub async fn project_history_holds_the_project_and_its_items_in_time_order(store
     );
 }
 
+pub async fn project_history_can_be_read_for_a_half_open_window(store: impl Store) {
+    let project = a_saved_project(&store, "WEBR").await;
+    let other = a_saved_project(&store, "DOCS").await;
+    let before = a_risk(project.id(), 1).build();
+    save_risk(&store, &before).await;
+    let from = chrono::Utc::now();
+    let inside = a_risk(project.id(), 2).build();
+    let elsewhere = a_risk(other.id(), 1).build();
+    save_risk(&store, &inside).await;
+    save_risk(&store, &elsewhere).await;
+    let to = chrono::Utc::now();
+    let after = a_risk(project.id(), 3).build();
+    save_risk(&store, &after).await;
+
+    let history = store
+        .project_history_between(project.id(), from, to)
+        .await
+        .unwrap();
+    let seen: Vec<Uuid> = history.iter().map(|e| e.entity_id).collect();
+    assert_eq!(seen, [inside.id().as_uuid()]);
+
+    let empty = store
+        .project_history_between(project.id(), to, to)
+        .await
+        .unwrap();
+    assert!(empty.is_empty());
+}
+
+async fn save_risk(store: &impl Store, risk: &crate::risk::Risk) {
+    let mut tx = store.begin().await.unwrap();
+    tx.risks().save(None, risk, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+}
+
 pub async fn projects_are_listed_without_archived_ones_by_default(store: impl Store) {
     let ada = a_saved_person(&store, "Ada").await;
     let web = a_project(ada).named("Web").coded("WEBR").build();
@@ -1268,6 +1302,7 @@ macro_rules! port_contract_tests {
             open_blockers_a_person_is_accountable_for_can_be_found,
             blockers_are_listed_by_project_code_and_reference,
             project_history_holds_the_project_and_its_items_in_time_order,
+            project_history_can_be_read_for_a_half_open_window,
             saved_comment_can_be_loaded_updated_and_deleted,
             each_comment_save_writes_a_history_entry,
             comments_are_listed_oldest_first_by_project_and_target,

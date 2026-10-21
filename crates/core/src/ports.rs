@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::future::Future;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
@@ -373,6 +373,15 @@ pub trait HistoryQuery: Send + Sync {
     fn project_history(
         &self,
         project_id: ProjectId,
+    ) -> impl Future<Output = Result<Vec<HistoryEntry>, RepoError>> + Send;
+
+    /// The entries for a Project and its items recorded in `[from, to)`, in
+    /// the order recorded.
+    fn project_history_between(
+        &self,
+        project_id: ProjectId,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
     ) -> impl Future<Output = Result<Vec<HistoryEntry>, RepoError>> + Send;
 }
 

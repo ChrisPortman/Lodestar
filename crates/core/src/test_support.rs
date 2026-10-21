@@ -6,7 +6,7 @@ pub mod contract;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::action::{Action, ActionId, ActionView};
@@ -656,6 +656,20 @@ impl HistoryQuery for InMemoryStore {
             .history
             .into_iter()
             .filter(|e| e.project_id == Some(project_id.as_uuid()))
+            .collect())
+    }
+
+    async fn project_history_between(
+        &self,
+        project_id: ProjectId,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<HistoryEntry>, RepoError> {
+        Ok(self
+            .project_history(project_id)
+            .await?
+            .into_iter()
+            .filter(|e| from <= e.recorded_at && e.recorded_at < to)
             .collect())
     }
 }

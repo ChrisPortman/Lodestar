@@ -6,6 +6,7 @@ pub mod comment;
 pub mod health;
 pub mod history;
 pub mod meeting_lock;
+pub mod minutes;
 pub mod person;
 pub mod ports;
 pub mod project;

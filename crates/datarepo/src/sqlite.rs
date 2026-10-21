@@ -724,7 +724,8 @@ impl HistoryQuery for SqliteStore {
 
     async fn project_history(&self, project_id: ProjectId) -> Result<Vec<HistoryEntry>, RepoError> {
         let project = project_id.as_uuid().to_string();
-        let rows = sqlx::query!(
+        let rows = sqlx::query_as!(
+            HistoryRow,
             "SELECT id, entity_type, entity_id, project_id, version, change_kind,
                     acting_person_id, recorded_at, before, after, caused_by
              FROM change_history
@@ -735,31 +736,75 @@ impl HistoryQuery for SqliteStore {
         .fetch_all(&self.pool)
         .await
         .map_err(unexpected)?;
-        rows.into_iter()
-            .map(|r| {
-                Ok(HistoryEntry {
-                    id: HistoryEntryId::from_uuid(uuid(&r.id)?),
-                    entity_type: EntityType::parse(&r.entity_type)
-                        .ok_or_else(|| corrupt("entity_type", &r.entity_type))?,
-                    entity_id: uuid(&r.entity_id)?,
-                    project_id: r.project_id.as_deref().map(uuid).transpose()?,
-                    version: version(r.version)?,
-                    change_kind: ChangeKind::parse(&r.change_kind)
-                        .ok_or_else(|| corrupt("change_kind", &r.change_kind))?,
-                    acting_person: PersonId::from_uuid(uuid(&r.acting_person_id)?),
-                    recorded_at: DateTime::parse_from_rfc3339(&r.recorded_at)
-                        .map_err(|_| corrupt("recorded_at", &r.recorded_at))?
-                        .with_timezone(&Utc),
-                    before: r.before.as_deref().map(json).transpose()?,
-                    after: json(&r.after)?,
-                    caused_by: r
-                        .caused_by
-                        .as_deref()
-                        .map(|c| uuid(c).map(HistoryEntryId::from_uuid))
-                        .transpose()?,
-                })
-            })
-            .collect()
+        rows.into_iter().map(HistoryRow::into_entry).collect()
+    }
+
+    async fn project_history_between(
+        &self,
+        project_id: ProjectId,
+        from: DateTime<Utc>,
+        to: DateTime<Utc>,
+    ) -> Result<Vec<HistoryEntry>, RepoError> {
+        let project = project_id.as_uuid().to_string();
+        let from = from.to_rfc3339_opts(SecondsFormat::Micros, true);
+        let to = to.to_rfc3339_opts(SecondsFormat::Micros, true);
+        let rows = sqlx::query_as!(
+            HistoryRow,
+            "SELECT id, entity_type, entity_id, project_id, version, change_kind,
+                    acting_person_id, recorded_at, before, after, caused_by
+             FROM change_history
+             WHERE project_id = ? AND recorded_at >= ? AND recorded_at < ?
+             ORDER BY recorded_at, id",
+            project,
+            from,
+            to
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(unexpected)?;
+        rows.into_iter().map(HistoryRow::into_entry).collect()
+    }
+}
+
+/// A `change_history` row as stored.
+struct HistoryRow {
+    id: String,
+    entity_type: String,
+    entity_id: String,
+    project_id: Option<String>,
+    version: i64,
+    change_kind: String,
+    acting_person_id: String,
+    recorded_at: String,
+    before: Option<String>,
+    after: String,
+    caused_by: Option<String>,
+}
+
+impl HistoryRow {
+    fn into_entry(self) -> Result<HistoryEntry, RepoError> {
+        let r = self;
+        Ok(HistoryEntry {
+            id: HistoryEntryId::from_uuid(uuid(&r.id)?),
+            entity_type: EntityType::parse(&r.entity_type)
+                .ok_or_else(|| corrupt("entity_type", &r.entity_type))?,
+            entity_id: uuid(&r.entity_id)?,
+            project_id: r.project_id.as_deref().map(uuid).transpose()?,
+            version: version(r.version)?,
+            change_kind: ChangeKind::parse(&r.change_kind)
+                .ok_or_else(|| corrupt("change_kind", &r.change_kind))?,
+            acting_person: PersonId::from_uuid(uuid(&r.acting_person_id)?),
+            recorded_at: DateTime::parse_from_rfc3339(&r.recorded_at)
+                .map_err(|_| corrupt("recorded_at", &r.recorded_at))?
+                .with_timezone(&Utc),
+            before: r.before.as_deref().map(json).transpose()?,
+            after: json(&r.after)?,
+            caused_by: r
+                .caused_by
+                .as_deref()
+                .map(|c| uuid(c).map(HistoryEntryId::from_uuid))
+                .transpose()?,
+        })
     }
 }
 
