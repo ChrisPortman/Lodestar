@@ -10,6 +10,7 @@ import {
   useMeetings,
   useStartMeeting,
 } from '../meetings'
+import { useRunningMeeting } from '../runningMeeting'
 import { useSession } from '../session'
 import MinutesReader from './MinutesReader.vue'
 
@@ -18,7 +19,8 @@ const projectId = computed(() => props.project.id)
 const session = useSession()
 const lock = useMeetingLock(projectId)
 const meetings = useMeetings(projectId)
-const start = useStartMeeting(projectId)
+const running = useRunningMeeting()
+const start = useStartMeeting(projectId, (l) => running.started(l.acquired_at))
 
 const isLeader = computed(
   () =>
@@ -36,9 +38,12 @@ const reading = ref<MeetingSummary | null>(null)
 
 <template>
   <div class="mt-4 grid gap-4">
-    <p v-if="runningHere" role="status" class="rounded bg-accent-soft p-3 text-sm">
-      Your Meeting is running.
-    </p>
+    <div v-if="runningHere" role="status" class="grid gap-2 rounded bg-accent-soft p-3 text-sm">
+      <p>Your Meeting is running.</p>
+      <button type="button" class="btn btn-primary" @click="running.panelOpen.value = true">
+        Open the Meeting
+      </button>
+    </div>
     <p
       v-else-if="runningElsewhere"
       role="status"

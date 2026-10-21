@@ -1,7 +1,7 @@
 // Meetings in the Project menu (#84): starting one, Past Meetings and the Minutes.
 import { computed, type Ref } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { acquireMeetingLock, getMeetingLock } from './api/meetingLock'
+import { acquireMeetingLock, getMeetingLock, type MeetingLock } from './api/meetingLock'
 import { getMinutes, listMeetings, type MeetingSummary, type MinutesType } from './api/meetings'
 import { meetingLockKey } from './meetingLock'
 
@@ -15,12 +15,22 @@ export function useMeetingLock(projectId: Ref<string>) {
   })
 }
 
-/** Starts a Meeting by acquiring the Project's Meeting Lock. */
-export function useStartMeeting(projectId: Ref<string>) {
+/**
+ * Starts a Meeting by acquiring the Project's Meeting Lock. `onStarted` runs
+ * before the lock reaches the cache, so the page knows the Meeting is new
+ * rather than one to resume.
+ */
+export function useStartMeeting(
+  projectId: Ref<string>,
+  onStarted: (lock: MeetingLock) => void = () => {},
+) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => acquireMeetingLock(projectId.value),
-    onSuccess: (lock) => queryClient.setQueryData(meetingLockKey(projectId.value), lock),
+    onSuccess: (lock) => {
+      onStarted(lock)
+      queryClient.setQueryData(meetingLockKey(projectId.value), lock)
+    },
     // A 409 means someone else got there first: show who.
     onError: () => queryClient.invalidateQueries({ queryKey: meetingLockKey(projectId.value) }),
   })

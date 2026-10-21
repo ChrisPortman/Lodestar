@@ -47,8 +47,11 @@ describe('Meetings in the Project menu (#84)', () => {
     const panel = await openMeetings()
     await userEvent.click(within(panel).getByRole('button', { name: 'Start a Meeting now' }))
     await waitFor(() => expect(backend.lock()?.held_by_you).toBe(true))
-    expect(await within(panel).findByText(/Your Meeting is running/)).toBeTruthy()
-    expect(within(panel).queryByRole('button', { name: 'Start a Meeting now' })).toBeNull()
+    // The Meeting panel replaces the menu (#85); back in the menu, it can be reopened.
+    expect(await screen.findByRole('dialog', { name: 'Meeting' })).toBeTruthy()
+    const again = await openMeetings()
+    expect(within(again).getByText(/Your Meeting is running/)).toBeTruthy()
+    expect(within(again).queryByRole('button', { name: 'Start a Meeting now' })).toBeNull()
   })
 
   it('tells a Member that only a Project Leader can start one', async () => {
