@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 export const VARIANTS = {
-  A: 'Step-by-step in the menu',
+  A: 'Chosen: sidebar + reader',
   B: 'Docked rail beside the page',
   C: 'Meeting bar + reader',
 } as const
@@ -126,7 +126,8 @@ export const minutesLong = (m: PastMeeting) =>
 /** A rough stand-in for the server's `text/plain` render of the Minutes (#68). */
 export function minutesText(m: PastMeeting, project: string) {
   const lines = [
-    `${project}: Meeting ${fmtDate(m.startedAt)} ${fmtTime(m.startedAt)}–${fmtTime(m.endedAt)}`,
+    project,
+    `${fmtDate(m.startedAt)}, ${fmtTime(m.startedAt)}–${fmtTime(m.endedAt)}`,
     `Led by ${m.leader}. Attendees: ${m.attendees.join(', ')}`,
     '',
     'ACTIONS',
@@ -150,7 +151,8 @@ export function minutesText(m: PastMeeting, project: string) {
 
 export function minutesHtml(m: PastMeeting, project: string) {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-  return `<h2>${esc(project)}: Meeting ${fmtDate(m.startedAt)} ${fmtTime(m.startedAt)}–${fmtTime(m.endedAt)}</h2>
+  return `<h2>${esc(project)}</h2>
+<p><small>${fmtDate(m.startedAt)}, ${fmtTime(m.startedAt)}–${fmtTime(m.endedAt)}</small></p>
 <p>Led by <b>${esc(m.leader)}</b>. Attendees: ${m.attendees.map(esc).join(', ')}</p>
 <h3>Actions</h3><h4>New</h4><ul><li><b>A-14</b> Book venue for launch (Tom Nguyen, due 3 Nov)</li></ul>
 <h4>Updated</h4><p><b>A-9</b> Draft comms plan</p><ul><li>Due date 24 Oct → 31 Oct</li><li><i>"Waiting on legal sign-off."</i></li></ul>

@@ -26,8 +26,8 @@ const session = useSession()
 const me = computed(() => session.data.value?.person)
 const name = (id: string) => members.data.value?.find((m) => m.id === id)?.display_name ?? id
 
-type Step = 'home' | 'attendees' | 'minutes'
-const step = ref<Step>(stub.justEnded ? 'minutes' : 'home')
+type Step = 'home' | 'attendees'
+const step = ref<Step>('home')
 const viewing = ref<PastMeeting | null>(stub.justEnded)
 const chosen = ref<string[]>([])
 const draft = ref('')
@@ -49,11 +49,9 @@ function begin() {
 function finish() {
   end(name, me.value?.display_name ?? 'You')
   viewing.value = stub.justEnded
-  step.value = 'minutes'
 }
 function open(m: PastMeeting) {
   viewing.value = m
-  step.value = 'minutes'
 }
 </script>
 
@@ -174,22 +172,12 @@ function open(m: PastMeeting) {
       </div>
     </template>
 
-    <!-- Minutes -->
-    <template v-else-if="step === 'minutes' && viewing">
-      <button type="button" class="btn btn-sm justify-self-start" @click="step = 'home'">
-        ← All Meetings
-      </button>
-      <p
-        v-if="viewing === stub.justEnded"
-        class="rounded bg-st-green-bg p-2 text-sm text-st-green-fg"
-      >
-        Meeting created. The Project is unlocked.
-      </p>
-      <MinutesView :meeting="viewing" :project="project.project_code" />
-    </template>
-
     <!-- Home -->
     <template v-else>
+      <p v-if="stub.justEnded" class="rounded bg-st-green-bg p-2 text-sm text-st-green-fg">
+        Meeting created. The Project is unlocked.
+        <button type="button" class="text-link underline" @click="viewing = stub.justEnded">View Minutes</button>
+      </p>
       <div
         v-if="stub.role === 'other-leader-running'"
         class="rounded bg-st-amber-bg p-3 text-sm text-st-amber-fg"
@@ -227,4 +215,15 @@ function open(m: PastMeeting) {
       </section>
     </template>
   </div>
+  <Teleport to="body">
+    <div v-if="viewing" class="fixed inset-0 z-20 overflow-y-auto bg-black/40 p-8" @click.self="viewing = null">
+      <div role="dialog" class="mx-auto max-w-3xl rounded bg-surface p-6 shadow-xl">
+        <div class="mb-3 flex items-center">
+          <h2 class="flex-1 text-lg font-semibold">Minutes · {{ fmtDate(viewing.startedAt) }}</h2>
+          <button type="button" class="btn" @click="viewing = null">Close</button>
+        </div>
+        <MinutesView :meeting="viewing" :project="project.name" wide />
+      </div>
+    </div>
+  </Teleport>
 </template>
