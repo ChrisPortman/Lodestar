@@ -2,7 +2,15 @@
 import { computed, type Ref } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { acquireMeetingLock, getMeetingLock, type MeetingLock } from './api/meetingLock'
-import { getMinutes, listMeetings, type MeetingSummary, type MinutesType } from './api/meetings'
+import {
+  getMinutes,
+  getMinutesDocument,
+  listMeetings,
+  type MeetingSummary,
+  type Minutes,
+  type MinutesSection,
+  type MinutesType,
+} from './api/meetings'
 import { meetingLockKey } from './meetingLock'
 
 export const meetingsKey = (projectId: string) => ['meetings', projectId] as const
@@ -43,12 +51,54 @@ export function useMeetings(projectId: Ref<string>) {
   })
 }
 
-export function useMinutes(meetingId: Ref<string>, type: Ref<MinutesType>) {
+/** A Meeting's Minutes as plain text, as the server renders them. */
+export function useMinutesText(meetingId: Ref<string>, enabled: Ref<boolean>) {
   return useQuery({
-    queryKey: computed(() => ['minutes', meetingId.value, type.value] as const),
-    queryFn: () => getMinutes(meetingId.value, type.value),
+    queryKey: computed(() => ['minutes', meetingId.value, 'text/plain'] as const),
+    queryFn: () => getMinutes(meetingId.value, 'text/plain'),
+    enabled,
     staleTime: Infinity, // Meetings never change
   })
+}
+
+/** A Meeting's Minutes document, for the Formatted preview to lay out. */
+export function useMinutesDocument(meetingId: Ref<string>) {
+  return useQuery({
+    queryKey: computed(() => ['minutes', meetingId.value, 'application/json'] as const),
+    queryFn: () => getMinutesDocument(meetingId.value),
+    staleTime: Infinity,
+  })
+}
+
+/** One section of the Minutes, laid out as the server's renderings do (#83). */
+export interface MinutesPart {
+  name: string
+  new: NonNullable<MinutesSection['new']>
+  updated: NonNullable<MinutesSection['updated']>
+}
+
+/** The Minutes' non-empty Action, Risk and Blocker sections, in order. */
+export function minutesParts(minutes: Minutes): MinutesPart[] {
+  const parts: [string, MinutesSection | undefined][] = [
+    ['Action', minutes.actions],
+    ['Risk', minutes.risks],
+    ['Blocker', minutes.blockers],
+  ]
+  return parts
+    .map(([name, s]) => ({ name, new: s?.new ?? [], updated: s?.updated ?? [] }))
+    .filter((p) => p.new.length || p.updated.length)
+}
+
+/** "Wed 21 Oct 2026, 09:00–10:15 UTC (75 min)", in UTC like the server's renderings. */
+export function minutesWhen(minutes: Minutes): string {
+  const start = new Date(minutes.start)
+  const end = new Date(minutes.end)
+  const part = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(start)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const time = (at: Date) => `${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())}`
+  const date = `${part({ weekday: 'short' })} ${start.getUTCDate()} ${part({ month: 'short' })} ${start.getUTCFullYear()}`
+  return `${date}, ${time(start)}–${time(end)} UTC (${minutes.duration_minutes} min)`
 }
 
 /**

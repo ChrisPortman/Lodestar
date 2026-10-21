@@ -2,7 +2,7 @@
 // The Risks panel (FR-40 to FR-42, FR-90 to FR-94): likelihood and impact
 // save straight away, descriptions need an explicit Save.
 import { computed, ref, toRef } from 'vue'
-import { useUnlessLocked } from '../meetingLock'
+import { useWriteError } from '../meetingLock'
 import type { Project } from '../api/client'
 import type { Risk } from '../api/risks'
 import { severity, useCreateRisk, useRisks, useSetRiskClosed, useUpdateRisk } from '../risks'
@@ -34,8 +34,7 @@ const shown = computed(() =>
 const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((r) => !r.closed)))
 const closed = computed(() => (query.state === 'open' ? [] : shown.value.filter((r) => r.closed)))
 const writable = computed(() => !props.project.archived)
-const anyError = computed(() => update.error.value ?? close.error.value ?? create.error.value)
-const error = useUnlessLocked(anyError)
+const error = useWriteError(update, close, create)
 
 const RATINGS = [1, 2, 3, 4, 5]
 /** High-score Risks are red, medium ones amber (#50). */

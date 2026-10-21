@@ -122,6 +122,24 @@ describe('the Minutes reader (#84)', () => {
     expect(screen.getByRole('dialog', { name: 'Meetings' })).toBeTruthy()
   })
 
+  it('renders the Formatted preview from the Minutes document, escaping its text', async () => {
+    const { reader } = await openReader()
+    const preview = await within(reader).findByRole('article', { name: 'Formatted Minutes' })
+    const text = (name: string) => within(preview).getByText(name)
+    expect(within(preview).getByRole('heading', { level: 3, name: 'Formatted Minutes of m2' }))
+    expect(text('Wed 21 Oct 2026, 09:00–10:15 UTC (75 min)')).toBeTruthy()
+    expect(preview.textContent).toContain('Led by Ada. Attendees: Ada, Bob')
+    expect(within(preview).getByRole('heading', { name: 'Actions' })).toBeTruthy()
+    expect(within(preview).getByRole('heading', { name: 'New Actions' })).toBeTruthy()
+    expect(within(preview).getByRole('heading', { name: 'Updated Actions' })).toBeTruthy()
+    expect(preview.textContent).toContain('A-1: <b>Ship</b> (Due 31 Oct)')
+    expect(text('Soon')).toBeTruthy()
+    expect(text('Closed')).toBeTruthy()
+    expect(within(preview).getByRole('heading', { name: 'Meeting Comments' })).toBeTruthy()
+    expect(text('Good meeting')).toBeTruthy()
+    expect(preview.querySelector('[style]')).toBeNull()
+  })
+
   it('previews the plain text version', async () => {
     const { reader } = await openReader()
     await userEvent.click(within(reader).getByRole('tab', { name: 'Plain text' }))

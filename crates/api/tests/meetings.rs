@@ -250,6 +250,34 @@ async fn a_failed_end_keeps_the_lock_and_creates_no_meeting() {
 }
 
 #[tokio::test]
+async fn ending_after_losing_project_leader_is_forbidden_and_keeps_the_lock() {
+    let w = world().await;
+    w.lock(Method::POST, &w.ada_tab).await;
+    let project = w
+        .app
+        .get(&format!("/api/v1/projects/{}", w.project), &w.ada_tab)
+        .await;
+    let mut body = project.body.clone();
+    body["project_leader"] = Value::Null;
+    let handed_over = w
+        .app
+        .send(
+            Method::PUT,
+            &format!("/api/v1/projects/{}", w.project),
+            &[("cookie", &w.ada_tab), ("if-match", project.header("etag"))],
+            Some(body),
+        )
+        .await;
+    assert_eq!(handed_over.status, StatusCode::OK);
+
+    let failed = w.end(&w.ada_tab, w.meeting(&[&w.bob], &["Fine"])).await;
+    assert_eq!(failed.status, StatusCode::FORBIDDEN);
+    let lock = w.lock(Method::GET, &w.ada_tab).await;
+    assert_eq!(lock.body["held_by_you"], true);
+    assert_eq!(w.list(&w.ada_tab).await.body["total"], 0);
+}
+
+#[tokio::test]
 async fn meeting_comments_can_be_edited_and_added_without_changing_the_minutes() {
     let w = world().await;
     w.lock(Method::POST, &w.ada_tab).await;

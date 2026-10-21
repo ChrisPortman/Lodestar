@@ -81,9 +81,15 @@ describe('the Meeting panel (#85)', () => {
     await userEvent.type(within(panel).getByLabelText('Meeting Comment'), 'Venue booked{Enter}')
     await userEvent.click(within(panel).getByRole('button', { name: 'End Meeting…' }))
     expect(within(panel).getByRole('heading', { name: 'Who attended?' })).toBeTruthy()
-    expect(within(panel).getByText(/Ada, Bob\. Mark anyone missing/)).toBeTruthy()
-    // A late arrival can still be marked.
+    expect(within(panel).getByText('Ada, Bob')).toBeTruthy()
+    expect(within(panel).queryByRole('checkbox')).toBeNull()
+    // A late arrival is marked back in Here.
+    await userEvent.click(
+      within(panel).getByRole('button', { name: 'Mark anyone missing in Here' }),
+    )
     await userEvent.click(within(panel).getByRole('checkbox', { name: 'Cy' }))
+    await userEvent.click(within(panel).getByRole('button', { name: 'End Meeting…' }))
+    expect(within(panel).getByText('Ada, Bob, Cy')).toBeTruthy()
     await userEvent.click(within(panel).getByRole('button', { name: 'Create Minutes' }))
 
     const reader = await screen.findByRole('dialog', { name: /Minutes/ })
@@ -156,6 +162,24 @@ describe('the Meeting panel (#85)', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Create Minutes' }))
     expect(await within(panel).findByText(/taken over/)).toBeTruthy()
     expect(within(panel).getByText('Keep me')).toBeTruthy()
+  })
+
+  it('keeps the Comments to copy when the leader is no longer Project Leader on ending', async () => {
+    const { backend } = await renderWithMembers()
+    const panel = await startMeeting()
+    await userEvent.type(within(panel).getByLabelText('Meeting Comment'), 'Keep me{Enter}')
+    await userEvent.click(within(panel).getByRole('button', { name: 'End Meeting…' }))
+    backend.projects[0]!.project_leader = { id: 'b', display_name: 'Bob' }
+    await userEvent.click(within(panel).getByRole('button', { name: 'Create Minutes' }))
+    expect(await within(panel).findByRole('alert')).toHaveProperty(
+      'textContent',
+      expect.stringMatching(/no longer the Project Leader/),
+    )
+    expect(within(panel).getByText('Keep me')).toBeTruthy()
+    expect(backend.created).toEqual([])
+    // Putting it away frees the lock this session still holds.
+    await userEvent.click(within(panel).getByRole('button', { name: 'Put away' }))
+    await waitFor(() => expect(backend.lock()).toBeNull())
   })
 })
 

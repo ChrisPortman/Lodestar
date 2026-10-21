@@ -56,8 +56,13 @@ async function run(what: () => Promise<void>) {
 
     <template v-if="meeting.lost.value">
       <p role="alert" class="mt-4 rounded bg-st-amber-bg p-3 text-sm text-st-amber-fg">
-        Someone else has taken over this Project's Meeting, so these Minutes can't be created. Your
-        Comments are below so you can copy them.
+        <template v-if="meeting.lostReason.value === 'not-leader'">
+          You're no longer the Project Leader, so these Minutes can't be created.
+        </template>
+        <template v-else>
+          Someone else has taken over this Project's Meeting, so these Minutes can't be created.
+        </template>
+        Your Comments are below so you can copy them.
       </p>
       <button type="button" class="btn mt-2" @click="meeting.dismiss()">Put away</button>
     </template>
@@ -80,10 +85,13 @@ async function run(what: () => Promise<void>) {
         <h3 id="meeting-here-title" class="font-semibold">
           {{ step === 'ending' ? 'Who attended?' : 'Here' }}
         </h3>
-        <p v-if="step === 'ending'" class="text-sm text-muted">
-          {{ here.map((m) => m.display_name).join(', ') }}. Mark anyone missing.
-        </p>
-        <ul class="mt-2 grid gap-1">
+        <template v-if="step === 'ending'">
+          <p class="mt-2">{{ here.map((m) => m.display_name).join(', ') }}</p>
+          <button type="button" class="btn btn-sm mt-2" @click="step = 'run'">
+            Mark anyone missing in Here
+          </button>
+        </template>
+        <ul v-else class="mt-2 grid gap-1">
           <li v-for="m in members.data.value" :key="m.id">
             <label class="flex items-center gap-2">
               <input

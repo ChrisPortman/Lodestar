@@ -65,6 +65,13 @@ function isConflict(error: unknown): boolean {
   return error instanceof ApiError && error.status === 409
 }
 
+function isForbidden(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403
+}
+
+/** Why a Meeting can no longer create its Minutes. */
+export type LostReason = 'taken-over' | 'not-leader'
+
 /** "4:05" under an hour, then "1:04:05". */
 export function elapsed(fromIso: string, now: number): string {
   const total = Math.max(0, Math.floor((now - Date.parse(fromIso)) / 1000))
@@ -82,8 +89,12 @@ function useRunningMeetingState(projectId: Ref<string>) {
   const state = reactive<Saved>({ startedAt: '', attendeeIds: [], comments: [] })
   /** Started or carried on in this page; otherwise a reload must ask first. */
   const confirmed = ref(false)
-  /** Someone took over a stale lock; the Comments stay visible to copy. */
+  /**
+   * The Minutes can't be created: someone took over a stale lock, or the
+   * leader is no longer Project Leader. The Comments stay visible to copy.
+   */
   const lost = ref(false)
+  const lostReason = ref<LostReason>('taken-over')
   const finishing = ref(false)
   const panelOpen = ref(false)
   /** The Minutes just created, for the reader. */
@@ -140,7 +151,8 @@ function useRunningMeetingState(projectId: Ref<string>) {
     clearInterval(clock)
   })
 
-  function loseIt() {
+  function loseIt(reason: LostReason = 'taken-over') {
+    lostReason.value = reason
     lost.value = true
     void queryClient.invalidateQueries({ queryKey: meetingLockKey(projectId.value) })
   }
@@ -157,6 +169,7 @@ function useRunningMeetingState(projectId: Ref<string>) {
     running,
     needsResume,
     lost,
+    lostReason,
     panelOpen,
     created,
     state,
@@ -199,6 +212,7 @@ function useRunningMeetingState(projectId: Ref<string>) {
         void queryClient.invalidateQueries({ queryKey: meetingsKey(projectId.value) })
       } catch (e) {
         if (isConflict(e)) loseIt()
+        else if (isForbidden(e)) loseIt('not-leader')
         throw e
       } finally {
         finishing.value = false
@@ -219,6 +233,13 @@ function useRunningMeetingState(projectId: Ref<string>) {
     },
     /** Puts away a lost Meeting once its Comments have been copied. */
     dismiss() {
+      // No longer Project Leader, this session still holds the lock: free it.
+      if (heldByYou.value)
+        void cancelMeetingLock(projectId.value)
+          .catch(() => undefined)
+          .finally(() =>
+            queryClient.invalidateQueries({ queryKey: meetingLockKey(projectId.value) }),
+          )
       forget(projectId.value)
       lost.value = false
       confirmed.value = false

@@ -248,6 +248,8 @@ export function fakeBackend(
     http.post(api('/meetings'), async ({ request }) => {
       const body = (await request.json()) as Schemas['NewMeetingBody']
       if (!lock?.held_by_you) return problem(409, 'Conflict')
+      const project = projects.find((p) => p.id === body.project_id)
+      if (project?.project_leader?.id !== acting) return problem(403, 'Forbidden')
       const leader = lock.leader
       const ids = [leader.id, ...body.attendee_ids.filter((id) => id !== leader.id)]
       const meeting: MeetingSummary = {
@@ -283,6 +285,23 @@ export function fakeBackend(
       if (accept === 'text/html')
         return HttpResponse.html(`<p>Formatted Minutes of ${params.id}</p>`)
       if (accept === 'text/plain') return HttpResponse.text(`Plain Minutes of ${params.id}`)
+      if (accept === 'application/json')
+        return HttpResponse.json({
+          schema: 1,
+          project_name: `Formatted Minutes of ${params.id}`,
+          start: '2026-10-21T09:00:00Z',
+          end: '2026-10-21T10:15:00Z',
+          duration_minutes: 75,
+          leader: 'Ada',
+          attendees: ['Ada', 'Bob'],
+          actions: {
+            new: [
+              { reference: 'A-1', title: '<b>Ship</b>', state: ['Due 31 Oct'], comments: ['Soon'] },
+            ],
+            updated: [{ reference: 'A-2', title: 'Test', changes: ['Closed'], comments: [] }],
+          },
+          meeting_comments: ['Good meeting'],
+        })
       return problem(406, 'Not Acceptable')
     }),
     http.get(api('/session'), () => {

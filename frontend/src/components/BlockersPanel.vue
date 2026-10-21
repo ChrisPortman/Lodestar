@@ -3,7 +3,7 @@
 // Member saves straight away, descriptions need an explicit Save, and links
 // to the Actions a Blocker blocks can be changed in any state.
 import { computed, ref, toRef } from 'vue'
-import { useUnlessLocked } from '../meetingLock'
+import { useWriteError } from '../meetingLock'
 import type { Project } from '../api/client'
 import type { Blocker } from '../api/blockers'
 import { useActions } from '../actions'
@@ -52,16 +52,7 @@ const shown = computed(() =>
 const open = computed(() => (query.state === 'closed' ? [] : shown.value.filter((b) => !b.cleared)))
 const cleared = computed(() => (query.state === 'open' ? [] : shown.value.filter((b) => b.cleared)))
 const writable = computed(() => !props.project.archived)
-const anyError = computed(
-  () =>
-    update.error.value ??
-    clear.error.value ??
-    create.error.value ??
-    link.error.value ??
-    unlink.error.value ??
-    ensureMember.error.value,
-)
-const error = useUnlessLocked(anyError)
+const error = useWriteError(update, clear, create, link, unlink, ensureMember)
 
 /** Members to choose from, plus a former Member still on a cleared Blocker (FR-22). */
 function accountableOptions(blocker: Blocker) {
