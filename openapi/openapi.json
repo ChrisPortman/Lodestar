@@ -169,7 +169,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -310,7 +310,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -424,7 +424,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -618,7 +618,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -759,7 +759,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -873,7 +873,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -989,7 +989,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1104,7 +1104,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1286,7 +1286,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1437,7 +1437,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived, or the Comment is deleted",
+            "description": "The Project is archived, another session holds its live Meeting Lock, or the Comment is deleted",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1561,7 +1561,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2186,7 +2186,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2291,6 +2291,16 @@
             }
           },
           "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Archiving while the Project has a live Meeting Lock, whoever holds it",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3032,7 +3042,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3173,7 +3183,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3287,7 +3297,7 @@
             }
           },
           "409": {
-            "description": "The Project is archived",
+            "description": "The Project is archived, or another session holds its live Meeting Lock",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3889,6 +3899,23 @@
           }
         }
       },
+      "MeetingInProgress": {
+        "type": "object",
+        "description": "The Meeting in progress, as named on a refused write.",
+        "required": [
+          "leader",
+          "since"
+        ],
+        "properties": {
+          "leader": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "MeetingLockBody": {
         "type": "object",
         "description": "A Project's Meeting Lock, as the calling session sees it.",
@@ -4066,6 +4093,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "meeting": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MeetingInProgress",
+                "description": "The live Meeting that refused a write, on such a 409."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "status": {

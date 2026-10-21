@@ -8,9 +8,10 @@ use axum::{
     routing::get,
 };
 use axum_extra::extract::cookie::{Cookie, Key, SameSite, SignedCookieJar};
+use chrono::Utc;
 use lodestar_core::{
     person::{PersonId, use_cases::get_person},
-    session::SessionId,
+    session::{Actor, SessionId},
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -40,6 +41,11 @@ pub struct ActingSession {
     pub person: PersonId,
     pub session: SessionId,
 }
+
+/// A valid session is required (401 otherwise), acting now. Writes to a
+/// Project go through this, so a Meeting Lock can tell the holding session
+/// from the rest; a cookie from before session ids never holds one.
+pub struct Writer(pub Actor);
 
 /// What a valid session cookie holds: `<person>` (legacy) or
 /// `<person>.<session id>`.
@@ -96,6 +102,22 @@ impl<S: Store> FromRequestParts<AppState<S>> for ActingSession {
             Some((person, Some(session))) => Ok(Self { person, session }),
             _ => Err(Problem::unauthorized()),
         }
+    }
+}
+
+impl<S: Store> FromRequestParts<AppState<S>> for Writer {
+    type Rejection = Problem;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState<S>,
+    ) -> Result<Self, Self::Rejection> {
+        let (person, session) = read_cookie(parts, state).ok_or_else(Problem::unauthorized)?;
+        Ok(Self(Actor {
+            person,
+            session,
+            now: Utc::now(),
+        }))
     }
 }
 
