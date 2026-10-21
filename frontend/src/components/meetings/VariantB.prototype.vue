@@ -153,10 +153,17 @@ function finish() {
           </button>
         </header>
         <div class="border-b border-divider p-3">
-          <p class="mb-1 text-xs text-muted">Here (tap to mark)</p>
+          <p class="mb-1 text-xs text-muted">Here (tap to mark arrivals)</p>
           <div class="flex flex-wrap gap-1">
+            <span
+              v-if="me"
+              class="rounded-full border border-accent bg-accent px-2 py-0.5 text-xs text-on-accent"
+              title="You're leading, so you're always here"
+            >
+              ✓ {{ me.display_name }} (leading)
+            </span>
             <button
-              v-for="m in members.data.value"
+              v-for="m in (members.data.value ?? []).filter((x) => x.id !== me?.id)"
               :key="m.id"
               type="button"
               class="rounded-full border px-2 py-0.5 text-xs"
@@ -165,10 +172,10 @@ function finish() {
                   ? 'border-accent bg-accent text-on-accent'
                   : 'border-control-border'
               "
-              :disabled="m.id === me?.id"
+              :aria-pressed="stub.running.attendeeIds.includes(m.id)"
               @click="toggle(m.id)"
             >
-              {{ m.display_name }}
+              <template v-if="stub.running.attendeeIds.includes(m.id)">✓ </template>{{ m.display_name }}
             </button>
           </div>
         </div>
