@@ -14,7 +14,7 @@ It is deliberately simple. It is not a replacement for Jira or Microsoft Project
 - **Blockers**: things currently stopping progress, with a Member accountable for clearing each one. A Blocker can be linked to the Actions it blocks.
 - **References** such as `A-001`, `R-003` and `B-002`, so everyone in the meeting can refer to the same item.
 - **Health Rating**: an overall Red, Amber or Green judgement of the project, with an optional comment.
-- **Project on a Page**: a one-page summary of the open Actions, Risks and Blockers plus the Health Rating, ready to share after the meeting.
+- **Project on a Page**: a one-page summary of the open Actions, Risks and Blockers plus the Health Rating, for Project Leaders reporting status to managers and stakeholders.
 - **Change History**: every change records who made it and when.
 - **Project Export**: download a complete copy of a project, including closed items and, optionally, its Change History.
 
