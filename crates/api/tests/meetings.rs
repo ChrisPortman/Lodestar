@@ -360,3 +360,66 @@ async fn meetings_cannot_be_changed_or_deleted() {
         assert_eq!(reply.header("allow"), "GET,HEAD");
     }
 }
+
+impl World {
+    async fn minutes(&self, id: &str, accept: &str, cookie: &str) -> Reply {
+        self.app
+            .send(
+                Method::GET,
+                &format!("/api/v1/meetings/{id}/minutes"),
+                &[("cookie", cookie), ("accept", accept)],
+                None,
+            )
+            .await
+    }
+}
+
+#[tokio::test]
+async fn minutes_are_rendered_by_accept() {
+    let w = world().await;
+    w.lock(Method::POST, &w.ada_tab).await;
+    let created = w
+        .end(&w.ada_tab, w.meeting(&[&w.bob], &["<b>Good</b> & done"]))
+        .await;
+    let id = created.body["id"].as_str().unwrap();
+
+    let json = w.minutes(id, "application/json", &w.bob_tab).await;
+    assert_eq!(json.status, StatusCode::OK);
+    assert_eq!(json.body, created.body["minutes"]);
+
+    let text = w.minutes(id, "text/plain", &w.bob_tab).await;
+    assert_eq!(text.status, StatusCode::OK);
+    assert!(text.header("content-type").starts_with("text/plain"));
+    let text = text.body.as_str().unwrap();
+    assert!(text.starts_with("Web\n"), "{text}");
+    assert!(text.contains("Led by Ada. Attendees: Ada, Bob\n"), "{text}");
+    assert!(
+        text.ends_with("MEETING COMMENTS\n  \"<b>Good</b> & done\"\n"),
+        "{text}"
+    );
+
+    let html = w.minutes(id, "text/html", &w.bob_tab).await;
+    assert_eq!(html.status, StatusCode::OK);
+    assert!(html.header("content-type").starts_with("text/html"));
+    let html = html.body.as_str().unwrap();
+    assert!(
+        html.contains("<i>&lt;b&gt;Good&lt;/b&gt; &amp; done</i>"),
+        "{html}"
+    );
+
+    let preferred = w
+        .minutes(id, "text/html;q=0.5, text/plain", &w.bob_tab)
+        .await;
+    assert!(preferred.header("content-type").starts_with("text/plain"));
+    let any = w.minutes(id, "*/*", &w.bob_tab).await;
+    assert!(any.header("content-type").starts_with("application/json"));
+
+    assert_eq!(
+        w.minutes(id, "application/pdf", &w.bob_tab).await.status,
+        StatusCode::NOT_ACCEPTABLE
+    );
+    assert_eq!(
+        w.minutes(id, "text/plain", &w.cy_tab).await.status,
+        StatusCode::FORBIDDEN
+    );
+}
