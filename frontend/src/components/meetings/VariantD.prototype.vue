@@ -39,6 +39,7 @@ const elapsed = useElapsed(() => stub.running?.startedAt)
 
 function begin() {
   start(me.value ? [me.value.id] : []) // only the leader; tick others off as they join
+  stub.railCollapsed = false
   emit('close')
 }
 function toggle(id: string) {
@@ -69,7 +70,7 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
   <div v-if="place === 'panel'" class="mt-4 grid gap-4">
     <template v-if="true">
       <p v-if="stub.running" class="rounded bg-accent-soft p-3 text-sm">
-        Your Meeting is running in the rail on the right.
+        Your Meeting is running: open it with the Meeting button beside the menu.
       </p>
       <p
         v-else-if="stub.role === 'other-leader-running'"
@@ -109,20 +110,15 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
 
   <!-- Docked beside the page -->
   <template v-else-if="stub.running">
+    <!-- Opens and closes like the Project menu panel: same edge, width and Close/Esc. -->
     <aside
-      class="fixed inset-y-0 right-0 z-[5] flex flex-col border-l-4 border-accent bg-surface shadow-lg"
-      :class="stub.railCollapsed ? 'w-12' : 'w-96'"
+      v-if="!stub.railCollapsed"
+      role="dialog"
+      class="fixed inset-y-0 right-0 z-10 flex w-full max-w-sm flex-col border-l border-control-border bg-surface shadow-lg"
       aria-label="Meeting"
+      @keydown.esc="stub.railCollapsed = true"
     >
-      <button
-        v-if="stub.railCollapsed"
-        type="button"
-        class="h-full font-mono text-sm [writing-mode:vertical-rl]"
-        @click="stub.railCollapsed = false"
-      >
-        ● Meeting {{ elapsed }} · {{ stub.running?.comments.length ?? 0 }} Comments
-      </button>
-      <template v-else-if="stub.resumePending">
+      <template v-if="stub.resumePending">
         <div class="m-4 grid gap-2">
           <p class="font-semibold">Pick up where you left off?</p>
           <p class="text-sm">
@@ -140,14 +136,7 @@ const readerState = reactive({ meeting: null as PastMeeting | null })
           <h2 class="flex-1 font-semibold">
             Meeting · <span class="font-mono">{{ elapsed }}</span>
           </h2>
-          <button
-            type="button"
-            class="btn btn-sm btn-ghost"
-            aria-label="Collapse"
-            @click="stub.railCollapsed = true"
-          >
-            ⇥
-          </button>
+          <button type="button" class="btn" @click="stub.railCollapsed = true">Close</button>
         </header>
         <div class="border-b border-divider p-3">
           <p class="mb-1 text-xs text-muted">Here (tap to mark arrivals)</p>
