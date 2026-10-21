@@ -9,8 +9,9 @@ use axum::{
 };
 use lodestar_core::{
     action::use_cases::ActionError, blocker::use_cases::BlockerError,
-    comment::use_cases::CommentError, person::use_cases::PersonError, ports::RepoError,
-    project::use_cases::ProjectError, risk::use_cases::RiskError,
+    comment::use_cases::CommentError, meeting_lock::use_cases::LockError,
+    person::use_cases::PersonError, ports::RepoError, project::use_cases::ProjectError,
+    risk::use_cases::RiskError,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -208,6 +209,24 @@ impl From<CommentError> for Problem {
                 Self::new(StatusCode::CONFLICT).detail(error.to_string())
             }
             CommentError::Repo(e) => e.into(),
+        }
+    }
+}
+
+impl From<LockError> for Problem {
+    fn from(error: LockError) -> Self {
+        match error {
+            LockError::UnknownProject | LockError::NoLock => {
+                Self::not_found().detail(error.to_string())
+            }
+            LockError::NotTheLeader | LockError::NotAMember => {
+                Self::new(StatusCode::FORBIDDEN).detail(error.to_string())
+            }
+            // A Conflict here is a race with another session's change to the lock.
+            LockError::Held | LockError::NotHeld | LockError::Repo(RepoError::Conflict) => {
+                Self::new(StatusCode::CONFLICT).detail(error.to_string())
+            }
+            LockError::Repo(e) => e.into(),
         }
     }
 }

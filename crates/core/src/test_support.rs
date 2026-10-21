@@ -15,13 +15,14 @@ use crate::comment::{Comment, CommentBody, CommentId, CommentView, Target, Targe
 use crate::history::{
     ChangeContext, ChangeKind, EntityType, HistoryEntry, HistoryEntryId, snapshot,
 };
+use crate::meeting_lock::MeetingLock;
 use crate::person::{Person, PersonId, PersonView};
 use crate::ports::{
     ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
     BlockerSort, BlockersQuery, CommentFilter, CommentRepository, CommentsQuery, HistoryQuery,
-    Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository, ProjectRepository, ProjectSort,
-    ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError, RiskFilter, RiskRepository,
-    RiskSort, RisksQuery, Transaction, UnitOfWork,
+    MeetingLockRepository, Page, PageRequest, PeopleQuery, PeopleSort, PersonRepository,
+    ProjectRepository, ProjectSort, ProjectsQuery, ReferenceCounter, ReferenceKind, RepoError,
+    RiskFilter, RiskRepository, RiskSort, RisksQuery, Transaction, UnitOfWork,
 };
 use crate::project::{
     Description, ItemRef, PersonRef, Project, ProjectCode, ProjectId, ProjectName, ProjectView,
@@ -38,6 +39,7 @@ struct State {
     actions: BTreeMap<ActionId, Action>,
     blockers: BTreeMap<BlockerId, Blocker>,
     comments: BTreeMap<CommentId, Comment>,
+    meeting_locks: BTreeMap<ProjectId, MeetingLock>,
 }
 
 /// An in-memory store implementing every port. Transactions work on a copy
@@ -102,8 +104,42 @@ impl Transaction for InMemoryTx {
         InMemoryComments(&mut self.work)
     }
 
+    fn meeting_locks(&mut self) -> impl MeetingLockRepository + Send + '_ {
+        InMemoryMeetingLocks(&mut self.work)
+    }
+
     async fn commit(self) -> Result<(), RepoError> {
         *self.store.lock().expect("store lock") = self.work;
+        Ok(())
+    }
+}
+
+struct InMemoryMeetingLocks<'a>(&'a mut State);
+
+impl MeetingLockRepository for InMemoryMeetingLocks<'_> {
+    async fn load(&mut self, project: ProjectId) -> Result<Option<MeetingLock>, RepoError> {
+        Ok(self.0.meeting_locks.get(&project).cloned())
+    }
+
+    async fn save(
+        &mut self,
+        before: Option<&MeetingLock>,
+        after: &MeetingLock,
+    ) -> Result<(), RepoError> {
+        if self.0.meeting_locks.get(&after.project_id()) != before {
+            return Err(RepoError::Conflict);
+        }
+        self.0
+            .meeting_locks
+            .insert(after.project_id(), after.clone());
+        Ok(())
+    }
+
+    async fn delete(&mut self, lock: &MeetingLock) -> Result<(), RepoError> {
+        if self.0.meeting_locks.get(&lock.project_id()) != Some(lock) {
+            return Err(RepoError::Conflict);
+        }
+        self.0.meeting_locks.remove(&lock.project_id());
         Ok(())
     }
 }

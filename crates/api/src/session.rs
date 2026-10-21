@@ -36,7 +36,6 @@ pub struct Acting(pub PersonId);
 
 /// A valid session carrying a session id is required. Cookies issued before
 /// session ids existed get a 401, asking the client to pick a person again.
-#[expect(dead_code, reason = "used by the Meeting Lock handlers of #76")]
 pub struct ActingSession {
     pub person: PersonId,
     pub session: SessionId,

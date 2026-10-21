@@ -8,7 +8,9 @@ use crate::blocker::{Blocker, BlockerId};
 use crate::comment::{CommentBody, CommentId, Target, TargetType};
 
 use crate::history::{ChangeContext, ChangeKind, EntityType, snapshot};
+use crate::meeting_lock::MeetingLock;
 use crate::person::PersonId;
+use crate::ports::MeetingLockRepository;
 use crate::ports::{
     ActionFilter, ActionRepository, ActionSort, ActionsQuery, BlockerFilter, BlockerRepository,
     BlockerSort, BlockersQuery, ClearedFilter, ClosedFilter, CommentFilter, CommentRepository,
@@ -18,6 +20,7 @@ use crate::ports::{
 };
 use crate::project::{Description, Project, ProjectId, ProjectName};
 use crate::risk::{Rating, RiskId};
+use crate::session::SessionId;
 use crate::test_support::{a_comment, a_person, a_project, a_risk};
 
 /// Everything a full store adapter provides.
@@ -1180,6 +1183,85 @@ pub async fn comments_are_listed_oldest_first_by_project_and_target(store: impl 
     );
 }
 
+fn a_lock(project: ProjectId, leader: PersonId, session: &str) -> MeetingLock {
+    let at = chrono::DateTime::parse_from_rfc3339("2026-10-21T09:00:00.123456Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    MeetingLock::acquire(project, SessionId::new(session), leader, at)
+}
+
+/// A Project and its leader, saved, for a Meeting Lock to refer to.
+async fn a_led_project(store: &impl Store) -> (ProjectId, PersonId) {
+    let ada = a_person().named("Ada").build();
+    let project = a_project(ada.id()).build();
+    let mut tx = store.begin().await.unwrap();
+    tx.people().save(None, &ada, &ctx()).await.unwrap();
+    tx.projects().save(None, &project, &ctx()).await.unwrap();
+    tx.commit().await.unwrap();
+    (project.id(), ada.id())
+}
+
+pub async fn a_meeting_lock_can_be_saved_heartbeaten_and_deleted(store: impl Store) {
+    let (project, ada) = a_led_project(&store).await;
+    let lock = a_lock(project, ada, "s1");
+    let beaten = lock.heartbeat(lock.heartbeat_at() + chrono::TimeDelta::microseconds(90_000_001));
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meeting_locks().load(project).await.unwrap(), None);
+    tx.meeting_locks().save(None, &lock).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(
+        tx.meeting_locks().load(project).await.unwrap(),
+        Some(lock.clone())
+    );
+    tx.meeting_locks().save(Some(&lock), &beaten).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(
+        tx.meeting_locks().load(project).await.unwrap(),
+        Some(beaten.clone())
+    );
+    tx.meeting_locks().delete(&beaten).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meeting_locks().load(project).await.unwrap(), None);
+}
+
+pub async fn a_meeting_lock_is_replaced_only_from_its_stored_state(store: impl Store) {
+    let (project, ada) = a_led_project(&store).await;
+    let first = a_lock(project, ada, "s1");
+    let mut tx = store.begin().await.unwrap();
+    tx.meeting_locks().save(None, &first).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let other = a_lock(project, ada, "s2");
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(
+        tx.meeting_locks().save(None, &other).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.meeting_locks()
+            .save(Some(&other), &other)
+            .await
+            .unwrap_err(),
+        RepoError::Conflict
+    );
+    assert_eq!(
+        tx.meeting_locks().delete(&other).await.unwrap_err(),
+        RepoError::Conflict
+    );
+    tx.meeting_locks().save(Some(&first), &other).await.unwrap();
+    tx.commit().await.unwrap();
+
+    let mut tx = store.begin().await.unwrap();
+    assert_eq!(tx.meeting_locks().load(project).await.unwrap(), Some(other));
+}
+
 /// Generates one test per contract case. `$make` turns the test's arguments
 /// into a fresh store; `$attr` is the test attribute to use.
 ///
@@ -1223,7 +1305,9 @@ macro_rules! port_contract_tests {
             project_history_can_be_read_for_a_half_open_window,
             saved_comment_can_be_loaded_updated_and_deleted,
             each_comment_save_writes_a_history_entry,
-            comments_are_listed_oldest_first_by_project_and_target
+            comments_are_listed_oldest_first_by_project_and_target,
+            a_meeting_lock_can_be_saved_heartbeaten_and_deleted,
+            a_meeting_lock_is_replaced_only_from_its_stored_state
         );
     };
     (@cases #[$attr:meta], $args:tt => $make:expr; $($case:ident),*) => {

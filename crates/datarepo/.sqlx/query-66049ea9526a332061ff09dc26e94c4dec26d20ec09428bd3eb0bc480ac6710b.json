@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM meeting_locks\n             WHERE project_id = ? AND session_id = ? AND heartbeat_at = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "66049ea9526a332061ff09dc26e94c4dec26d20ec09428bd3eb0bc480ac6710b"
+}
