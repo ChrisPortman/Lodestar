@@ -9,6 +9,7 @@ import { fakeRisks, type Risk } from './risks-backend'
 export type Person = components['schemas']['Person']
 export type Project = components['schemas']['Project']
 export type MeetingLock = components['schemas']['MeetingLockBody']
+export type MeetingSummary = components['schemas']['MeetingSummaryBody']
 export type { Action, Blocker, Comment, Risk }
 type Schemas = components['schemas']
 
@@ -49,6 +50,8 @@ export function fakeBackend(
 ) {
   // One Meeting Lock, as the acting session sees it, for whichever Project is viewed.
   let lock = initialLock
+  // Past Meetings, in any order; the server lists them newest first.
+  const meetings: MeetingSummary[] = []
   const lockedOut = () => lock !== null && lock.live && !lock.held_by_you
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
@@ -212,6 +215,40 @@ export function fakeBackend(
     http.get(api('/projects/:id/meeting-lock'), () =>
       lock ? HttpResponse.json<MeetingLock>(lock) : problem(404, 'Not Found'),
     ),
+    http.post(api('/projects/:id/meeting-lock'), ({ params }) => {
+      const project = projects.find((p) => p.id === params.id)
+      if (!project) return problem(404, 'Not Found')
+      if (project.project_leader?.id !== acting) return problem(403, 'Forbidden')
+      if (lockedOut()) return problem(409, 'Conflict')
+      lock = {
+        leader: personRef(acting!),
+        acquired_at: new Date().toISOString(),
+        live: true,
+        held_by_you: true,
+      }
+      return HttpResponse.json<MeetingLock>(lock)
+    }),
+    http.get(api('/meetings'), ({ request }) => {
+      const projectId = new URL(request.url).searchParams.get('project_id')
+      const items = meetings
+        .filter((m) => m.project_id === projectId)
+        .sort((a, b) => b.started_at.localeCompare(a.started_at))
+      return HttpResponse.json<Schemas['MeetingPage']>({
+        items,
+        limit: 100,
+        offset: 0,
+        total: items.length,
+      })
+    }),
+    // Stand-in Minutes: just enough to tell the renderings apart.
+    http.get(api('/meetings/:id/minutes'), ({ request, params }) => {
+      if (!meetings.some((m) => m.id === params.id)) return problem(404, 'Not Found')
+      const accept = request.headers.get('Accept')
+      if (accept === 'text/html')
+        return HttpResponse.html(`<p>Formatted Minutes of ${params.id}</p>`)
+      if (accept === 'text/plain') return HttpResponse.text(`Plain Minutes of ${params.id}`)
+      return problem(406, 'Not Acceptable')
+    }),
     http.get(api('/session'), () => {
       const person = people.find((p) => p.id === acting)
       return person
@@ -246,6 +283,8 @@ export function fakeBackend(
     blockers: blockers.blockers,
     comments: comments.comments,
     acting: () => acting,
+    meetings,
+    lock: () => lock,
     setLock: (next: MeetingLock | null) => (lock = next),
   }
 }

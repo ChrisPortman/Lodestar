@@ -1,0 +1,146 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/vue'
+import userEvent from '@testing-library/user-event'
+import { renderApp } from '../test/render'
+import type { MeetingLock, MeetingSummary, Project } from '../test/server'
+
+const ada = { id: 'a', version: 1, display_name: 'Ada' }
+const bob = { id: 'b', version: 1, display_name: 'Bob' }
+const project = {
+  id: 'p1',
+  name: 'Website',
+  project_code: 'WEBS',
+  description: null,
+  archived: false,
+  project_leader: { id: 'a', display_name: 'Ada' },
+  health_rating: null,
+  version: 1,
+} as Project
+
+const meeting = (id: string, start: Date, minutes: number, attendees: number): MeetingSummary => ({
+  id,
+  project_id: 'p1',
+  leader: { id: 'a', display_name: 'Ada' },
+  attendees: [
+    { id: 'a', display_name: 'Ada' },
+    { id: 'b', display_name: 'Bob' },
+    { id: 'c', display_name: 'Cy' },
+  ].slice(0, attendees),
+  started_at: start.toISOString(),
+  ended_at: new Date(start.getTime() + minutes * 60_000).toISOString(),
+  version: 1,
+})
+
+// Local times, so the rows' clock times are known whatever the time zone.
+const older = meeting('m1', new Date(2026, 7, 31, 14, 0), 45, 2)
+const newer = meeting('m2', new Date(2026, 9, 21, 9, 0), 75, 3)
+
+async function openMeetings() {
+  await userEvent.click(await screen.findByRole('button', { name: 'Project menu' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Meetings' }))
+  return screen.getByRole('dialog', { name: 'Meetings' })
+}
+
+describe('Meetings in the Project menu (#84)', () => {
+  it('lets the Project Leader start a Meeting, which acquires the lock', async () => {
+    const { backend } = await renderApp('/projects/p1', [ada, bob], 'a', [project])
+    const panel = await openMeetings()
+    await userEvent.click(within(panel).getByRole('button', { name: 'Start a Meeting now' }))
+    await waitFor(() => expect(backend.lock()?.held_by_you).toBe(true))
+    expect(await within(panel).findByText(/Your Meeting is running/)).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: 'Start a Meeting now' })).toBeNull()
+  })
+
+  it('tells a Member that only a Project Leader can start one', async () => {
+    const { backend } = await renderApp('/projects/p1', [ada, bob], 'b', [project])
+    backend.members.get('p1')!.add('b')
+    const panel = await openMeetings()
+    expect(within(panel).getByText('Only a Project Leader can start a Meeting.')).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: 'Start a Meeting now' })).toBeNull()
+  })
+
+  it("shows everyone who is running another session's live Meeting, and since when", async () => {
+    const lock: MeetingLock = {
+      leader: { id: 'a', display_name: 'Ada' },
+      acquired_at: new Date(2026, 9, 21, 9, 5).toISOString(),
+      live: true,
+      held_by_you: false,
+    }
+    await renderApp('/projects/p1', [ada], 'a', [project], [], [], [], [], lock)
+    const panel = await openMeetings()
+    expect(await within(panel).findByText('Ada is running a Meeting, since 09:05.')).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: 'Start a Meeting now' })).toBeNull()
+  })
+
+  it('lists Past Meetings newest first with length, leader and attendee count', async () => {
+    const { backend } = await renderApp('/projects/p1', [ada], 'a', [project])
+    backend.meetings.push(older, newer)
+    const panel = await openMeetings()
+    const list = await within(panel).findByRole('list', { name: 'Past Meetings' })
+    const rows = await within(list).findAllByRole('button')
+    expect(
+      rows.map((r) => [...r.children].map((line) => line.textContent!.replace(/\s+/g, ' ').trim())),
+    ).toEqual([
+      ['Wed 21 Oct 2026, 09:00', '75 min · led by Ada · 3 attendees'],
+      ['Mon 31 Aug 2026, 14:00', '45 min · led by Ada · 2 attendees'],
+    ])
+  })
+})
+
+describe('the Minutes reader (#84)', () => {
+  let write: ReturnType<typeof vi.fn>
+  beforeEach(() => {
+    write = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal(
+      'ClipboardItem',
+      class {
+        constructor(readonly items: Record<string, Blob>) {}
+      },
+    )
+    Object.defineProperty(navigator, 'clipboard', { value: { write }, configurable: true })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function openReader() {
+    const view = await renderApp('/projects/p1', [ada], 'a', [project])
+    view.backend.meetings.push(newer)
+    const panel = await openMeetings()
+    await userEvent.click(await within(panel).findByRole('button', { name: /21 Oct 2026/ }))
+    return { panel, reader: screen.getByRole('dialog', { name: /Minutes/ }) }
+  }
+
+  it('opens over the page without closing the menu, and closes alone on Esc', async () => {
+    const { reader } = await openReader()
+    expect(await within(reader).findByText('Formatted Minutes of m2')).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Meetings' })).toBeTruthy()
+    within(reader).getByRole('button', { name: 'Close' }).focus()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /Minutes/ })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Meetings' })).toBeTruthy()
+  })
+
+  it('previews the plain text version', async () => {
+    const { reader } = await openReader()
+    await userEvent.click(within(reader).getByRole('tab', { name: 'Plain text' }))
+    expect(await within(reader).findByText('Plain Minutes of m2')).toBeTruthy()
+  })
+
+  it('copies formatted Minutes as HTML with a plain-text fallback', async () => {
+    const { reader } = await openReader()
+    await userEvent.click(within(reader).getByRole('button', { name: 'Copy formatted' }))
+    await waitFor(() => expect(write).toHaveBeenCalledOnce())
+    const [item] = write.mock.calls[0]![0] as { items: Record<string, Blob> }[]
+    expect(Object.keys(item!.items).sort()).toEqual(['text/html', 'text/plain'])
+    expect(await item!.items['text/html']!.text()).toBe('<p>Formatted Minutes of m2</p>')
+    expect(await item!.items['text/plain']!.text()).toBe('Plain Minutes of m2')
+  })
+
+  it('copies plain text only', async () => {
+    const { reader } = await openReader()
+    await userEvent.click(within(reader).getByRole('button', { name: 'Copy plain text' }))
+    await waitFor(() => expect(write).toHaveBeenCalledOnce())
+    const [item] = write.mock.calls[0]![0] as { items: Record<string, Blob> }[]
+    expect(Object.keys(item!.items)).toEqual(['text/plain'])
+    expect(await item!.items['text/plain']!.text()).toBe('Plain Minutes of m2')
+  })
+})
