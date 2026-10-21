@@ -52,6 +52,9 @@ export function fakeBackend(
   let lock = initialLock
   // Past Meetings, in any order; the server lists them newest first.
   const meetings: MeetingSummary[] = []
+  // The bodies of Meetings created through the API, oldest first.
+  const created: Schemas['NewMeetingBody'][] = []
+  let heartbeats = 0
   const lockedOut = () => lock !== null && lock.live && !lock.held_by_you
   const people = initial.map((p) => ({ ...p }))
   const projects = initialProjects.map((p) => ({ ...p }) as Mutable<Project>)
@@ -228,6 +231,39 @@ export function fakeBackend(
       }
       return HttpResponse.json<MeetingLock>(lock)
     }),
+    // Another session taking over (setLock with held_by_you false) makes these 409.
+    http.put(api('/projects/:id/meeting-lock'), () => {
+      if (!lock) return problem(404, 'Not Found')
+      if (!lock.held_by_you) return problem(409, 'Conflict')
+      heartbeats++
+      lock = { ...lock, live: true }
+      return HttpResponse.json<MeetingLock>(lock)
+    }),
+    http.delete(api('/projects/:id/meeting-lock'), () => {
+      if (!lock) return problem(404, 'Not Found')
+      if (!lock.held_by_you) return problem(409, 'Conflict')
+      lock = null
+      return new HttpResponse(null, { status: 204 })
+    }),
+    http.post(api('/meetings'), async ({ request }) => {
+      const body = (await request.json()) as Schemas['NewMeetingBody']
+      if (!lock?.held_by_you) return problem(409, 'Conflict')
+      const leader = lock.leader
+      const ids = [leader.id, ...body.attendee_ids.filter((id) => id !== leader.id)]
+      const meeting: MeetingSummary = {
+        id: `meeting-${++n}`,
+        project_id: body.project_id,
+        leader,
+        attendees: ids.map(personRef),
+        started_at: lock.acquired_at,
+        ended_at: new Date().toISOString(),
+        version: 1,
+      }
+      meetings.push(meeting)
+      created.push(body)
+      lock = null
+      return HttpResponse.json({ ...meeting, minutes: {} }, { status: 201 })
+    }),
     http.get(api('/meetings'), ({ request }) => {
       const projectId = new URL(request.url).searchParams.get('project_id')
       const items = meetings
@@ -284,6 +320,8 @@ export function fakeBackend(
     comments: comments.comments,
     acting: () => acting,
     meetings,
+    created,
+    heartbeats: () => heartbeats,
     lock: () => lock,
     setLock: (next: MeetingLock | null) => (lock = next),
   }

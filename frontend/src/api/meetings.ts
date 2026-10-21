@@ -4,6 +4,14 @@ import type { components } from './schema'
 export type MeetingSummary = components['schemas']['MeetingSummaryBody']
 export type MinutesType = 'text/html' | 'text/plain'
 
+export type Meeting = components['schemas']['Meeting']
+export type NewMeeting = components['schemas']['NewMeetingBody']
+
+/** Ends the Meeting this session holds the lock for, creating its Minutes. */
+export async function createMeeting(body: NewMeeting): Promise<Meeting> {
+  return unwrap(await client.POST('/api/v1/meetings', { body }))
+}
+
 /** A Project's Meetings, newest first. */
 export async function listMeetings(projectId: string): Promise<MeetingSummary[]> {
   const page = unwrap(
