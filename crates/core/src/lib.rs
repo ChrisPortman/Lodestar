@@ -9,6 +9,7 @@ pub mod person;
 pub mod ports;
 pub mod project;
 pub mod risk;
+pub mod session;
 
 #[cfg(feature = "test-support")]
 pub mod test_support;

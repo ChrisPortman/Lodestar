@@ -8,7 +8,10 @@ use axum::{
     routing::get,
 };
 use axum_extra::extract::cookie::{Cookie, Key, SameSite, SignedCookieJar};
-use lodestar_core::person::{PersonId, use_cases::get_person};
+use lodestar_core::{
+    person::{PersonId, use_cases::get_person},
+    session::SessionId,
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -31,6 +34,33 @@ pub struct MaybeActing(pub Option<PersonId>);
 /// A valid session is required: 401 otherwise.
 pub struct Acting(pub PersonId);
 
+/// A valid session carrying a session id is required. Cookies issued before
+/// session ids existed get a 401, asking the client to pick a person again.
+#[expect(dead_code, reason = "used by the Meeting Lock handlers of #76")]
+pub struct ActingSession {
+    pub person: PersonId,
+    pub session: SessionId,
+}
+
+/// What a valid session cookie holds: `<person>` (legacy) or
+/// `<person>.<session id>`.
+fn read_cookie<S: Store>(
+    parts: &Parts,
+    state: &AppState<S>,
+) -> Option<(PersonId, Option<SessionId>)> {
+    let jar = SignedCookieJar::from_headers(&parts.headers, state.session_key.clone());
+    parse(jar.get(COOKIE)?.value())
+}
+
+fn parse(value: &str) -> Option<(PersonId, Option<SessionId>)> {
+    let (person, session) = match value.split_once('.') {
+        Some((person, session)) => (person, Some(SessionId::new(session))),
+        None => (value, None),
+    };
+    let person = PersonId::from_uuid(Uuid::parse_str(person).ok()?);
+    Some((person, session))
+}
+
 impl<S: Store> FromRequestParts<AppState<S>> for MaybeActing {
     type Rejection = std::convert::Infallible;
 
@@ -38,12 +68,7 @@ impl<S: Store> FromRequestParts<AppState<S>> for MaybeActing {
         parts: &mut Parts,
         state: &AppState<S>,
     ) -> Result<Self, Self::Rejection> {
-        let jar = SignedCookieJar::from_headers(&parts.headers, state.session_key.clone());
-        let person = jar
-            .get(COOKIE)
-            .and_then(|c| Uuid::parse_str(c.value()).ok())
-            .map(PersonId::from_uuid);
-        Ok(Self(person))
+        Ok(Self(read_cookie(parts, state).map(|(person, _)| person)))
     }
 }
 
@@ -61,9 +86,35 @@ impl<S: Store> FromRequestParts<AppState<S>> for Acting {
     }
 }
 
-/// A jar holding a fresh session cookie naming `person`.
+impl<S: Store> FromRequestParts<AppState<S>> for ActingSession {
+    type Rejection = Problem;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState<S>,
+    ) -> Result<Self, Self::Rejection> {
+        match read_cookie(parts, state) {
+            Some((person, Some(session))) => Ok(Self { person, session }),
+            _ => Err(Problem::unauthorized()),
+        }
+    }
+}
+
+/// A fresh session id: 128 bits from the OS CSPRNG, hex encoded.
+fn mint_session_id() -> SessionId {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).expect("the OS random number generator is available");
+    SessionId::new(bytes.iter().map(|b| format!("{b:02x}")).collect::<String>())
+}
+
+/// A jar holding a fresh session cookie naming `person`, with a newly minted
+/// session id.
 pub fn cookie_for(key: &Key, person: PersonId) -> SignedCookieJar {
-    let cookie = Cookie::build((COOKIE, person.to_string()))
+    signed_cookie(key, &format!("{person}.{}", mint_session_id().as_str()))
+}
+
+fn signed_cookie(key: &Key, value: &str) -> SignedCookieJar {
+    let cookie = Cookie::build((COOKIE, value.to_owned()))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
@@ -145,4 +196,25 @@ async fn choose<S: Store>(
             person: view.into(),
         }),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ADA: &str = "0192f0c4-0000-7000-8000-000000000000";
+
+    #[test]
+    fn a_cookie_from_before_session_ids_names_the_person_but_no_session() {
+        let (person, session) = parse(ADA).unwrap();
+        assert_eq!(person.to_string(), ADA);
+        assert_eq!(session, None);
+    }
+
+    #[test]
+    fn a_current_cookie_names_the_person_and_session() {
+        let (person, session) = parse(&format!("{ADA}.00ff")).unwrap();
+        assert_eq!(person.to_string(), ADA);
+        assert_eq!(session, Some(SessionId::new("00ff")));
+    }
 }
