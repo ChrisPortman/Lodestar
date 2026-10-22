@@ -369,7 +369,10 @@ mod tests {
             let (config, ignored) = load_local(None, data).unwrap();
             assert_eq!(config.server.bind, IpAddr::V4(Ipv4Addr::LOCALHOST));
             assert_eq!(config.server.port, 0);
-            assert_eq!(config.database.url, "sqlite:///data/lodestar/lodestar.db");
+            assert_eq!(
+                config.database.url,
+                format!("sqlite://{}", data.join("lodestar.db").display())
+            );
             assert_eq!(config.session.key_file, data.join("lodestar-session.key"));
             assert_eq!(config.log.level, "debug");
             assert_eq!(config.log.format, LogFormat::Pretty);
