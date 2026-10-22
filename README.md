@@ -24,23 +24,64 @@ See [GLOSSARY.md](GLOSSARY.md) for the precise meaning of each term.
 
 Lodestar is a single binary for Linux, macOS or Windows with the web interface built in. It stores everything in one SQLite file, so there is no separate database to install.
 
-1. Download the binary for your platform and its `.sha256` file from the [latest release](https://github.com/ChrisPortman/Lodestar/releases). The Linux build needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
-2. Verify and install it. On Linux (see [docs/OPERATIONS.md](docs/OPERATIONS.md#install) for macOS and Windows):
+1. Download the binary for your platform and its `.sha256` file from the [latest release](https://github.com/ChrisPortman/Lodestar/releases):
+
+   | Platform | Binary |
+   | --- | --- |
+   | Linux x86_64 (glibc 2.35 or newer: Ubuntu 22.04, Debian 12, RHEL 9 or later) | `lodestar-x86_64-unknown-linux-gnu` |
+   | macOS, Apple Silicon | `lodestar-aarch64-apple-darwin` |
+   | macOS, Intel | `lodestar-x86_64-apple-darwin` |
+   | Windows x86_64 | `lodestar-x86_64-pc-windows-msvc.exe` |
+
+2. Verify and install it.
+
+   On Linux:
 
    ```sh
    sha256sum -c lodestar-x86_64-unknown-linux-gnu.sha256
    install -m 0755 lodestar-x86_64-unknown-linux-gnu /usr/local/bin/lodestar
    ```
 
-3. Start it:
+   On macOS (Apple Silicon shown; use `x86_64-apple-darwin` on Intel). The binaries are not code-signed, so clear the quarantine flag:
 
    ```sh
-   lodestar
+   shasum -a 256 -c lodestar-aarch64-apple-darwin.sha256
+   xattr -d com.apple.quarantine lodestar-aarch64-apple-darwin
+   chmod +x lodestar-aarch64-apple-darwin
+   sudo mv lodestar-aarch64-apple-darwin /usr/local/bin/lodestar
    ```
 
-4. Open <http://127.0.0.1:8080> in your browser. Choose your name (or add yourself), then create your first project.
+   On Windows, in PowerShell, check that the hash matches the one in the `.sha256` file, then rename the binary:
 
-With no configuration, Lodestar creates `lodestar.db` (your data) and `lodestar-session.key` (a secret) in the directory you started it from. Keep both safe.
+   ```powershell
+   Get-FileHash lodestar-x86_64-pc-windows-msvc.exe
+   Get-Content lodestar-x86_64-pc-windows-msvc.exe.sha256
+   Rename-Item lodestar-x86_64-pc-windows-msvc.exe lodestar.exe
+   ```
+
+   SmartScreen will warn the first time you run it.
+
+3. Start it in local mode:
+
+   ```sh
+   lodestar --local
+   ```
+
+   On Windows, run `.\lodestar.exe --local` from the folder you saved it in.
+
+   Local mode is for trying Lodestar out or using it on your own: it listens on loopback only, on a random port, and opens Lodestar in your browser. Running `lodestar --local` again while it is already running just opens the browser at the running copy. Anyone with an account on the same machine can reach it.
+
+4. Choose your name (or add yourself), then create your first project.
+
+In local mode Lodestar keeps its database and session key in your per-user data directory:
+
+| Platform | Directory |
+| --- | --- |
+| Linux | `~/.local/share/lodestar` |
+| macOS | `~/Library/Application Support/lodestar` |
+| Windows | `%APPDATA%\lodestar` |
+
+Keep that directory safe: it holds all your data.
 
 ## Running it for a team
 
