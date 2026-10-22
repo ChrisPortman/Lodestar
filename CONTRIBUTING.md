@@ -121,7 +121,7 @@ Every dependency is a supply-chain risk, so keep them few and justify new ones i
 
 ## Releasing
 
-Maintainers release by pushing a `v*` tag. [`release.yml`](.github/workflows/release.yml) runs CI on the tagged commit, builds the binary with `just release`, and publishes it with its checksum as a GitHub Release.
+Maintainers release by pushing a `v*` tag. [`release.yml`](.github/workflows/release.yml) runs CI on the tagged commit, builds a binary per platform with `just release <target>`, and publishes them with their checksums as a GitHub Release.
 
 ## License
 
