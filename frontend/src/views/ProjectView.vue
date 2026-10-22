@@ -111,7 +111,7 @@ provideComments({
       <button
         v-else-if="meeting.running.value"
         type="button"
-        class="fixed inset-y-0 right-0 z-10 w-10 border-l-4 border-accent bg-accent-soft text-sm font-medium [writing-mode:vertical-rl]"
+        class="fixed top-0 right-0 bottom-0 z-10 w-10 border-l-4 border-accent bg-accent-soft text-sm font-medium [writing-mode:vertical-rl]"
         @click="meeting.panelOpen.value = true"
       >
         ● Meeting {{ meeting.elapsed.value }} · {{ meeting.state.comments.length }} Comments
