@@ -22,10 +22,10 @@ See [GLOSSARY.md](GLOSSARY.md) for the precise meaning of each term.
 
 ## Getting started
 
-Lodestar is a single Linux binary with the web interface built in. It stores everything in one SQLite file, so there is no separate database to install.
+Lodestar is a single binary for Linux, macOS or Windows with the web interface built in. It stores everything in one SQLite file, so there is no separate database to install.
 
-1. Download `lodestar-x86_64-unknown-linux-gnu` and its `.sha256` file from the [latest release](https://github.com/ChrisPortman/Lodestar/releases). It needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
-2. Verify and install it:
+1. Download the binary for your platform and its `.sha256` file from the [latest release](https://github.com/ChrisPortman/Lodestar/releases). The Linux build needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
+2. Verify and install it. On Linux (see [docs/OPERATIONS.md](docs/OPERATIONS.md#install) for macOS and Windows):
 
    ```sh
    sha256sum -c lodestar-x86_64-unknown-linux-gnu.sha256

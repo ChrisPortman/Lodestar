@@ -70,17 +70,22 @@ audit-rust:
 audit-npm:
     cd frontend && node scripts/npm-audit.mjs
 
-# Release artifact: dist/lodestar-<target> plus its .sha256, checked with `sha256sum -c`.
+# Release artifact: dist/lodestar-<target>[.exe] plus its .sha256, in `sha256sum -c` format.
+# Runs on Linux, macOS and Windows (Git Bash); the target must suit the host.
 release target="x86_64-unknown-linux-gnu": frontend
     #!/usr/bin/env bash
     set -euo pipefail
+    rustup target add {{target}}
     SQLX_OFFLINE=true cargo build --release --locked -p lodestar --target {{target}}
+    case "{{target}}" in *-windows-*) exe=".exe" ;; *) exe="" ;; esac
     mkdir -p dist
-    name="lodestar-{{target}}"
-    cp "target/{{target}}/release/lodestar" "dist/$name"
+    name="lodestar-{{target}}$exe"
+    cp "target/{{target}}/release/lodestar$exe" "dist/$name"
     cd dist
-    sha256sum "$name" > "$name.sha256"
-    sha256sum -c "$name.sha256"
+    # macOS has shasum but not always sha256sum; both write the same format.
+    if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
+    $sum "$name" > "$name.sha256"
+    $sum -c "$name.sha256"
 
 # Backend on :8080 and Vite dev server proxying /api to it.
 dev:

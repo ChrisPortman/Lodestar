@@ -1,12 +1,21 @@
 # Running Lodestar
 
-Lodestar ships as a single Linux binary with the web UI built in. It stores everything in one SQLite database.
+Lodestar ships as a single binary for Linux, macOS and Windows with the web UI built in. It stores everything in one SQLite database.
 
 > **Warning: the MVP has no authentication.** Anyone who can reach the port can read and change all data. By default Lodestar listens on `127.0.0.1` only. Binding it to any other address is a deliberate choice: only do it behind something that controls access, such as a VPN or an authenticating reverse proxy.
 
 ## Install
 
-Each [GitHub Release](https://github.com/ChrisPortman/Lodestar/releases) has `lodestar-x86_64-unknown-linux-gnu` and its `.sha256`. The binary needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later).
+Each [GitHub Release](https://github.com/ChrisPortman/Lodestar/releases) has one binary per platform, each with a `.sha256`:
+
+| Platform | Binary |
+| --- | --- |
+| Linux x86_64 (glibc 2.35 or newer: Ubuntu 22.04, Debian 12, RHEL 9 or later) | `lodestar-x86_64-unknown-linux-gnu` |
+| macOS, Apple Silicon | `lodestar-aarch64-apple-darwin` |
+| macOS, Intel | `lodestar-x86_64-apple-darwin` |
+| Windows x86_64 | `lodestar-x86_64-pc-windows-msvc.exe` |
+
+On Linux:
 
 ```sh
 sha256sum -c lodestar-x86_64-unknown-linux-gnu.sha256
@@ -14,7 +23,11 @@ install -m 0755 lodestar-x86_64-unknown-linux-gnu /usr/local/bin/lodestar
 lodestar --version
 ```
 
-To build it yourself, run `just release`. The binary and checksum land in `dist/`.
+On macOS, check with `shasum -a 256 -c lodestar-<target>.sha256`, then `chmod +x` and move it onto your `PATH`. The binaries are not code-signed, so clear the quarantine flag first: `xattr -d com.apple.quarantine lodestar-<target>`. On Windows, compare `Get-FileHash lodestar-x86_64-pc-windows-msvc.exe` with the `.sha256` file; SmartScreen will warn on first run.
+
+On Windows the session key file is not restricted to your user as it is on Unix (mode 0600), so keep it in a directory only you can read.
+
+To build it yourself, run `just release <target>` on a matching host (on Windows, from Git Bash). The binary and checksum land in `dist/`.
 
 ## Run
 
